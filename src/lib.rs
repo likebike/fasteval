@@ -1,8 +1,10 @@
 mod error;
 mod grammar;
-mod parser;
+pub mod parser;
 mod evaler;
-mod evalns;
+pub mod evalns;
 mod util;
 
+#[cfg(test)]
 mod experiments;
+

@@ -22,23 +22,23 @@ pub trait Evaler {
 
 //---- Tests:
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    struct TestEvaler;
-    impl Evaler for TestEvaler {
-        fn eval(&self, ns:&mut EvalNS) -> f64 {
-            match ns.get("x") {
-                Some(v) => v,
-                None => 1.23,
-            }
-        }
-    }
-
-    #[test]
-    fn var_names() {
-        
-    }
-}
+// #[cfg(test)]
+// mod tests {
+//     use super::*;
+// 
+//     struct TestEvaler;
+//     impl Evaler for TestEvaler {
+//         fn eval(&self, ns:&mut EvalNS) -> f64 {
+//             match ns.get("x") {
+//                 Some(v) => v,
+//                 None => 1.23,
+//             }
+//         }
+//     }
+// 
+//     #[test]
+//     fn var_names() {
+//         
+//     }
+// }
 

@@ -24,15 +24,15 @@
 //
 // EvalFunc: eval(Expression(,Variable=Expression)*)
 
-struct Expression([ExpressionTok]);
+pub struct Expression(Vec<ExpressionTok>);
 
 enum ExpressionTok {
     EValue(Value),
     EBinaryOp(BinaryOp),
 }
 
-enum Value {
-    EConstant(),
+pub enum Value {
+    EConstant(Constant),
 //  EUnaryOp,
 //  ECallable,
 //  EVariable,
@@ -55,5 +55,5 @@ enum BinaryOp {
 //  EAND,
 }
 
-struct Constant(String);
+pub struct Constant(String);
 

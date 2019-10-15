@@ -42,7 +42,7 @@ impl<'a> EvalNS<'a> {
             None => panic!("too many pops"),
         }
     }
-    fn eval_bubble(&mut self, evaler:&dyn Evaler) -> f64 {
+    pub fn eval_bubble(&mut self, evaler:&dyn Evaler) -> f64 {
         self.push();
         let out = evaler.eval(self);
         self.pop();
@@ -64,8 +64,11 @@ impl<'a> EvalNS<'a> {
 
         // This is the closest thing I can think of to a c-style 'for' loop:
         //     for i:=len(me.NS)-1;i>=0;i-- {...}
-        let mut i = self.ns.0.len() as i32;
-        loop { i-=1; if i<0 { break }
+        #[allow(non_snake_case)]
+        let mut I = self.ns.0.len() as i32;  // Use i32 instead of usize because the loop needs this value to go negative.
+        loop { I-=1; if I<0 { break }
+            let i = I as usize;  // For easier indexing operations.  We know I>0 at this point.
+
             if self.ns.0[i].is_eval {
                 eprintln!("EvalNS get eval group is un-tested.  (Waiting for implementation of eval.)");
                 // Eval layer: treat neighboring eval layers as a group.
@@ -80,7 +83,7 @@ impl<'a> EvalNS<'a> {
                     }
                 }
 
-                i = j
+                I = j as i32;
             } else {
                 // Normal layer
                 match self.ns.0[i].m.get(name) {
@@ -98,7 +101,7 @@ impl<'a> EvalNS<'a> {
             None => None,
         }
     }
-    fn create(&mut self, name:&str, val:f64) -> Result<(),Error> {
+    pub fn create(&mut self, name:&str, val:f64) -> Result<(),Error> {
         let cur_layer = self.ns.0.last_mut().unwrap();
         if cur_layer.m.contains_key(name) { return Err(AlreadyExists); }
         cur_layer.m.insert(name.to_string(), val);
@@ -128,9 +131,23 @@ mod tests {
 
     #[test]
     fn basics() {
-        let mut ns = EvalNS::new(&|n| Some(5.4321));
+        let mut ns = EvalNS::new(&|_n| Some(5.4321));
         assert_eq!(ns.eval_bubble(&TestEvaler{}), 5.4321);
+        ns.create("x",1.111).unwrap();
+        assert_eq!(ns.eval_bubble(&TestEvaler{}), 1.111);
         
+        assert_eq!(ns.is_normal(), true);
+        ns.start_reeval_mode();
+            assert_eq!(ns.is_normal(), false);
+
+            ns.start_reeval_mode();
+                assert_eq!(ns.is_normal(), false);
+                assert_eq!(ns.eval_bubble(&TestEvaler{}), 1.111);
+            ns.end_reeval_mode();
+
+            assert_eq!(ns.is_normal(), false);
+        ns.end_reeval_mode();
+        assert_eq!(ns.is_normal(), true);
     }
 }
 
