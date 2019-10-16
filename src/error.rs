@@ -1,4 +1,5 @@
 use std::fmt;
+use std::rc::Rc;
 
 pub struct Error {
     err   : String,
@@ -7,32 +8,43 @@ pub struct Error {
 
 impl Error {
     pub fn new(err:String) -> Self {
-        Error{err:err, chain:Vec::new()}
+        Error{err:err, chain:LList(None)}
     }
-    pub fn add(el:String) -> Self {
-        Mutating an error is just a bad idea.  I need a mutation-free implementation.
+    pub fn add(mut self, info:String) -> Self {
+        self.chain = self.chain.prepend(info);
+        self
     }
 }
 
 // An immutable linked list, perfectly designed for our error chain:
-struct LList<T>(Option<Rc<LLNode<T>>>)
-struct LLNode<T> {
-    elem: T,
+struct LList<T>(Option<Rc<LLNode<T>>>) where T:Clone;
+struct LLNode<T> where T:Clone {
+    el  : T,
     next: LList<T>,
 }
 
-impl<T> LList<T> {
+impl<T> LList<T> where T:Clone {
     fn new() -> Self { LList(None) }
-    fn prepend(&self, elem:T) -> Self {
-        LList(Some(Rc::new(LLNode{elem:elem,
-                                  next:match self {
-                                           Some(rc) => Some(Rc::clone(rc)),
-                                           None => None,
+    fn prepend(&self, el:T) -> Self {
+        LList(Some(Rc::new(LLNode{el:el,
+                                  next:match self.0 {
+                                           Some(rc) => LList(Some(Rc::clone(&rc))),
+                                           None => LList(None),
                                        }})))
     }
 }
 
-HERE I AM, implement Iterator.
+struct Iter<T>(LList<T>) where T:Clone;
+
+impl<T> Iterator for Iter<T> where T:Clone {
+    type Item = T;
+    fn next(&mut self) -> Option<Self::Item> {
+        (self.0).0.map(|rc:Rc<LLNode<T>>| {
+            self.0 = rc.next;
+            rc.el.clone()
+        })
+    }
+}
 
 // #[macro_export]
 // macro_rules! errf {

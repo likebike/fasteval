@@ -1,4 +1,4 @@
-use crate::error::Error::{self, *};
+use crate::error::Error;
 use crate::evaler::Evaler;
 
 use std::collections::HashMap;
@@ -103,7 +103,7 @@ impl<'a> EvalNS<'a> {
     }
     pub fn create(&mut self, name:&str, val:f64) -> Result<(),Error> {
         let cur_layer = self.ns.0.last_mut().unwrap();
-        if cur_layer.m.contains_key(name) { return Err(AlreadyExists); }
+        if cur_layer.m.contains_key(name) { return Err(Error::new("AlreadyExists".to_string())); }
         cur_layer.m.insert(name.to_string(), val);
         Ok(())
     }

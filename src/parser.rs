@@ -1,6 +1,6 @@
 use crate::grammar::{Expression, Value::{self, EConstant}, Constant};
 //use crate::evaler::Evaler;
-use crate::error::Error::{self, InvalidValue};
+use crate::error::Error;
 
 
 
@@ -11,7 +11,7 @@ pub fn read_byte(bs:&mut &[u8]) -> Result<u8, Error> {
         let b = bs[0];
         *bs = &bs[1..];
         Ok(b)
-    } else { Err(Error::EOF) }
+    } else { Err(Error::new("EOF".to_string())) }
 }
 pub fn peek_byte(bs:&[u8], skip:usize) -> Option<u8> {
     if bs.len() > skip { Some(bs[skip])
@@ -97,7 +97,7 @@ impl<'a> Parser<'a> {
         //if self.peek_unaryop(bs) { return self.read_unaryop(bs) }
         //if self.peek_callable(bs) { return self.read_callable(bs) }
         //if self.peek_var(bs) { return self.read_var(bs) }
-        Err(InvalidValue)
+        Err(Error::new("InvalidValue".to_string()))
     }
 
     fn peek_const(&self, bs:&mut &[u8]) -> bool {
@@ -107,7 +107,7 @@ impl<'a> Parser<'a> {
     fn read_const(&self, bs:&mut &[u8]) -> Result<Constant, Error> {
         space(bs);
         let mut buf : Vec<u8> = Vec::with_capacity(16);
-        while self.call_is_const_byte(peek_byte(bs,0),buf.len()) { buf.push(read_byte(bs).map_err(|err| format!("read_byte error: {}",err))?); }
+        while self.call_is_const_byte(peek_byte(bs,0),buf.len()) { buf.push(read_byte(bs).map_err(|err| err.add("read_byte".to_string()))?); }
         let multiple = 1.0;
         if buf.len()>0 {
             match buf.last().unwrap() {
@@ -145,7 +145,7 @@ mod tests {
             assert_eq!(read_byte(bs)?, 2);
             assert_eq!(read_byte(bs)?, 3);
             match read_byte(bs).err() {
-                Some(Error::EOF) => {}
+                Some(Error{}) => {}
                 None => panic!("I expected an EOF")
             }
 
