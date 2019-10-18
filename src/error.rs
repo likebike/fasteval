@@ -101,14 +101,14 @@ mod tests {
     #[test]
     fn llist() {
         let l : LList<String> = LList::new();
-        eprintln!("list #1: {}", l);
-        eprintln!("list #1: {:?}", l);
+        assert_eq!(format!("{}", l), "[]");
+        assert_eq!(format!("{:?}", l), "LList[]");
         let l = l.prepend("a".to_string());
-        eprintln!("list #2: {}", l);
-        eprintln!("list #2: {:?}", l);
+        assert_eq!(format!("{}", l), "[ a ]");
+        assert_eq!(format!("{:?}", l), r#"LList[ "a" ]"#);
         let l = l.prepend("b".to_string());
-        eprintln!("list #3: {}", l);
-        eprintln!("list #3: {:?}", l);
+        assert_eq!(format!("{}", l), "[ b a ]");
+        assert_eq!(format!("{:?}", l), r##"LList[ "b" "a" ]"##);
     }
 }
 
