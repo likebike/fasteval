@@ -1,5 +1,5 @@
 mod error;
-mod grammar;
+pub mod grammar;
 pub mod parser;
 mod evaler;
 pub mod evalns;

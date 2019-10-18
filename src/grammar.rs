@@ -24,13 +24,16 @@
 //
 // EvalFunc: eval(Expression(,Variable=Expression)*)
 
-pub struct Expression(Vec<ExpressionTok>);
+#[derive(Debug, PartialEq)]
+pub struct Expression(pub Vec<ExpressionTok>);
 
-enum ExpressionTok {
+#[derive(Debug, PartialEq)]
+pub enum ExpressionTok {
     EValue(Value),
     EBinaryOp(BinaryOp),
 }
 
+#[derive(Debug, PartialEq)]
 pub enum Value {
     EConstant(Constant),
 //  EUnaryOp,
@@ -38,22 +41,24 @@ pub enum Value {
 //  EVariable,
 }
 
-enum BinaryOp {
+#[derive(Debug, PartialEq)]
+pub enum BinaryOp {
     EPlus,
-//  EMinus,
-//  EMul,
-//  EDiv,
-//  EMod,
-//  EExp,
-//  ELT,
-//  ELTE,
-//  EEQ,
-//  ENE,
-//  EGTE,
-//  EGT,
-//  EOR,
-//  EAND,
+    EMinus,
+    EMul,
+    EDiv,
+    EMod,
+    EExp,
+    ELT,
+    ELTE,
+    EEQ,
+    ENE,
+    EGTE,
+    EGT,
+    EOR,
+    EAND,
 }
 
-pub struct Constant(String);
+#[derive(Debug, PartialEq)]
+pub struct Constant(pub f64);
 
