@@ -108,7 +108,8 @@ impl<'a> Parser<'a> {
         space(bs);
         let mut buf : Vec<u8> = Vec::with_capacity(16);
         while self.call_is_const_byte(peek_byte(bs,0),buf.len()) { buf.push(read_byte(bs).map_err(|err| err.add("read_byte".to_string()))?); }
-        let multiple = 1.0;
+
+        let mut multiple = 1.0;
         if buf.len()>0 {
             match buf.last().unwrap() {
                 b'k' | b'K' => {   multiple=1000.0; buf.pop(); }
@@ -118,6 +119,7 @@ impl<'a> Parser<'a> {
                 _ => {}
             }
         }
+
 unimplemented!();
     }
 }
@@ -145,7 +147,7 @@ mod tests {
             assert_eq!(read_byte(bs)?, 2);
             assert_eq!(read_byte(bs)?, 3);
             match read_byte(bs).err() {
-                Some(Error{}) => {}
+                Some(Error{..}) => {}  // Can I improve this so I can match the "EOF" ?
                 None => panic!("I expected an EOF")
             }
 
