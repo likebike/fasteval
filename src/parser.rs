@@ -1,5 +1,4 @@
 use crate::grammar::{Expression, ExpressionTok::{EValue, EBinaryOp}, Value::{self, EConstant}, Constant,    BinaryOp::{self, EPlus, EMinus, EMul, EDiv, EMod, EExp, ELT, ELTE, EEQ, ENE, EGTE, EGT, EOR, EAND}};
-//use crate::evaler::Evaler;
 use crate::error::Error;
 
 
@@ -91,15 +90,15 @@ impl<'a> Parser<'a> {
 
     fn read_expression(&self, bs:&mut &[u8], expect_eof:bool) -> Result<Expression, Error> {
         let val = self.read_value(bs).map_err(|e| e.pre("read_value"))?;
-        let mut expr = Expression(vec![EValue(val)]);
+        let mut vec = vec![EValue(val)];
         while self.peek_binaryop(bs) {
             let bop = self.read_binaryop(bs).map_err(|e| e.pre("read_binaryop"))?;
             let val = self.read_value(bs).map_err(|e| e.pre("read_value"))?;
-            expr.0.push(EBinaryOp(bop)); expr.0.push(EValue(val));
+            vec.push(EBinaryOp(bop)); vec.push(EValue(val));
         }
         space(bs);
         if expect_eof && !is_at_eof(bs) { return Err(Error::new("unparsed tokens remaining")); }
-        Ok(expr)
+        Ok(Expression(vec.into_boxed_slice()))
     }
 
     fn read_value(&self, bs:&mut &[u8]) -> Result<Value, Error> {
@@ -127,7 +126,6 @@ impl<'a> Parser<'a> {
             {
                 let c = peek(bs,0);
                 let r = self.call_is_const_byte(c,buf.len());
-                eprintln!("isconst: {:?} : {:?}",c,r);
                 if !r { break }
             }
 
@@ -196,7 +194,6 @@ impl<'a> Parser<'a> {
             _ => Err(err),
         }
     }
-
 }
 
 //---- Tests:
@@ -284,12 +281,12 @@ mod tests {
         }
 
         assert_eq!(p.parse("12.34 + 43.21 + 11.11"),
-                   Ok(Expression([
+                   Ok(Expression(Box::new([
                         EValue(EConstant(Constant(12.34))),
                         EBinaryOp(EPlus),
                         EValue(EConstant(Constant(43.21))),
                         EBinaryOp(EPlus),
-                        EValue(EConstant(Constant(11.11)))])));
+                        EValue(EConstant(Constant(11.11)))]))));
     }
 }
 

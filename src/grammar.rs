@@ -25,7 +25,7 @@
 // EvalFunc: eval(Expression(,Variable=Expression)*)
 
 #[derive(Debug, PartialEq)]
-pub struct Expression(pub Vec<ExpressionTok>);
+pub struct Expression(pub Box<[ExpressionTok]>);
 
 #[derive(Debug, PartialEq)]
 pub enum ExpressionTok {

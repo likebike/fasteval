@@ -7,7 +7,7 @@ use std::collections::HashMap;
 
 pub struct EvalNS<'a> {
     ns         :NameStack,
-    cb         :&'a Fn(&str)->Option<f64>,
+    cb         :Box<dyn FnMut(&str)->Option<f64> + 'a>,  // I think a reference would be more efficient than a Box, but then I would need to use a funky 'let cb=|n|{}; EvalNS::new(&cb)' syntax.  The Box results in a super convenient pass-the-cb-by-value API interface.
     reeval_mode:i32,
 }
 struct NameStack(Vec<NameLayer>);
@@ -19,10 +19,10 @@ struct NameLayer {
 //---- Impls:
 
 impl<'a> EvalNS<'a> {
-    pub fn new(cb:&'a Fn(&str)->Option<f64>) -> Self {
+    pub fn new<F>(cb:F) -> Self where F:FnMut(&str)->Option<f64> + 'a {
         let mut ns = EvalNS{
             ns:NameStack::new(),
-            cb:cb,
+            cb:Box::new(cb),
             reeval_mode:0,
         };
         ns.push();
@@ -42,7 +42,7 @@ impl<'a> EvalNS<'a> {
             None => panic!("too many pops"),
         }
     }
-    pub fn eval_bubble(&mut self, evaler:&dyn Evaler) -> f64 {
+    pub fn eval_bubble(&mut self, evaler:&dyn Evaler) -> Result<f64, Error> {
         self.push();
         let out = evaler.eval(self);
         self.pop();
@@ -121,20 +121,20 @@ mod tests {
     
     struct TestEvaler;
     impl Evaler for TestEvaler {
-        fn eval(&self, ns:&mut EvalNS) -> f64 {
+        fn eval(&self, ns:&mut EvalNS) -> Result<f64, Error> {
             match ns.get("x") {
-                Some(v) => v,
-                None => 1.23,
+                Some(v) => Ok(v),
+                None => Ok(1.23),
             }
         }
     }
 
     #[test]
     fn basics() {
-        let mut ns = EvalNS::new(&|_n| Some(5.4321));
-        assert_eq!(ns.eval_bubble(&TestEvaler{}), 5.4321);
+        let mut ns = EvalNS::new(|_| Some(5.4321));
+        assert_eq!(ns.eval_bubble(&TestEvaler{}).unwrap(), 5.4321);
         ns.create("x",1.111).unwrap();
-        assert_eq!(ns.eval_bubble(&TestEvaler{}), 1.111);
+        assert_eq!(ns.eval_bubble(&TestEvaler{}).unwrap(), 1.111);
         
         assert_eq!(ns.is_normal(), true);
         ns.start_reeval_mode();
@@ -142,7 +142,7 @@ mod tests {
 
             ns.start_reeval_mode();
                 assert_eq!(ns.is_normal(), false);
-                assert_eq!(ns.eval_bubble(&TestEvaler{}), 1.111);
+                assert_eq!(ns.eval_bubble(&TestEvaler{}).unwrap(), 1.111);
             ns.end_reeval_mode();
 
             assert_eq!(ns.is_normal(), false);
