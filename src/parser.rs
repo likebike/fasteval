@@ -39,10 +39,10 @@ fn space(bs:&mut &[u8]) {
 
 
 
-struct Parser<'a> {
-    is_const_byte:Option<&'a dyn Fn(u8,usize)->bool>,
-    is_func_byte :Option<&'a dyn Fn(u8,usize)->bool>,
-    is_var_byte  :Option<&'a dyn Fn(u8,usize)->bool>,
+pub struct Parser<'a> {
+    pub is_const_byte:Option<&'a dyn Fn(u8,usize)->bool>,
+    pub is_func_byte :Option<&'a dyn Fn(u8,usize)->bool>,
+    pub is_var_byte  :Option<&'a dyn Fn(u8,usize)->bool>,
 }
 
 impl<'a> Parser<'a> {

@@ -1,5 +1,5 @@
 
-fn bool_to_f64(b:bool) -> f64 {
+pub fn bool_to_f64(b:bool) -> f64 {
     if b { 1.0 }
     else { 0.0 }
 }

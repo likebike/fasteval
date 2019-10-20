@@ -41,7 +41,7 @@ pub enum Value {
 //  EVariable,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Copy, Clone)]
 pub enum BinaryOp {
     EPlus,
     EMinus,
