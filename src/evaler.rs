@@ -189,7 +189,14 @@ mod tests {
             is_func_byte:None,
             is_var_byte:None,
         };
-        println!("vars: {:?}", p.parse("12.34 + 43.21 + 11.11").unwrap().var_names().unwrap());
+        assert_eq!(
+            p.parse("12.34 + 43.21 + 11.11").unwrap().var_names().unwrap(),
+            HashSet::new());
+
+        let mut ns = EvalNS::new(|_| None);
+        assert_eq!(
+            p.parse("12.34 + 43.21 + 11.11").unwrap().eval(&mut ns),
+            Ok(66.66));
     }
 }
 
