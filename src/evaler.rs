@@ -1,6 +1,6 @@
 use crate::evalns::EvalNS;
 use crate::error::Error;
-use crate::grammar::{Expression, ExpressionTok::{EValue, EBinaryOp}, Value::{self, EConstant}, Constant, BinaryOp::{self, EPlus, EMinus, EMul, EDiv, EMod, EExp, ELT, ELTE, EEQ, ENE, EGTE, EGT, EOR, EAND}};
+use crate::grammar::{Expression, ExpressionTok::{EValue, EBinaryOp}, Value::{self, EConstant, EVariable}, Constant, Variable,    BinaryOp::{self, EPlus, EMinus, EMul, EDiv, EMod, EExp, ELT, ELTE, EEQ, ENE, EGTE, EGT, EOR, EAND}};
 use crate::util::bool_to_f64;
 
 use std::collections::HashSet;
@@ -132,6 +132,7 @@ impl Evaler for Value {
     fn eval(&self, ns:&mut EvalNS) -> Result<f64, Error> {
         match self {
             EConstant(c) => c.eval(ns),
+            EVariable(v) => v.eval(ns),
         }
     }
 }
@@ -139,6 +140,20 @@ impl Evaler for Value {
 impl Evaler for Constant {
     fn eval(&self, ns:&mut EvalNS) -> Result<f64, Error> { Ok(self.0) }
 }
+
+impl Evaler for Variable {
+    fn eval(&self, ns:&mut EvalNS) -> Result<f64, Error> {
+        match ns.get(&self.0) {
+            Some(f) => Ok(f),
+            None => Err(Error::new("variable undefined")),
+        }
+    }
+}
+
+
+
+
+
 
 impl BinaryOp {
     // Non-standard eval interface (not generalized yet):
@@ -197,6 +212,40 @@ mod tests {
         assert_eq!(
             p.parse("12.34 + 43.21 + 11.11").unwrap().eval(&mut ns),
             Ok(66.66));
+        assert_eq!(
+            p.parse("12.34 + 43.21 - 11.11").unwrap().eval(&mut ns),
+            Ok(44.44));
+        assert_eq!(
+            p.parse("11.11 * 3").unwrap().eval(&mut ns),
+            Ok(33.33));
+        assert_eq!(
+            p.parse("33.33 / 3").unwrap().eval(&mut ns),
+            Ok(11.11));
+        assert_eq!(
+            p.parse("33.33 % 3").unwrap().eval(&mut ns),
+            Ok(0.3299999999999983));
+        assert_eq!(
+            p.parse("1 and 2").unwrap().eval(&mut ns),
+            Ok(2.0));
+        assert_eq!(
+            p.parse("2 or 0").unwrap().eval(&mut ns),
+            Ok(2.0));
+        assert_eq!(
+            p.parse("1 > 0").unwrap().eval(&mut ns),
+            Ok(1.0));
+        assert_eq!(
+            p.parse("1 < 0").unwrap().eval(&mut ns),
+            Ok(0.0));
+
+        assert_eq!(
+            p.parse("x + 1").unwrap().eval(&mut ns),
+            Err(Error::new("variable undefined")));
+
+        let mut ns = EvalNS::new(|v| Some(3.0));
+        assert_eq!(
+            p.parse("x + 1").unwrap().eval(&mut ns),
+            Ok(4.0));
+
     }
 }
 

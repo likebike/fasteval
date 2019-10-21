@@ -2,19 +2,19 @@
 //
 // Expression: Value (BinaryOp Value)*
 //
-// Value: Constant || UnaryOp || Callable || Variable
-//
-// BinaryOp: + || - || * || / || % || ^ || < || <= || == || != || >= || > || or || and
+// Value: Constant || Variable || UnaryOp || Callable
 //
 // Constant: (\.[0-9])+(k || K || M || G || T)?
 //
+// Variable: [a-zA-Z_][a-zA-Z_0-9]*
+//
 // UnaryOp: +Value || -Value || (Expression) || !Value
+//
+// BinaryOp: + || - || * || / || % || ^ || < || <= || == || != || >= || > || or || and
 //
 // Callable: Function || PrintFunc || EvalFunc
 //
 // Function: Variable(Expression(,Expression)*)
-//
-// Variable: [a-zA-Z_][a-zA-Z_0-9]*
 //
 // PrintFunc: print(ExpressionOrString,*)
 //
@@ -36,9 +36,23 @@ pub enum ExpressionTok {
 #[derive(Debug, PartialEq)]
 pub enum Value {
     EConstant(Constant),
-//  EUnaryOp,
+    EVariable(Variable),
+//  EUnaryOp(UnaryOp),
 //  ECallable,
-//  EVariable,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Constant(pub f64);
+
+#[derive(Debug, PartialEq)]
+pub struct Variable(pub String);
+
+#[derive(Debug, PartialEq)]
+pub enum UnaryOp {
+    EPos(Box<Value>),
+    ENeg(Box<Value>),
+    EParens(Box<Expression>),
+    ENot(Box<Value>),
 }
 
 #[derive(Debug, PartialEq, Copy, Clone)]
@@ -58,7 +72,4 @@ pub enum BinaryOp {
     EOR,
     EAND,
 }
-
-#[derive(Debug, PartialEq)]
-pub struct Constant(pub f64);
 

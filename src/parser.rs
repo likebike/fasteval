@@ -1,6 +1,7 @@
-use crate::grammar::{Expression, ExpressionTok::{EValue, EBinaryOp}, Value::{self, EConstant}, Constant,    BinaryOp::{self, EPlus, EMinus, EMul, EDiv, EMod, EExp, ELT, ELTE, EEQ, ENE, EGTE, EGT, EOR, EAND}};
+use crate::grammar::{Expression, ExpressionTok::{EValue, EBinaryOp}, Value::{self, EConstant, EVariable}, Constant, Variable,       BinaryOp::{self, EPlus, EMinus, EMul, EDiv, EMod, EExp, ELT, ELTE, EEQ, ENE, EGTE, EGT, EOR, EAND}};
 use crate::error::Error;
 
+use std::str::from_utf8;
 
 
 // Vec seems really inefficient to me because remove() does not just increment the internal pointer -- it shifts data all around.  There's also split_* methods but they seem to be designed to return new Vecs, not modify self.
@@ -103,14 +104,13 @@ impl<'a> Parser<'a> {
 
     fn read_value(&self, bs:&mut &[u8]) -> Result<Value, Error> {
         if self.peek_const(bs) {
-            return match self.read_const(bs) {
-                Ok(constant) => Ok(EConstant(constant)),
-                Err(err) => Err(err),
-            }
+            return self.read_const(bs).map(|c| EConstant(c));
+        }
+        if self.peek_var(bs) {
+            return self.read_var(bs).map(|v| EVariable(v));
         }
         //if self.peek_unaryop(bs) { return self.read_unaryop(bs) }
         //if self.peek_callable(bs) { return self.read_callable(bs) }
-        //if self.peek_var(bs) { return self.read_var(bs) }
         Err(Error::new("InvalidValue"))
     }
 
@@ -122,13 +122,18 @@ impl<'a> Parser<'a> {
         space(bs);
         let mut buf : Vec<u8> = Vec::with_capacity(16);
 
-        loop {
-            {
-                let c = peek(bs,0);
-                let r = self.call_is_const_byte(c,buf.len());
-                if !r { break }
-            }
+        // WHY WAS I USING THIS STRUCTURE?
+        //loop {
+        //    {
+        //        let c = peek(bs,0);
+        //        let r = self.call_is_const_byte(c,buf.len());
+        //        if !r { break }
+        //    }
+        //
+        //    buf.push(read(bs)?);
+        //}
 
+        while self.call_is_const_byte(peek(bs,0),buf.len()) {
             buf.push(read(bs)?);
         }
 
@@ -143,13 +148,33 @@ impl<'a> Parser<'a> {
             }
         }
 
-        let bufstr = std::str::from_utf8(buf.as_slice()).map_err(|_| Error::new("Utf8Error"))?;
+        let bufstr = from_utf8(buf.as_slice()).map_err(|_| Error::new("Utf8Error"))?;
         let val = bufstr.parse::<f64>().map_err(|_| {
             Error::new("parse<f64> error").pre(bufstr)
         })?;
         Ok(Constant(val*multiple))
     }
 
+    fn peek_var(&self, bs:&mut &[u8]) -> bool {
+        space(bs);
+        self.call_is_var_byte(peek(bs,0),0)
+    }
+    fn read_var(&self, bs:&mut &[u8]) -> Result<Variable, Error> {
+        space(bs);
+        let mut buf : Vec<u8> = Vec::with_capacity(16);
+        
+        while self.call_is_var_byte(peek(bs,0),buf.len()) {
+            buf.push(read(bs)?);
+        }
+        let bufstr = from_utf8(buf.as_slice()).map_err(|_| Error::new("Utf8Error"))?;
+        Ok(Variable(bufstr.to_string()))
+
+
+//  buf:=make([]byte,0,16)
+//  for p.CallIsVariableChar(PeekByte(in,0),len(buf)) { buf=append(buf,ReadByte(in)) }
+//  return Variable(buf)
+
+    }
 
 
 
