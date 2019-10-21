@@ -2,7 +2,8 @@
 //
 // Expression: Value (BinaryOp Value)*
 //
-// Value: Constant || Variable || UnaryOp || Callable
+// Value: Constant || UnaryOp || Callable || Variable
+// #^^^ Variable must go last to avoid masking Callables.
 //
 // Constant: (\.[0-9])+(k || K || M || G || T)?
 //
@@ -37,7 +38,7 @@ pub enum ExpressionTok {
 pub enum Value {
     EConstant(Constant),
     EVariable(Variable),
-//  EUnaryOp(UnaryOp),
+    EUnaryOp(UnaryOp),
 //  ECallable,
 }
 
@@ -51,8 +52,8 @@ pub struct Variable(pub String);
 pub enum UnaryOp {
     EPos(Box<Value>),
     ENeg(Box<Value>),
-    EParens(Box<Expression>),
     ENot(Box<Value>),
+    EParens(Box<Expression>),
 }
 
 #[derive(Debug, PartialEq, Copy, Clone)]

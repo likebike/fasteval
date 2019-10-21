@@ -1,4 +1,4 @@
-use crate::grammar::{Expression, ExpressionTok::{EValue, EBinaryOp}, Value::{self, EConstant, EVariable}, Constant, Variable,       BinaryOp::{self, EPlus, EMinus, EMul, EDiv, EMod, EExp, ELT, ELTE, EEQ, ENE, EGTE, EGT, EOR, EAND}};
+use crate::grammar::{Expression, ExpressionTok::{EValue, EBinaryOp}, Value::{self, EConstant, EVariable, EUnaryOp}, Constant, Variable, UnaryOp::{self, EPos, ENeg, EParens, ENot}, BinaryOp::{self, EPlus, EMinus, EMul, EDiv, EMod, EExp, ELT, ELTE, EEQ, ENE, EGTE, EGT, EOR, EAND}};
 use crate::error::Error;
 
 use std::str::from_utf8;
@@ -106,11 +106,13 @@ impl<'a> Parser<'a> {
         if self.peek_const(bs) {
             return self.read_const(bs).map(|c| EConstant(c));
         }
-        if self.peek_var(bs) {
+        if self.peek_unaryop(bs) {
+            return self.read_unaryop(bs).map(|u| EUnaryOp(u));
+        }
+        //if self.peek_callable(bs) { return self.read_callable(bs) }
+        if self.peek_var(bs) {  // Should go last -- don't mask callables.
             return self.read_var(bs).map(|v| EVariable(v));
         }
-        //if self.peek_unaryop(bs) { return self.read_unaryop(bs) }
-        //if self.peek_callable(bs) { return self.read_callable(bs) }
         Err(Error::new("InvalidValue"))
     }
 
@@ -120,19 +122,8 @@ impl<'a> Parser<'a> {
     }
     fn read_const(&self, bs:&mut &[u8]) -> Result<Constant, Error> {
         space(bs);
+
         let mut buf : Vec<u8> = Vec::with_capacity(16);
-
-        // WHY WAS I USING THIS STRUCTURE?
-        //loop {
-        //    {
-        //        let c = peek(bs,0);
-        //        let r = self.call_is_const_byte(c,buf.len());
-        //        if !r { break }
-        //    }
-        //
-        //    buf.push(read(bs)?);
-        //}
-
         while self.call_is_const_byte(peek(bs,0),buf.len()) {
             buf.push(read(bs)?);
         }
@@ -161,24 +152,47 @@ impl<'a> Parser<'a> {
     }
     fn read_var(&self, bs:&mut &[u8]) -> Result<Variable, Error> {
         space(bs);
+
         let mut buf : Vec<u8> = Vec::with_capacity(16);
-        
         while self.call_is_var_byte(peek(bs,0),buf.len()) {
             buf.push(read(bs)?);
         }
+
         let bufstr = from_utf8(buf.as_slice()).map_err(|_| Error::new("Utf8Error"))?;
         Ok(Variable(bufstr.to_string()))
-
-
-//  buf:=make([]byte,0,16)
-//  for p.CallIsVariableChar(PeekByte(in,0),len(buf)) { buf=append(buf,ReadByte(in)) }
-//  return Variable(buf)
-
     }
 
-
-
-    
+    fn peek_unaryop(&self, bs:&mut &[u8]) -> bool {
+        space(bs);
+        match peek(bs,0) {
+            Some(b'+') | Some(b'-') | Some(b'(') | Some(b'!') => true,
+            _ => false,
+        }
+    }
+    fn read_unaryop(&self, bs:&mut &[u8]) -> Result<UnaryOp, Error> {
+        space(bs);
+        match read(bs)? {
+            b'+' => {
+                let v = self.read_value(bs)?;
+                Ok(EPos(Box::new(v)))
+            }
+            b'-' => {
+                let v = self.read_value(bs)?;
+                Ok(ENeg(Box::new(v)))
+            }
+            b'!' => {
+                let v = self.read_value(bs)?;
+                Ok(ENot(Box::new(v)))
+            }
+            b'(' => {
+                let x = self.read_expression(bs,false)?;
+                space(bs);
+                if read(bs)? != b')' { return Err(Error::new("Expected ')'")) }
+                Ok(EParens(Box::new(x)))
+            }
+            _ => Err(Error::new("Invalid UnaryOp")),
+        }
+    }
 
     fn peek_binaryop(&self, bs:&mut &[u8]) -> bool {
         space(bs);

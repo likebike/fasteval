@@ -1,6 +1,6 @@
 use crate::evalns::EvalNS;
 use crate::error::Error;
-use crate::grammar::{Expression, ExpressionTok::{EValue, EBinaryOp}, Value::{self, EConstant, EVariable}, Constant, Variable,    BinaryOp::{self, EPlus, EMinus, EMul, EDiv, EMod, EExp, ELT, ELTE, EEQ, ENE, EGTE, EGT, EOR, EAND}};
+use crate::grammar::{Expression, ExpressionTok::{EValue, EBinaryOp}, Value::{self, EConstant, EVariable, EUnaryOp}, Constant, Variable, UnaryOp::{self, EPos, ENeg, ENot, EParens}, BinaryOp::{self, EPlus, EMinus, EMul, EDiv, EMod, EExp, ELT, ELTE, EEQ, ENE, EGTE, EGT, EOR, EAND}};
 use crate::util::bool_to_f64;
 
 use std::collections::HashSet;
@@ -133,6 +133,7 @@ impl Evaler for Value {
         match self {
             EConstant(c) => c.eval(ns),
             EVariable(v) => v.eval(ns),
+            EUnaryOp(u) => u.eval(ns),
         }
     }
 }
@@ -150,6 +151,16 @@ impl Evaler for Variable {
     }
 }
 
+impl Evaler for UnaryOp {
+    fn eval(&self, ns:&mut EvalNS) -> Result<f64, Error> {
+        match self {
+            EPos(box_val) => ns.eval_bubble(box_val.as_ref()),
+            ENeg(box_val) => Ok(-ns.eval_bubble(box_val.as_ref())?),
+            ENot(box_val) => Ok(bool_to_f64(ns.eval_bubble(box_val.as_ref())?==0.0)),
+            EParens(box_expr) => ns.eval_bubble(box_expr.as_ref()),
+        }
+    }
+}
 
 
 
@@ -236,6 +247,29 @@ mod tests {
         assert_eq!(
             p.parse("1 < 0").unwrap().eval(&mut ns),
             Ok(0.0));
+
+        assert_eq!(
+            p.parse("+5.5").unwrap().eval(&mut ns),
+            Ok(5.5));
+        assert_eq!(
+            p.parse("-5.5").unwrap().eval(&mut ns),
+            Ok(-5.5));
+        assert_eq!(
+            p.parse("!5.5").unwrap().eval(&mut ns),
+            Ok(0.0));
+        assert_eq!(
+            p.parse("(3 * 3 + 3 / 3)").unwrap().eval(&mut ns),
+            Ok(10.0));
+        assert_eq!(
+            p.parse("(3 * (3 + 3) / 3)").unwrap().eval(&mut ns),
+            Ok(6.0));
+
+        assert_eq!(
+            p.parse("4.4 + -5.5").unwrap().eval(&mut ns),
+            Ok(-1.0999999999999996));
+        assert_eq!(
+            p.parse("4.4 + +5.5").unwrap().eval(&mut ns),
+            Ok(9.9));
 
         assert_eq!(
             p.parse("x + 1").unwrap().eval(&mut ns),
