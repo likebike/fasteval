@@ -317,23 +317,40 @@ impl<'a> Parser<'a> {
 
         match fname.as_ref() {
             "int" => {
-                if args.len()==1 { Ok(EFuncInt(args.pop().unwrap())) }
-                else { Err(Error::new("expected one arg")) }
+                if args.len()==1 { Ok(EFuncInt(args.pop().unwrap()))
+                } else { Err(Error::new("expected one arg")) }
             }
             "abs" => {
-                if args.len()==1 { Ok(EFuncAbs(args.pop().unwrap())) }
-                else { Err(Error::new("expected one arg")) }
+                if args.len()==1 { Ok(EFuncAbs(args.pop().unwrap()))
+                } else { Err(Error::new("expected one arg")) }
             }
-            //"log" => {
-            //    if args.len()!=1 && args.len()!=2 { return Err(Error::new("expected log(x) or log(base,x)")) }
-            //}
-            //"round" => {
-            //    if args.len()!=1 && args.len()!=2 { return Err(Error::new("expected round(x) or round(modulus,x)")) }
-            //}
-            //"min" | "max" => {
-            //    if args.len()==0 { return Err(Error::new("expected one or more args")) }
-            //}
-            _ => return Err(Error::new(&format!("undefined function: {}",fname))),
+            "log" => {
+                if args.len()==1 { Ok(EFuncLog{base:None, val:args.pop().unwrap()})
+                } else if args.len()==2 {
+                    let val = args.pop().unwrap();
+                    Ok(EFuncLog{base:Some(args.pop().unwrap()), val:val})
+                } else { Err(Error::new("expected log(x) or log(base,x)")) }
+            }
+            "round" => {
+                if args.len()==1 { Ok(EFuncRound{modulus:None, val:args.pop().unwrap()})
+                } else if args.len()==2 {
+                    let val = args.pop().unwrap();
+                    Ok(EFuncRound{modulus:Some(args.pop().unwrap()), val:val})
+                } else { Err(Error::new("expected round(x) or round(modulus,x)")) }
+            }
+            "min" => {
+                if args.len()>0 {
+                    let first = args.remove(0);
+                    Ok(EFuncMin{first:first, rest:args.into_boxed_slice()})
+                } else { Err(Error::new("expected one or more args")) }
+            }
+            "max" => {
+                if args.len()>0 {
+                    let first = args.remove(0);
+                    Ok(EFuncMax{first:first, rest:args.into_boxed_slice()})
+                } else { Err(Error::new("expected one or more args")) }
+            }
+            _ => Err(Error::new(&format!("undefined function: {}",fname))),
         }
     }
 
