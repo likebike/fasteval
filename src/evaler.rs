@@ -1,6 +1,6 @@
 use crate::evalns::EvalNS;
 use crate::error::Error;
-use crate::grammar::{Expression, ExpressionTok::{EValue, EBinaryOp}, Value::{self, EConstant, EVariable, EUnaryOp}, Constant, Variable, UnaryOp::{self, EPos, ENeg, ENot, EParens}, BinaryOp::{self, EPlus, EMinus, EMul, EDiv, EMod, EExp, ELT, ELTE, EEQ, ENE, EGTE, EGT, EOR, EAND}};
+use crate::grammar::{Expression, ExpressionTok::{EValue, EBinaryOp}, Value::{self, EConstant, EVariable, EUnaryOp, ECallable}, Constant, Variable, UnaryOp::{self, EPos, ENeg, ENot, EParens}, BinaryOp::{self, EPlus, EMinus, EMul, EDiv, EMod, EExp, ELT, ELTE, EEQ, ENE, EGTE, EGT, EOR, EAND}, Callable::{self}};
 use crate::util::bool_to_f64;
 
 use std::collections::HashSet;
@@ -134,6 +134,7 @@ impl Evaler for Value {
             EConstant(c) => c.eval(ns),
             EVariable(v) => v.eval(ns),
             EUnaryOp(u) => u.eval(ns),
+            ECallable(c) => c.eval(ns),
         }
     }
 }
@@ -162,6 +163,11 @@ impl Evaler for UnaryOp {
     }
 }
 
+impl Evaler for Callable {
+    fn eval(&self, ns:&mut EvalNS) -> Result<f64, Error> {
+        unimplemented!();
+    }
+}
 
 
 
@@ -212,7 +218,6 @@ mod tests {
     fn var_names() {
         let p = Parser{
             is_const_byte:None,
-            is_func_byte:None,
             is_var_byte:None,
         };
         assert_eq!(
@@ -257,6 +262,9 @@ mod tests {
         assert_eq!(
             p.parse("!5.5").unwrap().eval(&mut ns),
             Ok(0.0));
+        assert_eq!(
+            p.parse("!0").unwrap().eval(&mut ns),
+            Ok(1.0));
         assert_eq!(
             p.parse("(3 * 3 + 3 / 3)").unwrap().eval(&mut ns),
             Ok(10.0));

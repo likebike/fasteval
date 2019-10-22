@@ -1,7 +1,5 @@
-use crate::grammar::{Expression, ExpressionTok::{EValue, EBinaryOp}, Value::{self, EConstant, EVariable, EUnaryOp}, Constant, Variable, UnaryOp::{self, EPos, ENeg, EParens, ENot}, BinaryOp::{self, EPlus, EMinus, EMul, EDiv, EMod, EExp, ELT, ELTE, EEQ, ENE, EGTE, EGT, EOR, EAND}};
+use crate::grammar::{Expression, ExpressionTok::{EValue, EBinaryOp}, Value::{self, EConstant, EVariable, EUnaryOp, ECallable}, Constant, Variable, UnaryOp::{self, EPos, ENeg, EParens, ENot}, BinaryOp::{self, EPlus, EMinus, EMul, EDiv, EMod, EExp, ELT, ELTE, EEQ, ENE, EGTE, EGT, EOR, EAND}, Callable::{self, EFunc, EPrintFunc, EEvalFunc}, Func::{self, EFuncInt, EFuncAbs, EFuncLog, EFuncRound, EFuncMin, EFuncMax}, PrintFunc, EvalFunc};
 use crate::error::Error;
-
-use std::str::from_utf8;
 
 
 // Vec seems really inefficient to me because remove() does not just increment the internal pointer -- it shifts data all around.  There's also split_* methods but they seem to be designed to return new Vecs, not modify self.
@@ -24,6 +22,29 @@ fn peek_is(bs:&[u8], skip:usize, val:u8) -> bool {
         Some(b) => b==val,
     }
 }
+// fn peek_word_ci(bs:&[u8], skip:usize, word:&[u8]) -> bool {  // 'ci' = case insensitive
+//     for (i,B) in word.iter().enumerate() {
+//         let B = B.to_ascii_lowercase();
+//         match peek(bs,skip+i) {
+//             Some(b) => {
+//                 let b = b.to_ascii_lowercase();
+//                 if b!=B { return false; }
+//             }
+//             None => return false;
+//         }
+//     }
+//     true
+// }
+// fn peek_func(bs:&[u8], skip:usize, name:&[u8]) -> bool {
+//     if peek_word_ci(bs,skip,name) {
+//         let mut post_name_spaces = 0;
+//         while let Some(b) = peek(bs,skip+name.len()+post_name_spaces) {
+//             if !is_space(b) { break; }
+//             post_name_spaces+=1;
+//         }
+//         if n.len()>0 && peek(bs,skip+name.len()+post_name_spaces)==Some(b'(') { return true }
+//     }
+// }
 
 fn is_space(b:u8) -> bool {
     match b {
@@ -42,8 +63,7 @@ fn space(bs:&mut &[u8]) {
 
 pub struct Parser<'a> {
     pub is_const_byte:Option<&'a dyn Fn(u8,usize)->bool>,
-    pub is_func_byte :Option<&'a dyn Fn(u8,usize)->bool>,
-    pub is_var_byte  :Option<&'a dyn Fn(u8,usize)->bool>,
+    pub is_var_byte  :Option<&'a dyn Fn(u8,usize)->bool>,  // Until proven otherwise, assume that function names follow the same rules as vars.
 }
 
 impl<'a> Parser<'a> {
@@ -65,15 +85,6 @@ impl<'a> Parser<'a> {
             None => false
         }
     }
-    fn call_is_func_byte(&self, bo:Option<u8>, i:usize) -> bool {
-        match bo {
-            Some(b) => match self.is_func_byte {
-                Some(f) => f(b,i),
-                None => Parser::default_is_var_byte(b,i),
-            }
-            None => false
-        }
-    }
     fn call_is_var_byte(&self, bo:Option<u8>, i:usize) -> bool {
         match bo {
             Some(b) => match self.is_var_byte {
@@ -82,6 +93,10 @@ impl<'a> Parser<'a> {
             }
             None => false
         }
+    }
+    // Re-use var logic until proven otherwise:
+    fn call_is_func_byte(&self, bo:Option<u8>, i:usize) -> bool {
+        self.call_is_var_byte(bo,i)
     }
 
     pub fn parse(&self, s:&str) -> Result<Expression, Error> {
@@ -109,11 +124,13 @@ impl<'a> Parser<'a> {
         if self.peek_unaryop(bs) {
             return self.read_unaryop(bs).map(|u| EUnaryOp(u));
         }
-        //if self.peek_callable(bs) { return self.read_callable(bs) }
+        if self.peek_callable(bs) {
+            return self.read_callable(bs).map(|c| ECallable(c));
+        }
         if self.peek_var(bs) {  // Should go last -- don't mask callables.
             return self.read_var(bs).map(|v| EVariable(v));
         }
-        Err(Error::new("InvalidValue"))
+        Err(Error::new("invalid value"))
     }
 
     fn peek_const(&self, bs:&mut &[u8]) -> bool {
@@ -139,7 +156,7 @@ impl<'a> Parser<'a> {
             }
         }
 
-        let bufstr = from_utf8(buf.as_slice()).map_err(|_| Error::new("Utf8Error"))?;
+        let bufstr = std::str::from_utf8(buf.as_slice()).map_err(|_| Error::new("Utf8Error"))?;
         let val = bufstr.parse::<f64>().map_err(|_| {
             Error::new("parse<f64> error").pre(bufstr)
         })?;
@@ -158,8 +175,7 @@ impl<'a> Parser<'a> {
             buf.push(read(bs)?);
         }
 
-        let bufstr = from_utf8(buf.as_slice()).map_err(|_| Error::new("Utf8Error"))?;
-        Ok(Variable(bufstr.to_string()))
+        Ok(Variable(String::from_utf8(buf).map_err(|_| Error::new("Utf8Error"))?))
     }
 
     fn peek_unaryop(&self, bs:&mut &[u8]) -> bool {
@@ -190,7 +206,7 @@ impl<'a> Parser<'a> {
                 if read(bs)? != b')' { return Err(Error::new("Expected ')'")) }
                 Ok(EParens(Box::new(x)))
             }
-            _ => Err(Error::new("Invalid UnaryOp")),
+            _ => Err(Error::new("invalid unaryop")),
         }
     }
 
@@ -232,6 +248,103 @@ impl<'a> Parser<'a> {
                     } else { Err(err) },
             _ => Err(err),
         }
+    }
+
+    fn peek_callable(&self, bs:&mut &[u8]) -> bool {
+        self.peek_func(bs) || self.peek_printfunc(bs) || self.peek_evalfunc(bs)
+    }
+    fn read_callable(&self, bs:&mut &[u8]) -> Result<Callable, Error> {
+        if self.peek_func(bs) {
+            return self.read_func(bs).map(|f| EFunc(f));
+        }
+        if self.peek_printfunc(bs) {
+            return self.read_printfunc(bs).map(|f| EPrintFunc(f));
+        }
+        if self.peek_evalfunc(bs) {
+            return self.read_evalfunc(bs).map(|f| EEvalFunc(f));
+        }
+        Err(Error::new("invalid callable"))
+    }
+
+    fn peek_func(&self, bs:&mut &[u8]) -> bool {
+        space(bs);
+
+        let mut name_len=0; let mut post_name_spaces=0;
+        while self.call_is_func_byte(peek(bs,name_len),name_len) { name_len+=1; }
+        while let Some(b) = peek(bs,name_len+post_name_spaces) {
+            if !is_space(b) { break; }
+            post_name_spaces+=1;
+        }
+        name_len>0 && peek(bs,name_len+post_name_spaces)==Some(b'(')
+    }
+    fn read_func(&self, bs:&mut &[u8]) -> Result<Func, Error> {
+        space(bs);
+
+        let mut fname : Vec<u8> = Vec::with_capacity(16);
+        while self.call_is_func_byte(peek(bs,0),fname.len()) {
+            fname.push(read(bs)?.to_ascii_lowercase());
+        }
+        let fname = String::from_utf8(fname).map_err(|_| Error::new("Utf8Error"))?;
+
+        space(bs);
+
+        if let Ok(b'(') = read(bs) {}
+        else { return Err(Error::new("expected '('")); }
+
+        let mut args : Vec<Expression> = Vec::new();
+
+        loop {
+            space(bs);
+            match peek(bs,0) {
+                Some(b) => {
+                    if b==b')' {
+                        read(bs)?;
+                        break;
+                    }
+                }
+                None => return Err(Error::new("Reached end of input while parsing function")),
+            }
+            if args.len()>0 {
+                match read(bs) {
+                    Ok(b',') | Ok(b';') => {
+                        // I accept ',' or ';' because the TV API disallows the ',' char in symbols... so I'm using ';' as a compromise.
+                    }
+                    _ => return Err(Error::new("expected ',' or ';'")),
+                }
+            }
+            args.push(self.read_expression(bs,false).map_err(|e| e.pre("read_expression"))?);
+        }
+
+        match fname.as_ref() {
+            "int" => {
+                if args.len()==1 { Ok(EFuncInt(Box::new(args.pop().unwrap()))) }
+                else { Err(Error::new("expected one arg")) }
+            }
+            "abs" => {
+                if args.len()==1 { Ok(EFuncAbs(Box::new(args.pop().unwrap()))) }
+                else { Err(Error::new("expected one arg")) }
+            }
+            //"log" => {
+            //    if args.len()!=1 && args.len()!=2 { return Err(Error::new("expected log(x) or log(base,x)")) }
+            //}
+            //"round" => {
+            //    if args.len()!=1 && args.len()!=2 { return Err(Error::new("expected round(x) or round(modulus,x)")) }
+            //}
+            //"min" | "max" => {
+            //    if args.len()==0 { return Err(Error::new("expected one or more args")) }
+            //}
+            _ => return Err(Error::new(&format!("undefined function: {}",fname))),
+        }
+    }
+
+    fn peek_printfunc(&self, bs:&mut &[u8]) -> bool { false }
+    fn read_printfunc(&self, bs:&mut &[u8]) -> Result<PrintFunc, Error> {
+        unimplemented!();
+    }
+
+    fn peek_evalfunc(&self, bs:&mut &[u8]) -> bool { false }
+    fn read_evalfunc(&self, bs:&mut &[u8]) -> Result<EvalFunc, Error> {
+        unimplemented!();
     }
 }
 
@@ -293,23 +406,19 @@ mod tests {
     fn parser() {
         let p = Parser{
             is_const_byte:None,
-            is_func_byte:None,
             is_var_byte:None,
         };
-        assert!(p.call_is_func_byte(Some(b'a'),0));
         assert!(p.call_is_var_byte(Some(b'a'),0));
         assert!(!p.call_is_const_byte(Some(b'a'),0));
 
         let p = Parser{
             is_const_byte:Some(&|_:u8, _:usize| true),
-            is_func_byte:None,
             is_var_byte:None,
         };
         assert!(p.call_is_const_byte(Some(b'a'),0));
 
         let p = Parser{
             is_const_byte:None,
-            is_func_byte:None,
             is_var_byte:None,
         };
         
@@ -326,6 +435,18 @@ mod tests {
                         EValue(EConstant(Constant(43.21))),
                         EBinaryOp(EPlus),
                         EValue(EConstant(Constant(11.11)))]))));
+
+        assert_eq!(p.parse("12.34 + abs(-43 - 0.21) + 11.11"),
+                   Ok(Expression(Box::new([
+                       EValue(EConstant(Constant(12.34))),
+                       EBinaryOp(EPlus),
+                       EValue(ECallable(EFunc(EFuncAbs(Box::new(Expression(Box::new([
+                           EValue(EUnaryOp(ENeg(Box::new(EConstant(Constant(43.0)))))),
+                           EBinaryOp(EMinus),
+                           EValue(EConstant(Constant(0.21)))]))))))),
+                       EBinaryOp(EPlus),
+                       EValue(EConstant(Constant(11.11)))])))
+        );
     }
 }
 

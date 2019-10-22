@@ -3,7 +3,7 @@
 // Expression: Value (BinaryOp Value)*
 //
 // Value: Constant || UnaryOp || Callable || Variable
-// #^^^ Variable must go last to avoid masking Callables.
+// #^^^ Variable must be last to avoid masking.
 //
 // Constant: (\.[0-9])+(k || K || M || G || T)?
 //
@@ -13,7 +13,8 @@
 //
 // BinaryOp: + || - || * || / || % || ^ || < || <= || == || != || >= || > || or || and
 //
-// Callable: Function || PrintFunc || EvalFunc
+// Callable: PrintFunc || EvalFunc || Function
+// #^^^ Function must be last to avoid masking.
 //
 // Function: Variable(Expression(,Expression)*)
 //
@@ -39,7 +40,7 @@ pub enum Value {
     EConstant(Constant),
     EVariable(Variable),
     EUnaryOp(UnaryOp),
-//  ECallable,
+    ECallable(Callable),
 }
 
 #[derive(Debug, PartialEq)]
@@ -72,5 +73,33 @@ pub enum BinaryOp {
     EGT,
     EOR,
     EAND,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum Callable {
+    EFunc(Func),
+    EPrintFunc(PrintFunc),
+    EEvalFunc(EvalFunc),
+}
+
+#[derive(Debug, PartialEq)]
+pub enum Func {
+    EFuncInt(Box<Expression>),
+    EFuncAbs(Box<Expression>),
+    EFuncLog{     base:Option<Expression>, val:Box<Expression>},
+    EFuncRound{modulus:Option<Expression>, val:Box<Expression>},
+    EFuncMin{first:Box<Expression>, rest:Box<[Expression]>},
+    EFuncMax{first:Box<Expression>, rest:Box<[Expression]>},
+}
+
+#[derive(Debug, PartialEq)]
+pub struct PrintFunc {
+//     pub args: Box<[ExpressionOrString]>,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct EvalFunc {
+//     pub expr: Box<Expression>,
+//     pub kwargs: KWArgs,
 }
 
