@@ -158,7 +158,7 @@ impl Evaler for UnaryOp {
             EPos(box_val) => ns.eval_bubble(box_val.as_ref()),
             ENeg(box_val) => Ok(-ns.eval_bubble(box_val.as_ref())?),
             ENot(box_val) => Ok(bool_to_f64(ns.eval_bubble(box_val.as_ref())?==0.0)),
-            EParens(box_expr) => ns.eval_bubble(box_expr.as_ref()),
+            EParens(expr) => ns.eval_bubble(expr),
         }
     }
 }

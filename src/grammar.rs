@@ -54,7 +54,7 @@ pub enum UnaryOp {
     EPos(Box<Value>),
     ENeg(Box<Value>),
     ENot(Box<Value>),
-    EParens(Box<Expression>),
+    EParens(Expression),
 }
 
 #[derive(Debug, PartialEq, Copy, Clone)]
@@ -84,12 +84,12 @@ pub enum Callable {
 
 #[derive(Debug, PartialEq)]
 pub enum Func {
-    EFuncInt(Box<Expression>),
-    EFuncAbs(Box<Expression>),
-    EFuncLog{     base:Option<Expression>, val:Box<Expression>},
-    EFuncRound{modulus:Option<Expression>, val:Box<Expression>},
-    EFuncMin{first:Box<Expression>, rest:Box<[Expression]>},
-    EFuncMax{first:Box<Expression>, rest:Box<[Expression]>},
+    EFuncInt(Expression),
+    EFuncAbs(Expression),
+    EFuncLog{     base:Option<Expression>, val:Expression},
+    EFuncRound{modulus:Option<Expression>, val:Expression},
+    EFuncMin{first:Expression, rest:Box<[Expression]>},
+    EFuncMax{first:Expression, rest:Box<[Expression]>},
 }
 
 #[derive(Debug, PartialEq)]
@@ -99,7 +99,7 @@ pub struct PrintFunc {
 
 #[derive(Debug, PartialEq)]
 pub struct EvalFunc {
-//     pub expr: Box<Expression>,
+//     pub expr: Expression,
 //     pub kwargs: KWArgs,
 }
 

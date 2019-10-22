@@ -204,7 +204,7 @@ impl<'a> Parser<'a> {
                 let x = self.read_expression(bs,false)?;
                 space(bs);
                 if read(bs)? != b')' { return Err(Error::new("Expected ')'")) }
-                Ok(EParens(Box::new(x)))
+                Ok(EParens(x))
             }
             _ => Err(Error::new("invalid unaryop")),
         }
@@ -317,11 +317,11 @@ impl<'a> Parser<'a> {
 
         match fname.as_ref() {
             "int" => {
-                if args.len()==1 { Ok(EFuncInt(Box::new(args.pop().unwrap()))) }
+                if args.len()==1 { Ok(EFuncInt(args.pop().unwrap())) }
                 else { Err(Error::new("expected one arg")) }
             }
             "abs" => {
-                if args.len()==1 { Ok(EFuncAbs(Box::new(args.pop().unwrap()))) }
+                if args.len()==1 { Ok(EFuncAbs(args.pop().unwrap())) }
                 else { Err(Error::new("expected one arg")) }
             }
             //"log" => {
@@ -440,10 +440,10 @@ mod tests {
                    Ok(Expression(Box::new([
                        EValue(EConstant(Constant(12.34))),
                        EBinaryOp(EPlus),
-                       EValue(ECallable(EFunc(EFuncAbs(Box::new(Expression(Box::new([
+                       EValue(ECallable(EFunc(EFuncAbs(Expression(Box::new([
                            EValue(EUnaryOp(ENeg(Box::new(EConstant(Constant(43.0)))))),
                            EBinaryOp(EMinus),
-                           EValue(EConstant(Constant(0.21)))]))))))),
+                           EValue(EConstant(Constant(0.21)))])))))),
                        EBinaryOp(EPlus),
                        EValue(EConstant(Constant(11.11)))])))
         );
