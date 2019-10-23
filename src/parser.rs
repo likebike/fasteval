@@ -1,16 +1,9 @@
-use crate::grammar::{Expression, ExpressionTok::{EValue, EBinaryOp}, Value::{self, EConstant, EVariable, EUnaryOp, ECallable}, Constant, Variable, UnaryOp::{self, EPos, ENeg, EParens, ENot}, BinaryOp::{self, EPlus, EMinus, EMul, EDiv, EMod, EExp, ELT, ELTE, EEQ, ENE, EGTE, EGT, EOR, EAND}, Callable::{self, EFunc, EPrintFunc, EEvalFunc}, Func::{self, EFuncInt, EFuncAbs, EFuncLog, EFuncRound, EFuncMin, EFuncMax}, PrintFunc, EvalFunc};
+use crate::grammar::{Expression, ExpressionTok::{EValue, EBinaryOp}, Value::{self, EConstant, EVariable, EUnaryOp, ECallable}, Constant, Variable, UnaryOp::{self, EPos, ENeg, EParens, ENot}, BinaryOp::{self, EPlus, EMinus, EMul, EDiv, EMod, EExp, ELT, ELTE, EEQ, ENE, EGTE, EGT, EOR, EAND}, Callable::{self, EFunc, EPrintFunc, EEvalFunc}, Func::{self, EFuncInt, EFuncAbs, EFuncLog, EFuncRound, EFuncMin, EFuncMax}, PrintFunc, EvalFunc, ExpressionOrString::{self, EExpr, EStr}};
 use crate::error::Error;
 
 
 // Vec seems really inefficient to me because remove() does not just increment the internal pointer -- it shifts data all around.  There's also split_* methods but they seem to be designed to return new Vecs, not modify self.
 // Just use slices instead, which I know will be very efficient:
-fn read(bs:&mut &[u8]) -> Result<u8, Error> {
-    if bs.len() > 0 {
-        let b = bs[0];
-        *bs = &bs[1..];
-        Ok(b)
-    } else { Err(Error::new("EOF")) }
-}
 fn peek(bs:&[u8], skip:usize) -> Option<u8> {
     if bs.len() > skip { Some(bs[skip])
     } else { None }
@@ -22,29 +15,60 @@ fn peek_is(bs:&[u8], skip:usize, val:u8) -> bool {
         Some(b) => b==val,
     }
 }
-// fn peek_word_ci(bs:&[u8], skip:usize, word:&[u8]) -> bool {  // 'ci' = case insensitive
-//     for (i,B) in word.iter().enumerate() {
-//         let B = B.to_ascii_lowercase();
-//         match peek(bs,skip+i) {
-//             Some(b) => {
-//                 let b = b.to_ascii_lowercase();
-//                 if b!=B { return false; }
-//             }
-//             None => return false;
-//         }
-//     }
-//     true
-// }
-// fn peek_func(bs:&[u8], skip:usize, name:&[u8]) -> bool {
-//     if peek_word_ci(bs,skip,name) {
-//         let mut post_name_spaces = 0;
-//         while let Some(b) = peek(bs,skip+name.len()+post_name_spaces) {
-//             if !is_space(b) { break; }
-//             post_name_spaces+=1;
-//         }
-//         if n.len()>0 && peek(bs,skip+name.len()+post_name_spaces)==Some(b'(') { return true }
-//     }
-// }
+fn peek_word_ci(bs:&[u8], skip:usize, word:&[u8]) -> bool {  // 'ci' = case insensitive
+    #[allow(non_snake_case)]
+    for (i,B) in word.iter().enumerate() {
+        #[allow(non_snake_case)]
+        let B = B.to_ascii_lowercase();
+        match peek(bs,skip+i) {
+            Some(b) => {
+                let b = b.to_ascii_lowercase();
+                if b!=B { return false; }
+            }
+            None => return false,
+        }
+    }
+    true
+}
+fn peek_func(bs:&[u8], skip:usize, name:&[u8]) -> bool {
+    if peek_word_ci(bs,skip,name) {
+        let mut post_name_spaces = 0;
+        while let Some(b) = peek(bs,skip+name.len()+post_name_spaces) {
+            if !is_space(b) { break; }
+            post_name_spaces+=1;
+        }
+        name.len()>0 && peek(bs,skip+name.len()+post_name_spaces)==Some(b'(')
+    } else { false }
+}
+
+fn read(bs:&mut &[u8]) -> Result<u8, Error> {
+    if bs.len() > 0 {
+        let b = bs[0];
+        *bs = &bs[1..];
+        Ok(b)
+    } else { Err(Error::new("EOF")) }
+}
+fn read_word_ci(bs:&mut &[u8], word:&[u8]) -> Result<(), Error> {
+    #[allow(non_snake_case)]
+    for (i,B) in word.iter().enumerate() {
+        #[allow(non_snake_case)]
+        let B = B.to_ascii_lowercase();
+        match read(bs) {
+            Ok(b) => {
+                let bl = b.to_ascii_lowercase();
+                if bl!=B { return Err(Error::new(&format!("unexpected '{}' when reading '{}'",b as char,std::str::from_utf8(word).map_err(|_| Error::new("Utf8Error"))?))) }
+            }
+            Err(e) => { return Err(e.pre(&format!("read_word_ci({})",std::str::from_utf8(word).map_err(|_| Error::new("Utf8Error"))?))) }
+        }
+    }
+    Ok(())
+}
+fn read_func(bs:&mut &[u8], name:&[u8]) -> Result<(), Error> {
+    read_word_ci(bs,name)?;
+    space(bs);
+    if read(bs)?==b'(' { Ok(())
+    } else { Err(Error::new("expected '('")) }
+}
 
 fn is_space(b:u8) -> bool {
     match b {
@@ -254,14 +278,14 @@ impl<'a> Parser<'a> {
         self.peek_func(bs) || self.peek_printfunc(bs) || self.peek_evalfunc(bs)
     }
     fn read_callable(&self, bs:&mut &[u8]) -> Result<Callable, Error> {
-        if self.peek_func(bs) {
-            return self.read_func(bs).map(|f| EFunc(f));
-        }
         if self.peek_printfunc(bs) {
             return self.read_printfunc(bs).map(|f| EPrintFunc(f));
         }
         if self.peek_evalfunc(bs) {
             return self.read_evalfunc(bs).map(|f| EEvalFunc(f));
+        }
+        if self.peek_func(bs) {
+            return self.read_func(bs).map(|f| EFunc(f));
         }
         Err(Error::new("invalid callable"))
     }
@@ -354,14 +378,66 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn peek_printfunc(&self, bs:&mut &[u8]) -> bool { false }
+    fn peek_printfunc(&self, bs:&mut &[u8]) -> bool { peek_func(bs, 0, b"print") }
     fn read_printfunc(&self, bs:&mut &[u8]) -> Result<PrintFunc, Error> {
-        unimplemented!();
+        read_func(bs, b"print")?;
+
+        let mut args : Vec<ExpressionOrString> = Vec::new();
+        loop {
+            space(bs);
+            match peek(bs,0) {
+                Some(b) => {
+                    if b==b')' {
+                        read(bs)?;
+                        break;
+                    }
+                }
+                None => { return Err(Error::new("reached end of inupt while parsing printfunc")) }
+            }
+            if args.len()>0 {
+                match read(bs) {
+                    Ok(b',') | Ok(b';') => {}
+                    _ => { return Err(Error::new("expected ',' or ';'")) }
+                }
+            }
+            args.push(self.read_expressionorstring(bs)?);
+        }
+
+        Ok(PrintFunc(args.into_boxed_slice()))
     }
 
     fn peek_evalfunc(&self, bs:&mut &[u8]) -> bool { false }
     fn read_evalfunc(&self, bs:&mut &[u8]) -> Result<EvalFunc, Error> {
         unimplemented!();
+    }
+
+    fn read_expressionorstring(&self, bs:&mut &[u8]) -> Result<ExpressionOrString, Error> {
+        if self.peek_string(bs) { Ok(EStr(self.read_string(bs)?))
+        } else { Ok(EExpr(self.read_expression(bs,false)?)) }
+    }
+
+    fn peek_string(&self, bs:&mut &[u8]) -> bool {
+        space(bs);
+        peek_is(bs,0,b'"')
+    }
+    fn read_string(&self, bs:&mut &[u8]) -> Result<String, Error> {
+        space(bs);
+
+        match read(bs) {
+            Ok(b) => {
+                if b!=b'"' { return Err(Error::new(r#"expected '"'"#)) }
+            }
+            Err(e) => { return Err(e.pre("read_string")) }
+        }
+
+        let mut buf : Vec<u8> = Vec::with_capacity(16);
+        loop {
+            let b = read(bs)?;
+            if b==b'"' { break; }
+            buf.push(b);
+        }
+
+        String::from_utf8(buf).map_err(|_| Error::new("Utf8Error"))
     }
 }
 
@@ -447,13 +523,13 @@ mod tests {
 
         assert_eq!(p.parse("12.34 + 43.21 + 11.11"),
                    Ok(Expression(Box::new([
-                        EValue(EConstant(Constant(12.34))),
-                        EBinaryOp(EPlus),
-                        EValue(EConstant(Constant(43.21))),
-                        EBinaryOp(EPlus),
-                        EValue(EConstant(Constant(11.11)))]))));
+                       EValue(EConstant(Constant(12.34))),
+                       EBinaryOp(EPlus),
+                       EValue(EConstant(Constant(43.21))),
+                       EBinaryOp(EPlus),
+                       EValue(EConstant(Constant(11.11)))]))));
 
-        assert_eq!(p.parse("12.34 + abs(-43 - 0.21) + 11.11"),
+        assert_eq!(p.parse("12.34 + abs ( -43 - 0.21 ) + 11.11"),
                    Ok(Expression(Box::new([
                        EValue(EConstant(Constant(12.34))),
                        EBinaryOp(EPlus),
@@ -461,6 +537,15 @@ mod tests {
                            EValue(EUnaryOp(ENeg(Box::new(EConstant(Constant(43.0)))))),
                            EBinaryOp(EMinus),
                            EValue(EConstant(Constant(0.21)))])))))),
+                       EBinaryOp(EPlus),
+                       EValue(EConstant(Constant(11.11)))])))
+        );
+
+        assert_eq!(p.parse("12.34 + print ( 43.21 ) + 11.11"),
+                   Ok(Expression(Box::new([EValue(EConstant(Constant(12.34))),
+                       EBinaryOp(EPlus),
+                       EValue(ECallable(EPrintFunc(PrintFunc(Box::new([
+                           EExpr(Expression(Box::new([EValue(EConstant(Constant(43.21)))])))]))))),
                        EBinaryOp(EPlus),
                        EValue(EConstant(Constant(11.11)))])))
         );
