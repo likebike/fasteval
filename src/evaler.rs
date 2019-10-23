@@ -1,6 +1,6 @@
 use crate::evalns::EvalNS;
 use crate::error::Error;
-use crate::grammar::{Expression, ExpressionTok::{EValue, EBinaryOp}, Value::{self, EConstant, EVariable, EUnaryOp, ECallable}, Constant, Variable, UnaryOp::{self, EPos, ENeg, ENot, EParens}, BinaryOp::{self, EPlus, EMinus, EMul, EDiv, EMod, EExp, ELT, ELTE, EEQ, ENE, EGTE, EGT, EOR, EAND}, Callable::{self, EFunc, EPrintFunc, EEvalFunc}, Func::{self, EFuncInt, EFuncAbs, EFuncLog, EFuncRound, EFuncMin, EFuncMax}, PrintFunc, EvalFunc};
+use crate::grammar::{Expression, ExpressionTok::{EValue, EBinaryOp}, Value::{self, EConstant, EVariable, EUnaryOp, ECallable}, Constant, Variable, UnaryOp::{self, EPos, ENeg, ENot, EParens}, BinaryOp::{self, EPlus, EMinus, EMul, EDiv, EMod, EExp, ELT, ELTE, EEQ, ENE, EGTE, EGT, EOR, EAND}, Callable::{self, EFunc, EPrintFunc, EEvalFunc}, Func::{self, EFuncInt, EFuncAbs, EFuncLog, EFuncRound, EFuncMin, EFuncMax}, PrintFunc, EvalFunc, ExpressionOrString::{EExpr, EStr}};
 use crate::util::bool_to_f64;
 
 use std::collections::HashSet;
@@ -47,7 +47,6 @@ impl Evaler for Expression {
         let mut vals : Vec<f64>      = Vec::with_capacity(self.0.len()/2+1);
         let mut ops  : Vec<BinaryOp> = Vec::with_capacity(self.0.len()/2  );
         for (i,tok) in self.0.iter().enumerate() {
-            eprintln!("expression tok: ({}, {:?})",i,tok);
             match tok {
                 EValue(val) => {
                     if i%2==1 { return Err(Error::new("Found value at odd index")) }
@@ -236,7 +235,42 @@ impl Evaler for Func {
 
 impl Evaler for PrintFunc {
     fn eval(&self, ns:&mut EvalNS) -> Result<f64, Error> {
-        unimplemented!();
+        let mut val = 0f64;
+
+        fn process_str(s:&str) -> String {
+            let s = s.replace("\\n","\n");
+            let s = s.replace("\\t","\t");
+            s
+        }
+
+        if self.0.len()>0 {
+            if let EStr(ref fmtstr) = (*self.0)[0] {
+                if fmtstr.contains("%") {
+                    // printf mode:
+                    let fmtstr = process_str(fmtstr);
+
+                    unimplemented!();  // Make a pure-rust printf libarary.
+
+                    //return Ok(val);
+                }
+            }
+        }
+
+        // Normal Mode:
+        let mut out = String::with_capacity(16);
+        for (i,a) in self.0.iter().enumerate() {
+            if i>0 { out.push(' '); }
+            match a {
+                EExpr(e) => {
+                    val = ns.eval_bubble(e)?;
+                    out.push_str(&format!("{}",val));
+                }
+                EStr(s) => out.push_str(&process_str(s)),
+            }
+        }
+        eprintln!("{}", out);
+
+        Ok(val)
     }
 }
 
@@ -269,7 +303,7 @@ mod tests {
     }
 
     #[test]
-    fn var_names() {
+    fn basics() {
         let p = Parser{
             is_const_byte:None,
             is_var_byte:None,
@@ -383,6 +417,9 @@ mod tests {
             p.parse("1.2 + max(1)").unwrap().eval(&mut ns),
             Ok(2.2));
 
+        assert_eq!(
+            p.parse(r#"12.34 + print ( 43.21, "yay" ) + 11.11"#).unwrap().eval(&mut ns),
+            Ok(66.66));
 
     }
 }
