@@ -1,4 +1,4 @@
-use crate::grammar::{Expression, ExpressionTok::{EValue, EBinaryOp}, Value::{self, EConstant, EVariable, EUnaryOp, ECallable}, Constant, Variable, UnaryOp::{self, EPos, ENeg, EParens, ENot}, BinaryOp::{self, EPlus, EMinus, EMul, EDiv, EMod, EExp, ELT, ELTE, EEQ, ENE, EGTE, EGT, EOR, EAND}, Callable::{self, EFunc, EPrintFunc, EEvalFunc}, Func::{self, EFuncInt, EFuncAbs, EFuncLog, EFuncRound, EFuncMin, EFuncMax}, PrintFunc, EvalFunc, ExpressionOrString::{self, EExpr, EStr}};
+use crate::grammar::{Expression, ExpressionTok::{EValue, EBinaryOp}, Value::{self, EConstant, EVariable, EUnaryOp, ECallable}, Constant, Variable, UnaryOp::{self, EPos, ENeg, EParens, ENot}, BinaryOp::{self, EPlus, EMinus, EMul, EDiv, EMod, EExp, ELT, ELTE, EEQ, ENE, EGTE, EGT, EOR, EAND}, Callable::{self, EFunc, EPrintFunc, EEvalFunc}, Func::{self, EFuncInt, EFuncAbs, EFuncLog, EFuncRound, EFuncMin, EFuncMax}, PrintFunc, ExpressionOrString::{self, EExpr, EStr}, EvalFunc, KWArg};
 use crate::error::Error;
 
 
@@ -406,9 +406,45 @@ impl<'a> Parser<'a> {
         Ok(PrintFunc(args.into_boxed_slice()))
     }
 
-    fn peek_evalfunc(&self, bs:&mut &[u8]) -> bool { false }
+    fn peek_evalfunc(&self, bs:&mut &[u8]) -> bool { peek_func(bs, 0, b"eval") }
     fn read_evalfunc(&self, bs:&mut &[u8]) -> Result<EvalFunc, Error> {
-        unimplemented!();
+        read_func(bs, b"eval")?;
+
+        let eval_expr = self.read_expression(bs,false)?;
+        let mut kwargs : Vec<KWArg> = Vec::with_capacity(4);
+        fn kwargs_has(kwargs:&Vec<KWArg>, name:&Variable) -> bool {
+            for kwarg in kwargs {
+                if kwarg.name==*name { return true; }
+            }
+            false
+        }
+
+        loop {
+            space(bs);
+            match peek(bs,0) {
+                Some(b) => {
+                    if b==b')' {
+                        read(bs)?;   
+                        break;
+                    }
+                }
+                None => { return Err(Error::new("reached end of input while parsing evalfunc")) }
+            }
+            match read(bs) {
+                Ok(b',') | Ok(b';') => {}
+                _ => { return Err(Error::new("expected ',' or ';'")) }
+            }
+            let name = self.read_var(bs)?;
+            space(bs);
+            if let Ok(b'=') = read(bs) {
+            } else { return Err(Error::new("expected '='")) }
+            let expr = self.read_expression(bs,false)?;
+
+            if kwargs_has(&kwargs,&name) { return Err(Error::new(&format!("already defined: {}",name))) }
+            kwargs.push(KWArg{name, expr});
+        }
+
+        Ok(EvalFunc{expr:eval_expr, kwargs:kwargs.into_boxed_slice()})
     }
 
     fn read_expressionorstring(&self, bs:&mut &[u8]) -> Result<ExpressionOrString, Error> {

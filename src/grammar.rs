@@ -96,14 +96,20 @@ pub enum Func {
 pub struct PrintFunc(pub Box<[ExpressionOrString]>);
 
 #[derive(Debug, PartialEq)]
-pub struct EvalFunc {
-//     pub expr: Expression,
-//     pub kwargs: KWArgs,
-}
-
-#[derive(Debug, PartialEq)]
 pub enum ExpressionOrString {
     EExpr(Expression),
     EStr(String),
+}
+
+#[derive(Debug, PartialEq)]
+pub struct EvalFunc {
+    pub expr:   Expression,
+    pub kwargs: Box<[KWArg]>,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct KWArg {
+    pub name: Variable,
+    pub expr: Expression,
 }
 
