@@ -276,7 +276,32 @@ impl Evaler for PrintFunc {
 
 impl Evaler for EvalFunc {
     fn eval(&self, ns:&mut EvalNS) -> Result<f64, Error> {
-        unimplemented!();
+        // Don't affect the external namespace:
+        // If you do, you get some surprising behavior:
+        //     var a=0
+        //     var b=eval(1,a=9)
+        //     var _=print(a,b)   // "0 1"
+        //     var _=print(b,a)   // "1 9"
+        ns.push_eval(true);
+        // This is my 'defer ns.pop();' structure:
+        let res = (|| -> Result<f64, Error> {
+
+            for kw in self.kwargs.iter() {
+                let val = ns.eval_bubble(&kw.expr)?;
+                ns.create(kw.name.0.as_ref(), val)?;
+            }
+
+            ns.start_reeval_mode();
+            // Another defer structure (a bit overly-complex for this simple case):
+            let res = (|| -> Result<f64, Error> {
+                ns.eval_bubble(&self.expr)
+            })();
+            ns.end_reeval_mode();
+            res
+
+        })();
+        ns.pop();
+        res
     }
 }
 
@@ -419,6 +444,10 @@ mod tests {
 
         assert_eq!(
             p.parse(r#"12.34 + print ( 43.21, "yay" ) + 11.11"#).unwrap().eval(&mut ns),
+            Ok(66.66));
+
+        assert_eq!(
+            p.parse(r#"12.34 + eval ( x + 43.21 - y, x=2.5, y = 2.5 ) + 11.11"#).unwrap().eval(&mut ns),
             Ok(66.66));
 
     }

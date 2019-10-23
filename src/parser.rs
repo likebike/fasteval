@@ -585,6 +585,24 @@ mod tests {
                        EBinaryOp(EPlus),
                        EValue(EConstant(Constant(11.11)))])))
         );
+
+        assert_eq!(p.parse("12.34 + eval ( x - y , x = 5 , y=4 ) + 11.11"),
+                   Ok(Expression(Box::new([
+                       EValue(EConstant(Constant(12.34))),
+                       EBinaryOp(EPlus),
+                       EValue(ECallable(EEvalFunc(EvalFunc {
+                           expr: Expression(Box::new([
+                                             EValue(EVariable(Variable("x".to_string()))),
+                                             EBinaryOp(EMinus),
+                                             EValue(EVariable(Variable("y".to_string())))])),
+                           kwargs: Box::new([
+                                    KWArg {name: Variable("x".to_string()),
+                                           expr: Expression(Box::new([EValue(EConstant(Constant(5.0)))])) },
+                                    KWArg {name: Variable("y".to_string()),
+                                           expr: Expression(Box::new([EValue(EConstant(Constant(4.0)))])) }]) }))),
+                       EBinaryOp(EPlus),
+                       EValue(EConstant(Constant(11.11)))])))
+        );
     }
 }
 

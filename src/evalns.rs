@@ -29,14 +29,14 @@ impl<'a> EvalNS<'a> {
         ns
     }
 
-    fn push(&mut self) { self.push_eval(self.is_reeval()) }
-    fn push_eval(&mut self, is_eval:bool) {
+    pub fn push(&mut self) { self.push_eval(self.is_reeval()) }
+    pub fn push_eval(&mut self, is_eval:bool) {
         self.ns.0.push(NameLayer{
             is_eval:is_eval,
             m:HashMap::new(),
         });
     }
-    fn pop(&mut self) {
+    pub fn pop(&mut self) {
         match self.ns.0.pop() {
             Some(_) => {},
             None => panic!("too many pops"),
@@ -49,8 +49,8 @@ impl<'a> EvalNS<'a> {
         out
     }
 
-    fn start_reeval_mode(&mut self) { self.reeval_mode+=1; }
-    fn end_reeval_mode(&mut self) {
+    pub fn start_reeval_mode(&mut self) { self.reeval_mode+=1; }
+    pub fn end_reeval_mode(&mut self) {
         self.reeval_mode-=1;
         if self.reeval_mode<0 { panic!("too many end_reeval_mdoe"); }
     }
