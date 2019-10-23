@@ -1,6 +1,6 @@
 use crate::evalns::EvalNS;
 use crate::error::Error;
-use crate::grammar::{Expression, ExpressionTok::{EValue, EBinaryOp}, Value::{self, EConstant, EVariable, EUnaryOp, ECallable}, Constant, Variable, UnaryOp::{self, EPos, ENeg, ENot, EParens}, BinaryOp::{self, EPlus, EMinus, EMul, EDiv, EMod, EExp, ELT, ELTE, EEQ, ENE, EGTE, EGT, EOR, EAND}, Callable::{self}};
+use crate::grammar::{Expression, ExpressionTok::{EValue, EBinaryOp}, Value::{self, EConstant, EVariable, EUnaryOp, ECallable}, Constant, Variable, UnaryOp::{self, EPos, ENeg, ENot, EParens}, BinaryOp::{self, EPlus, EMinus, EMul, EDiv, EMod, EExp, ELT, ELTE, EEQ, ENE, EGTE, EGT, EOR, EAND}, Callable::{self, EFunc, EPrintFunc, EEvalFunc}, Func::{self, EFuncInt, EFuncAbs, EFuncLog, EFuncRound, EFuncMin, EFuncMax}, PrintFunc, EvalFunc};
 use crate::util::bool_to_f64;
 
 use std::collections::HashSet;
@@ -163,15 +163,6 @@ impl Evaler for UnaryOp {
     }
 }
 
-impl Evaler for Callable {
-    fn eval(&self, ns:&mut EvalNS) -> Result<f64, Error> {
-        unimplemented!();
-    }
-}
-
-
-
-
 impl BinaryOp {
     // Non-standard eval interface (not generalized yet):
     fn binaryop_eval(&self, left:f64, right:f64) -> f64 {
@@ -195,6 +186,69 @@ impl BinaryOp {
         }
     }
 }
+
+impl Evaler for Callable {
+    fn eval(&self, ns:&mut EvalNS) -> Result<f64, Error> {
+        match self {
+            EFunc(f) => ns.eval_bubble(f),
+            EEvalFunc(f) => ns.eval_bubble(f),
+            EPrintFunc(f) => ns.eval_bubble(f),
+        }
+    }
+}
+
+impl Evaler for Func {
+    fn eval(&self, ns:&mut EvalNS) -> Result<f64, Error> {
+        match self {
+            EFuncInt(expr) => { Ok(ns.eval_bubble(expr)?.trunc()) }
+            EFuncAbs(expr) => { Ok(ns.eval_bubble(expr)?.abs()) }
+            EFuncLog{base,val} => {
+                let base = match base {
+                    Some(b_expr) => ns.eval_bubble(b_expr)?,
+                    None => 10.0,
+                };
+                Ok(ns.eval_bubble(val)?.log(base))
+            }
+            EFuncRound{modulus,val} => {
+                let modulus = match modulus {
+                    Some(m_expr) => ns.eval_bubble(m_expr)?,
+                    None => 1.0,
+                };
+                Ok((ns.eval_bubble(val)?/modulus).round() * modulus)
+            }
+            EFuncMin{first,rest} => {
+                let mut min = ns.eval_bubble(first)?;
+                for x in rest.iter() {
+                    min = min.min(ns.eval_bubble(x)?);
+                }
+                Ok(min)
+            }
+            EFuncMax{first,rest} => {
+                let mut max = ns.eval_bubble(first)?;
+                for x in rest.iter() {
+                    max = max.max(ns.eval_bubble(x)?);
+                }
+                Ok(max)
+            }
+        }
+    }
+}
+
+impl Evaler for PrintFunc {
+    fn eval(&self, ns:&mut EvalNS) -> Result<f64, Error> {
+        unimplemented!();
+    }
+}
+
+impl Evaler for EvalFunc {
+    fn eval(&self, ns:&mut EvalNS) -> Result<f64, Error> {
+        unimplemented!();
+    }
+}
+
+
+
+
 
 
 //---- Tests:
@@ -287,6 +341,48 @@ mod tests {
         assert_eq!(
             p.parse("x + 1").unwrap().eval(&mut ns),
             Ok(4.0));
+
+        assert_eq!(
+            p.parse("1.2 + int(3.4)").unwrap().eval(&mut ns),
+            Ok(4.2));
+        assert_eq!(
+            p.parse("1.2 + abs(-3.4)").unwrap().eval(&mut ns),
+            Ok(4.6));
+        assert_eq!(
+            p.parse("1.2 + log(1)").unwrap().eval(&mut ns),
+            Ok(1.2));
+        assert_eq!(
+            p.parse("1.2 + log(10)").unwrap().eval(&mut ns),
+            Ok(2.2));
+        assert_eq!(
+            p.parse("1.2 + log(0)").unwrap().eval(&mut ns),
+            Ok(std::f64::NEG_INFINITY));
+        assert!(p.parse("1.2 + log(-1)").unwrap().eval(&mut ns).unwrap().is_nan());
+        assert_eq!(
+            p.parse("1.2 + round(3.4)").unwrap().eval(&mut ns),
+            Ok(4.2));
+        assert_eq!(
+            p.parse("1.2 + round(0.5, 3.4)").unwrap().eval(&mut ns),
+            Ok(4.7));
+        assert_eq!(
+            p.parse("1.2 + round(-3.4)").unwrap().eval(&mut ns),
+            Ok(-1.8));
+        assert_eq!(
+            p.parse("1.2 + round(0.5, -3.4)").unwrap().eval(&mut ns),
+            Ok(-2.3));
+        assert_eq!(
+            p.parse("1.2 + min(1,2,0,3.3,-1)").unwrap().eval(&mut ns),
+            Ok(0.19999999999999996));
+        assert_eq!(
+            p.parse("1.2 + min(1)").unwrap().eval(&mut ns),
+            Ok(2.2));
+        assert_eq!(
+            p.parse("1.2 + max(1,2,0,3.3,-1)").unwrap().eval(&mut ns),
+            Ok(4.5));
+        assert_eq!(
+            p.parse("1.2 + max(1)").unwrap().eval(&mut ns),
+            Ok(2.2));
+
 
     }
 }
