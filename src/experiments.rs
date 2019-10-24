@@ -19,7 +19,7 @@ mod tests {
     }
 
     #[test]
-    fn cbs() {
+    fn aaa_cbs() {
         let cbs = CBs::new(|_k| 1.0, |_k| 2.0);
         assert_eq!(cbs.call_f("abc"), 1.0);
         assert_eq!(cbs.call_g("abc"), 2.0);

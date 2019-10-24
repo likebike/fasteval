@@ -55,6 +55,7 @@ impl<'a> EvalNS<'a> {
         if self.reeval_mode<0 { panic!("too many end_reeval_mdoe"); }
     }
 
+    #[allow(dead_code)]
     fn is_normal(&self) -> bool { self.reeval_mode==0 }
     fn is_reeval(&self) -> bool { self.reeval_mode>0 }
 
@@ -62,12 +63,11 @@ impl<'a> EvalNS<'a> {
     // ...but groups of 'eval' layers should be treated as one layer, and *earlier* layers take precedence!
     pub fn get(&mut self, name:&str) -> Option<f64> {
 
-        // This is the closest thing I can think of to a c-style 'for' loop:
-        //     for i:=len(me.NS)-1;i>=0;i-- {...}
+        // We can't use a standard 'for i in (0..ns.len()).rev() {}' loop here because the loop's internal logic needs to modify 'i':
         #[allow(non_snake_case)]
         let mut I = self.ns.0.len() as i32;  // Use i32 instead of usize because the loop needs this value to go negative.
         loop { I-=1; if I<0 { break }
-            let i = I as usize;  // For easier indexing operations.  We know I>0 at this point.
+            let i = I as usize;  // For easier indexing operations.  We know I>=0 at this point.
 
             if self.ns.0[i].is_eval {
                 eprintln!("EvalNS get eval group is un-tested.  (Waiting for implementation of eval.)");
@@ -130,7 +130,7 @@ mod tests {
     }
 
     #[test]
-    fn basics() {
+    fn aaa_basics() {
         let mut ns = EvalNS::new(|_| Some(5.4321));
         assert_eq!(ns.eval_bubble(&TestEvaler{}).unwrap(), 5.4321);
         ns.create("x",1.111).unwrap();

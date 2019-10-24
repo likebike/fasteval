@@ -50,7 +50,7 @@ fn read(bs:&mut &[u8]) -> Result<u8, Error> {
 }
 fn read_word_ci(bs:&mut &[u8], word:&[u8]) -> Result<(), Error> {
     #[allow(non_snake_case)]
-    for (i,B) in word.iter().enumerate() {
+    for B in word.iter() {
         #[allow(non_snake_case)]
         let B = B.to_ascii_lowercase();
         match read(bs) {
@@ -484,7 +484,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn util() {
+    fn aaa_util() {
         match (|| -> Result<(),Error> {
             let bsarr = [1,2,3];
             let bs = &mut &bsarr[..];
@@ -532,7 +532,7 @@ mod tests {
     }
 
     #[test]
-    fn parser() {
+    fn aaa_parser() {
         let p = Parser{
             is_const_byte:None,
             is_var_byte:None,

@@ -82,7 +82,7 @@ impl Evaler for Expression {
             vals[i]=result; vals.remove(i+1);
             ops.remove(i);
         };
-        fn rtol(eval_op:&mut FnMut(&mut Vec<BinaryOp>,usize), ops:&mut Vec<BinaryOp>, op:BinaryOp) {
+        fn rtol(eval_op:&mut dyn FnMut(&mut Vec<BinaryOp>,usize), ops:&mut Vec<BinaryOp>, op:BinaryOp) {
             // for-loop structure:
             let mut i = ops.len() as i64;
             loop { i-=1; if i<0 { break }
@@ -91,7 +91,7 @@ impl Evaler for Expression {
                 if ops[i]==op { eval_op(ops,i); }
             }
         };
-        fn ltor(eval_op:&mut FnMut(&mut Vec<BinaryOp>,usize), ops:&mut Vec<BinaryOp>, op:BinaryOp) {
+        fn ltor(eval_op:&mut dyn FnMut(&mut Vec<BinaryOp>,usize), ops:&mut Vec<BinaryOp>, op:BinaryOp) {
             'outer: loop {
                 // for-loop structure:
                 let mut i : i64 = -1;
@@ -139,7 +139,7 @@ impl Evaler for Value {
 }
 
 impl Evaler for Constant {
-    fn eval(&self, ns:&mut EvalNS) -> Result<f64, Error> { Ok(self.0) }
+    fn eval(&self, _ns:&mut EvalNS) -> Result<f64, Error> { Ok(self.0) }
 }
 
 impl Evaler for Variable {
@@ -247,7 +247,8 @@ impl Evaler for PrintFunc {
             if let EStr(ref fmtstr) = (*self.0)[0] {
                 if fmtstr.contains("%") {
                     // printf mode:
-                    let fmtstr = process_str(fmtstr);
+
+                    //let fmtstr = process_str(fmtstr);
 
                     unimplemented!();  // Make a pure-rust printf libarary.
 
@@ -316,19 +317,10 @@ impl Evaler for EvalFunc {
 mod tests {
     use super::*;
     use crate::parser::Parser;
-
-    struct TestEvaler;
-    impl Evaler for TestEvaler {
-        fn eval(&self, ns:&mut EvalNS) -> Result<f64,Error> {
-            match ns.get("x") {
-                Some(v) => Ok(v),
-                None => Ok(1.23),
-            }
-        }
-    }
+    use std::time::Instant;
 
     #[test]
-    fn basics() {
+    fn aaa_basics() {
         let p = Parser{
             is_const_byte:None,
             is_var_byte:None,
@@ -396,7 +388,7 @@ mod tests {
             p.parse("x + 1").unwrap().eval(&mut ns),
             Err(Error::new("variable undefined")));
 
-        let mut ns = EvalNS::new(|v| Some(3.0));
+        let mut ns = EvalNS::new(|_| Some(3.0));
         assert_eq!(
             p.parse("x + 1").unwrap().eval(&mut ns),
             Ok(4.0));
@@ -450,6 +442,42 @@ mod tests {
             p.parse(r#"12.34 + eval ( x + 43.21 - y, x=2.5, y = 2.5 ) + 11.11"#).unwrap().eval(&mut ns),
             Ok(66.66));
 
+    }
+
+    #[test]
+    fn bench() {
+        eprintln!();
+
+        let p = Parser{
+            is_const_byte:None,
+            is_var_byte:None,
+        };
+        let mut ns = EvalNS::new(|_| None);
+
+        let expr = p.parse("(3 * (3 + 3) / 3)").unwrap();
+        let count = 1000000;
+
+        {
+            let mut sum = 0f64;
+            let start = Instant::now();
+            for _ in 0..count {
+                match expr.eval(&mut ns) {
+                    Ok(f) => { sum+=f; }
+                    Err(e) => panic!(format!("error during benchmark: {}",e)),
+                }
+            }
+            eprintln!("eval bench: {}  {}",sum,Instant::now().duration_since(start).as_secs_f64());
+        }
+
+        {
+            let mut sum = 0f64;
+            let start = Instant::now();
+            for _ in 0..count {
+                let x = 3.0 * (3.0 + 3.0) / 3.0;
+                sum+=x;
+            }
+            eprintln!("raw  bench: {}  {}",sum,Instant::now().duration_since(start).as_secs_f64());
+        }
     }
 }
 

@@ -11,7 +11,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn util() {
+    fn aaa_util() {
         assert_eq!(bool_to_f64(true), 1.0);
         assert_eq!(bool_to_f64(false), 0.0);
     }

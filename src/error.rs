@@ -10,7 +10,7 @@ pub struct Error {
 
 impl Error {
     pub fn new(err:&str) -> Self {
-        Error{err:err.to_string(), chain:LList(None)}
+        Error{err:err.to_string(), chain:LList::new()}
     }
     pub fn pre(mut self, info:&str) -> Self {
         self.chain = self.chain.prepend(info.to_string());
@@ -116,7 +116,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn llist() {
+    fn aaa_llist() {
         let l : LList<String> = LList::new();
         assert_eq!(format!("{}", l), "[]");
         assert_eq!(format!("{:?}", l), "LList[]");
@@ -133,7 +133,7 @@ mod tests {
     }
 
     #[test]
-    fn error() {
+    fn aaa_error() {
         let mut e = Error::new("ABC");
         assert_eq!(format!("{}", e), "ABC");
         assert_eq!(format!("{:?}", e), r#"Error { err: "ABC", chain: LList[] }"#);
