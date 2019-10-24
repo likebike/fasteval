@@ -454,13 +454,13 @@ mod tests {
         };
         let mut ns = EvalNS::new(|_| None);
 
-        let expr = p.parse("(3 * (3 + 3) / 3)").unwrap();
         let count = 1000000;
 
         {
             let mut sum = 0f64;
             let start = Instant::now();
             for _ in 0..count {
+                let expr = p.parse("(3 * (3 + 3) / 3)").unwrap();
                 match expr.eval(&mut ns) {
                     Ok(f) => { sum+=f; }
                     Err(e) => panic!(format!("error during benchmark: {}",e)),
