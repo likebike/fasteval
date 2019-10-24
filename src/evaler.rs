@@ -1,7 +1,6 @@
 use crate::evalns::EvalNS;
 use crate::error::Error;
 use crate::grammar::{Expression, ExpressionTok::{EValue, EBinaryOp}, Value::{self, EConstant, EVariable, EUnaryOp, ECallable}, Constant, Variable, UnaryOp::{self, EPos, ENeg, ENot, EParens}, BinaryOp::{self, EPlus, EMinus, EMul, EDiv, EMod, EExp, ELT, ELTE, EEQ, ENE, EGTE, EGT, EOR, EAND}, Callable::{self, EFunc, EPrintFunc, EEvalFunc}, Func::{self, EFuncInt, EFuncAbs, EFuncLog, EFuncRound, EFuncMin, EFuncMax}, PrintFunc, EvalFunc, ExpressionOrString::{EExpr, EStr}};
-use crate::util::bool_to_f64;
 
 use std::collections::HashSet;
 
@@ -308,6 +307,11 @@ impl Evaler for EvalFunc {
 
 
 
+pub fn bool_to_f64(b:bool) -> f64 {
+    if b { 1.0 }
+    else { 0.0 }
+}
+
 
 
 
@@ -318,6 +322,12 @@ mod tests {
     use super::*;
     use crate::parser::Parser;
     use std::time::Instant;
+
+    #[test]
+    fn aaa_util() {
+        assert_eq!(bool_to_f64(true), 1.0);
+        assert_eq!(bool_to_f64(false), 0.0);
+    }
 
     #[test]
     fn aaa_basics() {
