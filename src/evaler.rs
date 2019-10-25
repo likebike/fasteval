@@ -14,7 +14,7 @@ pub trait Evaler {
         {
             let mut ns = EvalNS::new(|name:&str| {
                 set.insert(name.to_string());
-                None
+                Some(0.0)
             });
             self.eval(&mut ns)?;
         }

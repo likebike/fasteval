@@ -70,7 +70,6 @@ impl<'a> EvalNS<'a> {
             let i = I as usize;  // For easier indexing operations.  We know I>=0 at this point.
 
             if self.ns.0[i].is_eval {
-                eprintln!("EvalNS get eval group is un-tested.  (Waiting for implementation of eval.)");
                 // Eval layer: treat neighboring eval layers as a group.
                 let mut j = i;
                 while j>0 && self.ns.0[j-1].is_eval { j-=1 }

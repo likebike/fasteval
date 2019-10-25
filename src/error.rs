@@ -4,8 +4,8 @@ use std::mem;
 
 #[derive(Debug)]
 pub struct Error {
-    err   : String,
-    chain : LList<String>,
+    pub err   : String,
+    pub chain : LList<String>,
 }
 
 impl Error {
@@ -35,8 +35,8 @@ impl PartialEq for Error {
 }
 
 // An immutable linked list, perfectly designed for our error chain:
-struct LList<T>(Option<Rc<LLNode<T>>>);
-struct LLNode<T> {
+pub struct LList<T>(Option<Rc<LLNode<T>>>);
+pub struct LLNode<T> {
     el  : T,
     next: LList<T>,
 }
