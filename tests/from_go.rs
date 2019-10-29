@@ -23,36 +23,36 @@ fn capture_stderr(f:&dyn Fn()) -> String {
 #[test]
 fn aaa_test_a() {
     assert_eq!(parse("3"),
-Expression{first:Box::new(EConstant(Constant(3.0))), pairs:Box::new([])});
+Expression{first:EConstant(Constant(3.0)), pairs:Box::new([])});
     assert_eq!(parse("3.14"),
-Expression{first:Box::new(EConstant(Constant(3.14))), pairs:Box::new([])});
+Expression{first:EConstant(Constant(3.14)), pairs:Box::new([])});
     assert_eq!(parse("3+5"),
-Expression { first:Box::new(EConstant(Constant(3.0))), pairs:Box::new([ExprPair(EPlus, EConstant(Constant(5.0)))]) });
+Expression { first: EConstant(Constant(3.0)), pairs:Box::new([ExprPair(EPlus, EConstant(Constant(5.0)))]) });
     assert_eq!(parse("3-5"),
-Expression { first:Box::new(EConstant(Constant(3.0))), pairs:Box::new([ExprPair(EMinus, EConstant(Constant(5.0)))]) });
+Expression { first: EConstant(Constant(3.0)), pairs:Box::new([ExprPair(EMinus, EConstant(Constant(5.0)))]) });
     assert_eq!(parse("3*5"),
-Expression { first:Box::new(EConstant(Constant(3.0))), pairs:Box::new([ExprPair(EMul, EConstant(Constant(5.0)))]) });
+Expression { first: EConstant(Constant(3.0)), pairs:Box::new([ExprPair(EMul, EConstant(Constant(5.0)))]) });
     assert_eq!(parse("3/5"),
-Expression { first:Box::new(EConstant(Constant(3.0))), pairs:Box::new([ExprPair(EDiv, EConstant(Constant(5.0)))]) });
+Expression { first: EConstant(Constant(3.0)), pairs:Box::new([ExprPair(EDiv, EConstant(Constant(5.0)))]) });
     assert_eq!(parse("3^5"),
-Expression { first:Box::new(EConstant(Constant(3.0))), pairs:Box::new([ExprPair(EExp, EConstant(Constant(5.0)))]) });
+Expression { first: EConstant(Constant(3.0)), pairs:Box::new([ExprPair(EExp, EConstant(Constant(5.0)))]) });
 }
 
 #[test]
 fn aaa_test_b0() {
     assert_eq!(parse("3.14 + 4.99999999999999"),
-Expression { first:Box::new(EConstant(Constant(3.14))), pairs:Box::new([ExprPair(EPlus, EConstant(Constant(4.99999999999999)))]) });
+Expression { first: EConstant(Constant(3.14)), pairs:Box::new([ExprPair(EPlus, EConstant(Constant(4.99999999999999)))]) });
     assert_eq!(parse("3.14 + 4.99999999999999999999999999999999999999999999999999999"),
-Expression { first:Box::new(EConstant(Constant(3.14))), pairs:Box::new([ExprPair(EPlus, EConstant(Constant(5.0)))]) });
+Expression { first: EConstant(Constant(3.14)), pairs:Box::new([ExprPair(EPlus, EConstant(Constant(5.0)))]) });
     // Go can parse this, but not Rust:
     assert_eq!(parse_raw("3.14 + 4.999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999"),
 Err(Error::new("parse<f64> error")));
     assert_eq!(parse("3.14 + 0.9999"),
-Expression { first:Box::new(EConstant(Constant(3.14))), pairs:Box::new([ExprPair(EPlus, EConstant(Constant(0.9999)))]) });
+Expression { first: EConstant(Constant(3.14)), pairs:Box::new([ExprPair(EPlus, EConstant(Constant(0.9999)))]) });
     assert_eq!(parse("3.14 + .9999"),
-Expression { first:Box::new(EConstant(Constant(3.14))), pairs:Box::new([ExprPair(EPlus, EConstant(Constant(0.9999)))]) });
+Expression { first: EConstant(Constant(3.14)), pairs:Box::new([ExprPair(EPlus, EConstant(Constant(0.9999)))]) });
     assert_eq!(parse("3.14 + 0."),
-Expression { first:Box::new(EConstant(Constant(3.14))), pairs:Box::new([ExprPair(EPlus, EConstant(Constant(0.0)))]) });
+Expression { first: EConstant(Constant(3.14)), pairs:Box::new([ExprPair(EPlus, EConstant(Constant(0.0)))]) });
 }
 
 #[test]
@@ -72,13 +72,13 @@ Err(Error::new("parse<f64> error")));
 #[test]
 fn aaa_test_c0() {
     assert_eq!(parse("3+5-xyz"),
-Expression { first:Box::new(EConstant(Constant(3.0))), pairs:Box::new([ExprPair(EPlus, EConstant(Constant(5.0))), ExprPair(EMinus, EVariable(Variable("xyz".to_string())))]) });
+Expression { first: EConstant(Constant(3.0)), pairs:Box::new([ExprPair(EPlus, EConstant(Constant(5.0))), ExprPair(EMinus, EVariable(Variable("xyz".to_string())))]) });
     assert_eq!(parse("3+5-xyz_abc_def123"),
-Expression { first:Box::new(EConstant(Constant(3.0))), pairs:Box::new([ExprPair(EPlus, EConstant(Constant(5.0))), ExprPair(EMinus, EVariable(Variable("xyz_abc_def123".to_string())))]) });
+Expression { first: EConstant(Constant(3.0)), pairs:Box::new([ExprPair(EPlus, EConstant(Constant(5.0))), ExprPair(EMinus, EVariable(Variable("xyz_abc_def123".to_string())))]) });
     assert_eq!(parse("3+5-XYZ_abc_def123"),
-Expression { first:Box::new(EConstant(Constant(3.0))), pairs:Box::new([ExprPair(EPlus, EConstant(Constant(5.0))), ExprPair(EMinus, EVariable(Variable("XYZ_abc_def123".to_string())))]) });
+Expression { first: EConstant(Constant(3.0)), pairs:Box::new([ExprPair(EPlus, EConstant(Constant(5.0))), ExprPair(EMinus, EVariable(Variable("XYZ_abc_def123".to_string())))]) });
     assert_eq!(parse("3+5-XYZ_ab*c_def123"),
-Expression { first:Box::new(EConstant(Constant(3.0))), pairs:Box::new([ExprPair(EPlus, EConstant(Constant(5.0))), ExprPair(EMinus, EVariable(Variable("XYZ_ab".to_string()))), ExprPair(EMul, EVariable(Variable("c_def123".to_string())))]) });
+Expression { first: EConstant(Constant(3.0)), pairs:Box::new([ExprPair(EPlus, EConstant(Constant(5.0))), ExprPair(EMinus, EVariable(Variable("XYZ_ab".to_string()))), ExprPair(EMul, EVariable(Variable("c_def123".to_string())))]) });
 }
 
 #[test]
@@ -90,13 +90,13 @@ Err(Error::new("unparsed tokens remaining")));
 #[test]
 fn aaa_test_d0() {
     assert_eq!(parse("3+(-5)"),
-Expression { first:Box::new(EConstant(Constant(3.0))), pairs:Box::new([ExprPair(EPlus, EUnaryOp(EParens(Expression { first:Box::new(EUnaryOp(ENeg(Box::new(EConstant(Constant(5.0)))))), pairs:Box::new([]) })))]) });
+Expression { first: EConstant(Constant(3.0)), pairs:Box::new([ExprPair(EPlus, EUnaryOp(EParens(Box::new(Expression { first: EUnaryOp(ENeg(Box::new(EConstant(Constant(5.0))))), pairs:Box::new([]) }))))]) });
     assert_eq!(parse("3+-5"),
-Expression { first:Box::new(EConstant(Constant(3.0))), pairs:Box::new([ExprPair(EPlus, EUnaryOp(ENeg(Box::new(EConstant(Constant(5.0))))))]) });
+Expression { first: EConstant(Constant(3.0)), pairs:Box::new([ExprPair(EPlus, EUnaryOp(ENeg(Box::new(EConstant(Constant(5.0))))))]) });
     assert_eq!(parse("3++5"),
-Expression { first:Box::new(EConstant(Constant(3.0))), pairs:Box::new([ExprPair(EPlus, EUnaryOp(EPos(Box::new(EConstant(Constant(5.0))))))]) });
+Expression { first: EConstant(Constant(3.0)), pairs:Box::new([ExprPair(EPlus, EUnaryOp(EPos(Box::new(EConstant(Constant(5.0))))))]) });
     assert_eq!(parse(" 3 + ( -x + y ) "),
-Expression { first:Box::new(EConstant(Constant(3.0))), pairs:Box::new([ExprPair(EPlus, EUnaryOp(EParens(Expression { first:Box::new(EUnaryOp(ENeg(Box::new(EVariable(Variable("x".to_string())))))), pairs:Box::new([ExprPair(EPlus, EVariable(Variable("y".to_string())))]) })))]) });
+Expression { first: EConstant(Constant(3.0)), pairs:Box::new([ExprPair(EPlus, EUnaryOp(EParens(Box::new(Expression { first: EUnaryOp(ENeg(Box::new(EVariable(Variable("x".to_string()))))), pairs:Box::new([ExprPair(EPlus, EVariable(Variable("y".to_string())))]) }))))]) });
 }
 
 #[test]
