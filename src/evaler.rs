@@ -488,7 +488,7 @@ mod tests {
         };
         let mut ns = EvalNS::new(|_| None);
 
-        let count = 10000000;
+        let count = 1000000;
 
         {
             let mut sum = 0f64;
