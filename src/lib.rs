@@ -1,14 +1,14 @@
 // TODO:
-//     * Port all tests
-//     * NaN, inf, -inf are valid.  problem?
-//     * Readme
-//     * Documentation
-//     * Profile, boost critical sections.
+//   [x] Port all tests
+//   [x] NaN, inf, -inf are valid.  problem?  no because my parser thinks they're vars.
+//   [ ] Profile, boost critical sections.
+//   [ ] Readme
+//   [ ] Documentation
 //
-//     * sprintf
-//     * optimize after parse
-//     * optimize the peek/read process -- be able to read N bytes if we peek successfully.
-//     * e() pi() ... or should i prefer variables?  Provide a default layer of variables?  Vars don't work well with TV symbols.
+//   [ ] sprintf
+//   [ ] optimize after parse
+//   [ ] optimize the peek/read process -- be able to read N bytes if we peek successfully.
+//   [ ] e() pi() ... or should i prefer variables?  Provide a default layer of variables?  Vars don't work well with TV symbols.
 
 pub mod error;
 pub mod grammar;

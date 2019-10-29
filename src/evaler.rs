@@ -1,6 +1,16 @@
 use crate::evalns::EvalNS;
 use crate::error::Error;
-use crate::grammar::{Expression, ExpressionTok::{EValue, EBinaryOp}, Value::{self, EConstant, EVariable, EUnaryOp, ECallable}, Constant, Variable, UnaryOp::{self, EPos, ENeg, ENot, EParens}, BinaryOp::{self, EPlus, EMinus, EMul, EDiv, EMod, EExp, ELT, ELTE, EEQ, ENE, EGTE, EGT, EOR, EAND}, Callable::{self, EFunc, EPrintFunc, EEvalFunc}, Func::{self, EFuncInt, EFuncAbs, EFuncLog, EFuncRound, EFuncMin, EFuncMax}, PrintFunc, EvalFunc, ExpressionOrString::{EExpr, EStr}};
+use crate::grammar::{Expression,
+                     Value::{self, EConstant, EVariable, EUnaryOp, ECallable},
+                     Constant,
+                     Variable,
+                     UnaryOp::{self, EPos, ENeg, ENot, EParens},
+                     BinaryOp::{self, EPlus, EMinus, EMul, EDiv, EMod, EExp, ELT, ELTE, EEQ, ENE, EGTE, EGT, EOR, EAND},
+                     Callable::{self, EFunc, EPrintFunc, EEvalFunc},
+                     Func::{self, EFuncInt, EFuncAbs, EFuncLog, EFuncRound, EFuncMin, EFuncMax},
+                     PrintFunc,
+                     EvalFunc,
+                     ExpressionOrString::{EExpr, EStr}};
 
 use std::collections::HashSet;
 
@@ -24,8 +34,6 @@ pub trait Evaler {
 
 impl Evaler for Expression {
     fn eval(&self, ns:&mut EvalNS) -> Result<f64, Error> {
-        if self.0.len()%2!=1 { return Err(Error::new("Expression len should always be odd")) }
-
         // Order of operations: 1) ^  2) */  3) +-
         // Exponentiation should be processed right-to-left.  Think of what 2^3^4 should mean:
         //     2^(3^4)=2417851639229258349412352   <--- I choose this one.
@@ -36,28 +44,44 @@ impl Evaler for Expression {
         //     (((6-5)-4)-3)!=(6-(5-(4-3))), (((6/5)/4)/3)!=(6/(5/(4/3)))
 
 
-        // ---- Go code, for comparison ----
-        // vals,ops:=make([]float64, len(e)/2+1),make([]BinaryOp, len(e)/2)
-        // for i:=0; i<len(e); i+=2 {
-        //     vals[i/2]=ns.EvalBubble(e[i].(evaler))
-        //     if i<len(e)-1 { ops[i/2]=e[i+1].(BinaryOp) }
+        // // ---- Go code, for comparison ----
+        // // vals,ops:=make([]float64, len(e)/2+1),make([]BinaryOp, len(e)/2)
+        // // for i:=0; i<len(e); i+=2 {
+        // //     vals[i/2]=ns.EvalBubble(e[i].(evaler))
+        // //     if i<len(e)-1 { ops[i/2]=e[i+1].(BinaryOp) }
+        // // }
+
+        // if self.0.len()%2!=1 { return Err(Error::new("Expression len should always be odd")) }
+        // let mut vals : Vec<f64>      = Vec::with_capacity(self.0.len()/2+1);
+        // let mut ops  : Vec<BinaryOp> = Vec::with_capacity(self.0.len()/2  );
+        // for (i,tok) in self.0.iter().enumerate() {
+        //     match tok {
+        //         EValue(val) => {
+        //             if i%2==1 { return Err(Error::new("Found value at odd index")) }
+        //             match ns.eval_bubble(val) {
+        //                 Ok(f) => vals.push(f),
+        //                 Err(e) => return Err(e.pre(&format!("eval_bubble({:?})",val))),
+        //             }
+        //         }
+        //         EBinaryOp(bop) => {
+        //             if i%2==0 { return Err(Error::new("Found binaryop at even index")) }
+        //             ops.push(*bop);
+        //         }
+        //     }
         // }
 
-        let mut vals : Vec<f64>      = Vec::with_capacity(self.0.len()/2+1);
-        let mut ops  : Vec<BinaryOp> = Vec::with_capacity(self.0.len()/2  );
-        for (i,tok) in self.0.iter().enumerate() {
-            match tok {
-                EValue(val) => {
-                    if i%2==1 { return Err(Error::new("Found value at odd index")) }
-                    match ns.eval_bubble(val) {
-                        Ok(f) => vals.push(f),
-                        Err(e) => return Err(e.pre(&format!("eval_bubble({:?})",val))),
-                    }
-                }
-                EBinaryOp(bop) => {
-                    if i%2==0 { return Err(Error::new("Found binaryop at even index")) }
-                    ops.push(*bop);
-                }
+        // Code for new Expression data structure:
+        let mut vals : Vec<f64>      = Vec::with_capacity(self.pairs.len()/2+1);
+        let mut ops  : Vec<BinaryOp> = Vec::with_capacity(self.pairs.len()/2  );
+        match ns.eval_bubble(&self.first) {
+            Ok(f) => vals.push(f),
+            Err(e) => return Err(e.pre(&format!("eval_bubble({:?})",self.first))),
+        }
+        for pair in self.pairs.iter() {
+            ops.push(pair.0);
+            match ns.eval_bubble(&pair.1) {
+                Ok(f) => vals.push(f),
+                Err(e) => return Err(e.pre(&format!("eval_bubble({:?})",pair.1))),
             }
         }
 
@@ -156,7 +180,7 @@ impl Evaler for UnaryOp {
             EPos(box_val) => ns.eval_bubble(box_val.as_ref()),
             ENeg(box_val) => Ok(-ns.eval_bubble(box_val.as_ref())?),
             ENot(box_val) => Ok(bool_to_f64(ns.eval_bubble(box_val.as_ref())?==0.0)),
-            EParens(expr) => ns.eval_bubble(expr),
+            EParens(expr) => ns.eval_bubble(expr.as_ref()),
         }
     }
 }
@@ -198,31 +222,31 @@ impl Evaler for Callable {
 impl Evaler for Func {
     fn eval(&self, ns:&mut EvalNS) -> Result<f64, Error> {
         match self {
-            EFuncInt(expr) => { Ok(ns.eval_bubble(expr)?.trunc()) }
-            EFuncAbs(expr) => { Ok(ns.eval_bubble(expr)?.abs()) }
+            EFuncInt(expr) => { Ok(ns.eval_bubble(expr.as_ref())?.trunc()) }
+            EFuncAbs(expr) => { Ok(ns.eval_bubble(expr.as_ref())?.abs()) }
             EFuncLog{base,val} => {
                 let base = match base {
-                    Some(b_expr) => ns.eval_bubble(b_expr)?,
+                    Some(b_expr) => ns.eval_bubble(b_expr.as_ref())?,
                     None => 10.0,
                 };
-                Ok(ns.eval_bubble(val)?.log(base))
+                Ok(ns.eval_bubble(val.as_ref())?.log(base))
             }
             EFuncRound{modulus,val} => {
                 let modulus = match modulus {
-                    Some(m_expr) => ns.eval_bubble(m_expr)?,
+                    Some(m_expr) => ns.eval_bubble(m_expr.as_ref())?,
                     None => 1.0,
                 };
-                Ok((ns.eval_bubble(val)?/modulus).round() * modulus)
+                Ok((ns.eval_bubble(val.as_ref())?/modulus).round() * modulus)
             }
             EFuncMin{first,rest} => {
-                let mut min = ns.eval_bubble(first)?;
+                let mut min = ns.eval_bubble(first.as_ref())?;
                 for x in rest.iter() {
                     min = min.min(ns.eval_bubble(x)?);
                 }
                 Ok(min)
             }
             EFuncMax{first,rest} => {
-                let mut max = ns.eval_bubble(first)?;
+                let mut max = ns.eval_bubble(first.as_ref())?;
                 for x in rest.iter() {
                     max = max.max(ns.eval_bubble(x)?);
                 }
@@ -262,7 +286,7 @@ impl Evaler for PrintFunc {
             if i>0 { out.push(' '); }
             match a {
                 EExpr(e) => {
-                    val = ns.eval_bubble(e)?;
+                    val = ns.eval_bubble(e.as_ref())?;
                     out.push_str(&format!("{}",val));
                 }
                 EStr(s) => out.push_str(&process_str(s)),
@@ -287,14 +311,14 @@ impl Evaler for EvalFunc {
         let res = (|| -> Result<f64, Error> {
 
             for kw in self.kwargs.iter() {
-                let val = ns.eval_bubble(&kw.expr)?;
+                let val = ns.eval_bubble(kw.expr.as_ref())?;
                 ns.create(kw.name.0.as_ref(), val)?;
             }
 
             ns.start_reeval_mode();
             // Another defer structure (a bit overly-complex for this simple case):
             let res = (|| -> Result<f64, Error> {
-                ns.eval_bubble(&self.expr)
+                ns.eval_bubble(self.expr.as_ref())
             })();
             ns.end_reeval_mode();
             res
@@ -464,7 +488,7 @@ mod tests {
         };
         let mut ns = EvalNS::new(|_| None);
 
-        let count = 1000000;
+        let count = 10000000;
 
         {
             let mut sum = 0f64;

@@ -1,4 +1,16 @@
-use crate::grammar::{Expression, ExpressionTok::{EValue, EBinaryOp}, Value::{self, EConstant, EVariable, EUnaryOp, ECallable}, Constant, Variable, UnaryOp::{self, EPos, ENeg, EParens, ENot}, BinaryOp::{self, EPlus, EMinus, EMul, EDiv, EMod, EExp, ELT, ELTE, EEQ, ENE, EGTE, EGT, EOR, EAND}, Callable::{self, EFunc, EPrintFunc, EEvalFunc}, Func::{self, EFuncInt, EFuncAbs, EFuncLog, EFuncRound, EFuncMin, EFuncMax}, PrintFunc, ExpressionOrString::{self, EExpr, EStr}, EvalFunc, KWArg};
+use crate::grammar::{Expression,
+                     ExprPair,
+                     Value::{self, EConstant, EVariable, EUnaryOp, ECallable},
+                     Constant,
+                     Variable,
+                     UnaryOp::{self, EPos, ENeg, EParens, ENot},
+                     BinaryOp::{self, EPlus, EMinus, EMul, EDiv, EMod, EExp, ELT, ELTE, EEQ, ENE, EGTE, EGT, EOR, EAND},
+                     Callable::{self, EFunc, EPrintFunc, EEvalFunc},
+                     Func::{self, EFuncInt, EFuncAbs, EFuncLog, EFuncRound, EFuncMin, EFuncMax},
+                     PrintFunc,
+                     ExpressionOrString::{self, EExpr, EStr},
+                     EvalFunc,
+                     KWArg};
 use crate::error::Error;
 
 
@@ -129,16 +141,16 @@ impl<'a> Parser<'a> {
     }
 
     fn read_expression(&self, bs:&mut &[u8], expect_eof:bool) -> Result<Expression, Error> {
-        let val = self.read_value(bs).map_err(|e| e.pre("read_value"))?;
-        let mut vec = vec![EValue(val)];
+        let first = self.read_value(bs).map_err(|e| e.pre("read_value"))?;
+        let mut pairs : Vec<ExprPair> = Vec::new();
         while self.peek_binaryop(bs) {
             let bop = self.read_binaryop(bs).map_err(|e| e.pre("read_binaryop"))?;
             let val = self.read_value(bs).map_err(|e| e.pre("read_value"))?;
-            vec.push(EBinaryOp(bop)); vec.push(EValue(val));
+            pairs.push(ExprPair(bop,val));
         }
         space(bs);
         if expect_eof && !is_at_eof(bs) { return Err(Error::new("unparsed tokens remaining")); }
-        Ok(Expression(vec.into_boxed_slice()))
+        Ok(Expression{first:first, pairs:pairs.into_boxed_slice()})
     }
 
     fn read_value(&self, bs:&mut &[u8]) -> Result<Value, Error> {
@@ -228,7 +240,7 @@ impl<'a> Parser<'a> {
                 let x = self.read_expression(bs,false)?;
                 space(bs);
                 if read(bs)? != b')' { return Err(Error::new("Expected ')'")) }
-                Ok(EParens(x))
+                Ok(EParens(Box::new(x)))
             }
             _ => Err(Error::new("invalid unaryop")),
         }
@@ -341,37 +353,37 @@ impl<'a> Parser<'a> {
 
         match fname.as_ref() {
             "int" => {
-                if args.len()==1 { Ok(EFuncInt(args.pop().unwrap()))
+                if args.len()==1 { Ok(EFuncInt(Box::new(args.pop().unwrap())))
                 } else { Err(Error::new("expected one arg")) }
             }
             "abs" => {
-                if args.len()==1 { Ok(EFuncAbs(args.pop().unwrap()))
+                if args.len()==1 { Ok(EFuncAbs(Box::new(args.pop().unwrap())))
                 } else { Err(Error::new("expected one arg")) }
             }
             "log" => {
-                if args.len()==1 { Ok(EFuncLog{base:None, val:args.pop().unwrap()})
+                if args.len()==1 { Ok(EFuncLog{base:None, val:Box::new(args.pop().unwrap())})
                 } else if args.len()==2 {
                     let val = args.pop().unwrap();
-                    Ok(EFuncLog{base:Some(args.pop().unwrap()), val:val})
+                    Ok(EFuncLog{base:Some(Box::new(args.pop().unwrap())), val:Box::new(val)})
                 } else { Err(Error::new("expected log(x) or log(base,x)")) }
             }
             "round" => {
-                if args.len()==1 { Ok(EFuncRound{modulus:None, val:args.pop().unwrap()})
+                if args.len()==1 { Ok(EFuncRound{modulus:None, val:Box::new(args.pop().unwrap())})
                 } else if args.len()==2 {
                     let val = args.pop().unwrap();
-                    Ok(EFuncRound{modulus:Some(args.pop().unwrap()), val:val})
+                    Ok(EFuncRound{modulus:Some(Box::new(args.pop().unwrap())), val:Box::new(val)})
                 } else { Err(Error::new("expected round(x) or round(modulus,x)")) }
             }
             "min" => {
                 if args.len()>0 {
                     let first = args.remove(0);
-                    Ok(EFuncMin{first:first, rest:args.into_boxed_slice()})
+                    Ok(EFuncMin{first:Box::new(first), rest:args.into_boxed_slice()})
                 } else { Err(Error::new("expected one or more args")) }
             }
             "max" => {
                 if args.len()>0 {
                     let first = args.remove(0);
-                    Ok(EFuncMax{first:first, rest:args.into_boxed_slice()})
+                    Ok(EFuncMax{first:Box::new(first), rest:args.into_boxed_slice()})
                 } else { Err(Error::new("expected one or more args")) }
             }
             _ => Err(Error::new(&format!("undefined function: {}",fname))),
@@ -441,15 +453,15 @@ impl<'a> Parser<'a> {
             let expr = self.read_expression(bs,false)?;
 
             if kwargs_has(&kwargs,&name) { return Err(Error::new(&format!("already defined: {}",name))) }
-            kwargs.push(KWArg{name, expr});
+            kwargs.push(KWArg{name:name, expr:Box::new(expr)});
         }
 
-        Ok(EvalFunc{expr:eval_expr, kwargs:kwargs.into_boxed_slice()})
+        Ok(EvalFunc{expr:Box::new(eval_expr), kwargs:kwargs.into_boxed_slice()})
     }
 
     fn read_expressionorstring(&self, bs:&mut &[u8]) -> Result<ExpressionOrString, Error> {
         if self.peek_string(bs) { Ok(EStr(self.read_string(bs)?))
-        } else { Ok(EExpr(self.read_expression(bs,false)?)) }
+        } else { Ok(EExpr(Box::new(self.read_expression(bs,false)?))) }
     }
 
     fn peek_string(&self, bs:&mut &[u8]) -> bool {
@@ -558,51 +570,32 @@ mod tests {
         }
 
         assert_eq!(p.parse("12.34 + 43.21 + 11.11"),
-                   Ok(Expression(Box::new([
-                       EValue(EConstant(Constant(12.34))),
-                       EBinaryOp(EPlus),
-                       EValue(EConstant(Constant(43.21))),
-                       EBinaryOp(EPlus),
-                       EValue(EConstant(Constant(11.11)))]))));
+                   Ok(Expression{
+                        first:EConstant(Constant(12.34)),
+                        pairs:Box::new([
+                            ExprPair(EPlus, EConstant(Constant(43.21))),
+                            ExprPair(EPlus, EConstant(Constant(11.11)))])}));
 
         assert_eq!(p.parse("12.34 + abs ( -43 - 0.21 ) + 11.11"),
-                   Ok(Expression(Box::new([
-                       EValue(EConstant(Constant(12.34))),
-                       EBinaryOp(EPlus),
-                       EValue(ECallable(EFunc(EFuncAbs(Expression(Box::new([
-                           EValue(EUnaryOp(ENeg(Box::new(EConstant(Constant(43.0)))))),
-                           EBinaryOp(EMinus),
-                           EValue(EConstant(Constant(0.21)))])))))),
-                       EBinaryOp(EPlus),
-                       EValue(EConstant(Constant(11.11)))])))
-        );
+                   Ok(Expression{
+                        first:EConstant(Constant(12.34)),
+                        pairs:Box::new([
+                            ExprPair(EPlus, EConstant(Constant(43.21))),
+                            ExprPair(EPlus, EConstant(Constant(11.11)))])}));
 
         assert_eq!(p.parse("12.34 + print ( 43.21 ) + 11.11"),
-                   Ok(Expression(Box::new([EValue(EConstant(Constant(12.34))),
-                       EBinaryOp(EPlus),
-                       EValue(ECallable(EPrintFunc(PrintFunc(Box::new([
-                           EExpr(Expression(Box::new([EValue(EConstant(Constant(43.21)))])))]))))),
-                       EBinaryOp(EPlus),
-                       EValue(EConstant(Constant(11.11)))])))
-        );
+                   Ok(Expression{
+                        first:EConstant(Constant(12.34)),
+                        pairs:Box::new([
+                            ExprPair(EPlus, EConstant(Constant(43.21))),
+                            ExprPair(EPlus, EConstant(Constant(11.11)))])}));
 
         assert_eq!(p.parse("12.34 + eval ( x - y , x = 5 , y=4 ) + 11.11"),
-                   Ok(Expression(Box::new([
-                       EValue(EConstant(Constant(12.34))),
-                       EBinaryOp(EPlus),
-                       EValue(ECallable(EEvalFunc(EvalFunc {
-                           expr: Expression(Box::new([
-                                             EValue(EVariable(Variable("x".to_string()))),
-                                             EBinaryOp(EMinus),
-                                             EValue(EVariable(Variable("y".to_string())))])),
-                           kwargs: Box::new([
-                                    KWArg {name: Variable("x".to_string()),
-                                           expr: Expression(Box::new([EValue(EConstant(Constant(5.0)))])) },
-                                    KWArg {name: Variable("y".to_string()),
-                                           expr: Expression(Box::new([EValue(EConstant(Constant(4.0)))])) }]) }))),
-                       EBinaryOp(EPlus),
-                       EValue(EConstant(Constant(11.11)))])))
-        );
+                   Ok(Expression{
+                        first:EConstant(Constant(12.34)),
+                        pairs:Box::new([
+                            ExprPair(EPlus, EConstant(Constant(43.21))),
+                            ExprPair(EPlus, EConstant(Constant(11.11)))])}));
     }
 }
 

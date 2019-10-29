@@ -5,3 +5,7 @@ authors = ["Christopher Sebastian <csebastian3@gmail.com>"]
 edition = "2018"
 
 [dependencies]
+
+[profile.bench]
+debug = true
+

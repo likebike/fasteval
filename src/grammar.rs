@@ -26,14 +26,23 @@
 //
 // EvalFunc: eval(Expression(,Variable=Expression)*)
 
-#[derive(Debug, PartialEq)]
-pub struct Expression(pub Box<[ExpressionTok]>);
+// #[derive(Debug, PartialEq)]
+// pub struct Expression(pub Box<[ExpressionTok]>);  // This data structure allows invalid states to exist, but it's so convenient!
+//
+// #[derive(Debug, PartialEq)]
+// pub enum ExpressionTok {
+//     EValue(Value),
+//     EBinaryOp(BinaryOp),
+// }
+
+#[derive(Debug, PartialEq)]  // More awkward, but unable to represent invalid states.
+pub struct Expression {
+    pub first: Value,
+    pub pairs: Box<[ExprPair]>,
+}
 
 #[derive(Debug, PartialEq)]
-pub enum ExpressionTok {
-    EValue(Value),
-    EBinaryOp(BinaryOp),
-}
+pub struct ExprPair(pub BinaryOp, pub Value);
 
 #[derive(Debug, PartialEq)]
 pub enum Value {
@@ -54,7 +63,7 @@ pub enum UnaryOp {
     EPos(Box<Value>),
     ENeg(Box<Value>),
     ENot(Box<Value>),
-    EParens(Expression),
+    EParens(Box<Expression>),
 }
 
 #[derive(Debug, PartialEq, Copy, Clone)]
@@ -84,12 +93,12 @@ pub enum Callable {
 
 #[derive(Debug, PartialEq)]
 pub enum Func {
-    EFuncInt(Expression),
-    EFuncAbs(Expression),
-    EFuncLog{     base:Option<Expression>, val:Expression},
-    EFuncRound{modulus:Option<Expression>, val:Expression},
-    EFuncMin{first:Expression, rest:Box<[Expression]>},
-    EFuncMax{first:Expression, rest:Box<[Expression]>},
+    EFuncInt(Box<Expression>),
+    EFuncAbs(Box<Expression>),
+    EFuncLog{     base:Option<Box<Expression>>, val:Box<Expression>},
+    EFuncRound{modulus:Option<Box<Expression>>, val:Box<Expression>},
+    EFuncMin{first:Box<Expression>, rest:Box<[Expression]>},
+    EFuncMax{first:Box<Expression>, rest:Box<[Expression]>},
 }
 
 #[derive(Debug, PartialEq)]
@@ -97,19 +106,19 @@ pub struct PrintFunc(pub Box<[ExpressionOrString]>);
 
 #[derive(Debug, PartialEq)]
 pub enum ExpressionOrString {
-    EExpr(Expression),
+    EExpr(Box<Expression>),
     EStr(String),
 }
 
 #[derive(Debug, PartialEq)]
 pub struct EvalFunc {
-    pub expr:   Expression,
+    pub expr:   Box<Expression>,
     pub kwargs: Box<[KWArg]>,
 }
 
 #[derive(Debug, PartialEq)]
 pub struct KWArg {
     pub name: Variable,
-    pub expr: Expression,
+    pub expr: Box<Expression>,
 }
 
