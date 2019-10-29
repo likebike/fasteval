@@ -94,11 +94,26 @@ pub enum Callable {
 #[derive(Debug, PartialEq)]
 pub enum Func {
     EFuncInt(Box<Expression>),
+    EFuncCeil(Box<Expression>),
+    EFuncFloor(Box<Expression>),
     EFuncAbs(Box<Expression>),
     EFuncLog{     base:Option<Box<Expression>>, val:Box<Expression>},
     EFuncRound{modulus:Option<Box<Expression>>, val:Box<Expression>},
     EFuncMin{first:Box<Expression>, rest:Box<[Expression]>},
     EFuncMax{first:Box<Expression>, rest:Box<[Expression]>},
+    //
+    EFuncE,
+    EFuncPi,
+    //
+    EFuncSin(Box<Expression>),
+    EFuncCos(Box<Expression>),
+    EFuncTan(Box<Expression>),
+    EFuncASin(Box<Expression>),
+    EFuncACos(Box<Expression>),
+    EFuncATan(Box<Expression>),
+    EFuncSinH(Box<Expression>),
+    EFuncCosH(Box<Expression>),
+    EFuncTanH(Box<Expression>),
 }
 
 #[derive(Debug, PartialEq)]

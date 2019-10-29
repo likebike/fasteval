@@ -6,7 +6,7 @@ use crate::grammar::{Expression,
                      UnaryOp::{self, EPos, ENeg, EParens, ENot},
                      BinaryOp::{self, EPlus, EMinus, EMul, EDiv, EMod, EExp, ELT, ELTE, EEQ, ENE, EGTE, EGT, EOR, EAND},
                      Callable::{self, EFunc, EPrintFunc, EEvalFunc},
-                     Func::{self, EFuncInt, EFuncAbs, EFuncLog, EFuncRound, EFuncMin, EFuncMax},
+                     Func::{self, EFuncInt, EFuncCeil, EFuncFloor, EFuncAbs, EFuncLog, EFuncRound, EFuncMin, EFuncMax, EFuncE, EFuncPi, EFuncSin, EFuncCos, EFuncTan, EFuncASin, EFuncACos, EFuncATan, EFuncSinH, EFuncCosH, EFuncTanH},
                      PrintFunc,
                      ExpressionOrString::{self, EExpr, EStr},
                      EvalFunc,
@@ -356,6 +356,14 @@ impl<'a> Parser<'a> {
                 if args.len()==1 { Ok(EFuncInt(Box::new(args.pop().unwrap())))
                 } else { Err(Error::new("expected one arg")) }
             }
+            "ceil" => {
+                if args.len()==1 { Ok(EFuncCeil(Box::new(args.pop().unwrap())))
+                } else { Err(Error::new("expected one arg")) }
+            }
+            "floor" => {
+                if args.len()==1 { Ok(EFuncFloor(Box::new(args.pop().unwrap())))
+                } else { Err(Error::new("expected one arg")) }
+            }
             "abs" => {
                 if args.len()==1 { Ok(EFuncAbs(Box::new(args.pop().unwrap())))
                 } else { Err(Error::new("expected one arg")) }
@@ -386,6 +394,53 @@ impl<'a> Parser<'a> {
                     Ok(EFuncMax{first:Box::new(first), rest:args.into_boxed_slice()})
                 } else { Err(Error::new("expected one or more args")) }
             }
+
+            "e" => {
+                if args.len()==0 { Ok(EFuncE)
+                } else { Err(Error::new("expected no args")) }
+            }
+            "pi" => {
+                if args.len()==0 { Ok(EFuncPi)
+                } else { Err(Error::new("expected no args")) }
+            }
+
+            "sin" => {
+                if args.len()==1 { Ok(EFuncSin(Box::new(args.pop().unwrap())))
+                } else { Err(Error::new("expected one arg")) }
+            }
+            "cos" => {
+                if args.len()==1 { Ok(EFuncCos(Box::new(args.pop().unwrap())))
+                } else { Err(Error::new("expected one arg")) }
+            }
+            "tan" => {
+                if args.len()==1 { Ok(EFuncTan(Box::new(args.pop().unwrap())))
+                } else { Err(Error::new("expected one arg")) }
+            }
+            "asin" => {
+                if args.len()==1 { Ok(EFuncASin(Box::new(args.pop().unwrap())))
+                } else { Err(Error::new("expected one arg")) }
+            }
+            "acos" => {
+                if args.len()==1 { Ok(EFuncACos(Box::new(args.pop().unwrap())))
+                } else { Err(Error::new("expected one arg")) }
+            }
+            "atan" => {
+                if args.len()==1 { Ok(EFuncATan(Box::new(args.pop().unwrap())))
+                } else { Err(Error::new("expected one arg")) }
+            }
+            "sinh" => {
+                if args.len()==1 { Ok(EFuncSinH(Box::new(args.pop().unwrap())))
+                } else { Err(Error::new("expected one arg")) }
+            }
+            "cosh" => {
+                if args.len()==1 { Ok(EFuncCosH(Box::new(args.pop().unwrap())))
+                } else { Err(Error::new("expected one arg")) }
+            }
+            "tanh" => {
+                if args.len()==1 { Ok(EFuncTanH(Box::new(args.pop().unwrap())))
+                } else { Err(Error::new("expected one arg")) }
+            }
+
             _ => Err(Error::new(&format!("undefined function: {}",fname))),
         }
     }

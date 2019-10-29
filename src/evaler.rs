@@ -7,12 +7,13 @@ use crate::grammar::{Expression,
                      UnaryOp::{self, EPos, ENeg, ENot, EParens},
                      BinaryOp::{self, EPlus, EMinus, EMul, EDiv, EMod, EExp, ELT, ELTE, EEQ, ENE, EGTE, EGT, EOR, EAND},
                      Callable::{self, EFunc, EPrintFunc, EEvalFunc},
-                     Func::{self, EFuncInt, EFuncAbs, EFuncLog, EFuncRound, EFuncMin, EFuncMax},
+                     Func::{self, EFuncInt, EFuncCeil, EFuncFloor, EFuncAbs, EFuncLog, EFuncRound, EFuncMin, EFuncMax, EFuncE, EFuncPi, EFuncSin, EFuncCos, EFuncTan, EFuncASin, EFuncACos, EFuncATan, EFuncSinH, EFuncCosH, EFuncTanH},
                      PrintFunc,
                      EvalFunc,
                      ExpressionOrString::{EExpr, EStr}};
 
 use std::collections::HashSet;
+use std::f64::consts;
 
 //---- Types:
 
@@ -223,6 +224,8 @@ impl Evaler for Func {
     fn eval(&self, ns:&mut EvalNS) -> Result<f64, Error> {
         match self {
             EFuncInt(expr) => { Ok(ns.eval_bubble(expr.as_ref())?.trunc()) }
+            EFuncCeil(expr) => { Ok(ns.eval_bubble(expr.as_ref())?.ceil()) }
+            EFuncFloor(expr) => { Ok(ns.eval_bubble(expr.as_ref())?.floor()) }
             EFuncAbs(expr) => { Ok(ns.eval_bubble(expr.as_ref())?.abs()) }
             EFuncLog{base,val} => {
                 let base = match base {
@@ -252,6 +255,19 @@ impl Evaler for Func {
                 }
                 Ok(max)
             }
+
+            EFuncE => Ok(consts::E),
+            EFuncPi => Ok(consts::PI),
+
+            EFuncSin(expr) => { Ok(ns.eval_bubble(expr.as_ref())?.sin()) },
+            EFuncCos(expr) => { Ok(ns.eval_bubble(expr.as_ref())?.cos()) },
+            EFuncTan(expr) => { Ok(ns.eval_bubble(expr.as_ref())?.tan()) },
+            EFuncASin(expr) => { Ok(ns.eval_bubble(expr.as_ref())?.asin()) },
+            EFuncACos(expr) => { Ok(ns.eval_bubble(expr.as_ref())?.acos()) },
+            EFuncATan(expr) => { Ok(ns.eval_bubble(expr.as_ref())?.atan()) },
+            EFuncSinH(expr) => { Ok(ns.eval_bubble(expr.as_ref())?.sinh()) },
+            EFuncCosH(expr) => { Ok(ns.eval_bubble(expr.as_ref())?.cosh()) },
+            EFuncTanH(expr) => { Ok(ns.eval_bubble(expr.as_ref())?.tanh()) },
         }
     }
 }
@@ -431,6 +447,12 @@ mod tests {
             p.parse("1.2 + int(3.4)").unwrap().eval(&mut ns),
             Ok(4.2));
         assert_eq!(
+            p.parse("1.2 + ceil(3.4)").unwrap().eval(&mut ns),
+            Ok(5.2));
+        assert_eq!(
+            p.parse("1.2 + floor(3.4)").unwrap().eval(&mut ns),
+            Ok(4.2));
+        assert_eq!(
             p.parse("1.2 + abs(-3.4)").unwrap().eval(&mut ns),
             Ok(4.6));
         assert_eq!(
@@ -476,6 +498,40 @@ mod tests {
             p.parse(r#"12.34 + eval ( x + 43.21 - y, x=2.5, y = 2.5 ) + 11.11"#).unwrap().eval(&mut ns),
             Ok(66.66));
 
+        assert_eq!(
+            p.parse("e()").unwrap().eval(&mut ns),
+            Ok(2.718281828459045));
+        assert_eq!(
+            p.parse("pi()").unwrap().eval(&mut ns),
+            Ok(3.141592653589793));
+
+        assert_eq!(
+            p.parse("sin(pi()/2)").unwrap().eval(&mut ns),
+            Ok(1.0));
+        assert_eq!(
+            p.parse("cos(pi()/2)").unwrap().eval(&mut ns),
+            Ok(0.00000000000000006123233995736766));
+        assert_eq!(
+            p.parse("tan(pi()/4)").unwrap().eval(&mut ns),
+            Ok(0.9999999999999999));
+        assert_eq!(
+            p.parse("asin(1)").unwrap().eval(&mut ns),
+            Ok(1.5707963267948966));
+        assert_eq!(
+            p.parse("acos(0)").unwrap().eval(&mut ns),
+            Ok(1.5707963267948966));
+        assert_eq!(
+            p.parse("atan(1)").unwrap().eval(&mut ns),
+            Ok(0.7853981633974483));
+        assert_eq!(
+            p.parse("sinh(pi()/2)").unwrap().eval(&mut ns),
+            Ok(2.3012989023072947));
+        assert_eq!(
+            p.parse("cosh(pi()/2)").unwrap().eval(&mut ns),
+            Ok(2.5091784786580567));
+        assert_eq!(
+            p.parse("tanh(pi()/4)").unwrap().eval(&mut ns),
+            Ok(0.6557942026326724));
     }
 
     #[test]
