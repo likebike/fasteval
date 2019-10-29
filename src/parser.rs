@@ -150,7 +150,7 @@ impl<'a> Parser<'a> {
         }
         space(bs);
         if expect_eof && !is_at_eof(bs) { return Err(Error::new("unparsed tokens remaining")); }
-        Ok(Expression{first:first, pairs:pairs.into_boxed_slice()})
+        Ok(Expression{first:Box::new(first), pairs:pairs.into_boxed_slice()})
     }
 
     fn read_value(&self, bs:&mut &[u8]) -> Result<Value, Error> {
@@ -240,7 +240,7 @@ impl<'a> Parser<'a> {
                 let x = self.read_expression(bs,false)?;
                 space(bs);
                 if read(bs)? != b')' { return Err(Error::new("Expected ')'")) }
-                Ok(EParens(Box::new(x)))
+                Ok(EParens(x))
             }
             _ => Err(Error::new("invalid unaryop")),
         }
@@ -353,45 +353,45 @@ impl<'a> Parser<'a> {
 
         match fname.as_ref() {
             "int" => {
-                if args.len()==1 { Ok(EFuncInt(Box::new(args.pop().unwrap())))
+                if args.len()==1 { Ok(EFuncInt(args.pop().unwrap()))
                 } else { Err(Error::new("expected one arg")) }
             }
             "ceil" => {
-                if args.len()==1 { Ok(EFuncCeil(Box::new(args.pop().unwrap())))
+                if args.len()==1 { Ok(EFuncCeil(args.pop().unwrap()))
                 } else { Err(Error::new("expected one arg")) }
             }
             "floor" => {
-                if args.len()==1 { Ok(EFuncFloor(Box::new(args.pop().unwrap())))
+                if args.len()==1 { Ok(EFuncFloor(args.pop().unwrap()))
                 } else { Err(Error::new("expected one arg")) }
             }
             "abs" => {
-                if args.len()==1 { Ok(EFuncAbs(Box::new(args.pop().unwrap())))
+                if args.len()==1 { Ok(EFuncAbs(args.pop().unwrap()))
                 } else { Err(Error::new("expected one arg")) }
             }
             "log" => {
-                if args.len()==1 { Ok(EFuncLog{base:None, val:Box::new(args.pop().unwrap())})
+                if args.len()==1 { Ok(EFuncLog{base:None, val:args.pop().unwrap()})
                 } else if args.len()==2 {
                     let val = args.pop().unwrap();
-                    Ok(EFuncLog{base:Some(Box::new(args.pop().unwrap())), val:Box::new(val)})
+                    Ok(EFuncLog{base:Some(args.pop().unwrap()), val:val})
                 } else { Err(Error::new("expected log(x) or log(base,x)")) }
             }
             "round" => {
-                if args.len()==1 { Ok(EFuncRound{modulus:None, val:Box::new(args.pop().unwrap())})
+                if args.len()==1 { Ok(EFuncRound{modulus:None, val:args.pop().unwrap()})
                 } else if args.len()==2 {
                     let val = args.pop().unwrap();
-                    Ok(EFuncRound{modulus:Some(Box::new(args.pop().unwrap())), val:Box::new(val)})
+                    Ok(EFuncRound{modulus:Some(args.pop().unwrap()), val:val})
                 } else { Err(Error::new("expected round(x) or round(modulus,x)")) }
             }
             "min" => {
                 if args.len()>0 {
                     let first = args.remove(0);
-                    Ok(EFuncMin{first:Box::new(first), rest:args.into_boxed_slice()})
+                    Ok(EFuncMin{first:first, rest:args.into_boxed_slice()})
                 } else { Err(Error::new("expected one or more args")) }
             }
             "max" => {
                 if args.len()>0 {
                     let first = args.remove(0);
-                    Ok(EFuncMax{first:Box::new(first), rest:args.into_boxed_slice()})
+                    Ok(EFuncMax{first:first, rest:args.into_boxed_slice()})
                 } else { Err(Error::new("expected one or more args")) }
             }
 
@@ -405,39 +405,39 @@ impl<'a> Parser<'a> {
             }
 
             "sin" => {
-                if args.len()==1 { Ok(EFuncSin(Box::new(args.pop().unwrap())))
+                if args.len()==1 { Ok(EFuncSin(args.pop().unwrap()))
                 } else { Err(Error::new("expected one arg")) }
             }
             "cos" => {
-                if args.len()==1 { Ok(EFuncCos(Box::new(args.pop().unwrap())))
+                if args.len()==1 { Ok(EFuncCos(args.pop().unwrap()))
                 } else { Err(Error::new("expected one arg")) }
             }
             "tan" => {
-                if args.len()==1 { Ok(EFuncTan(Box::new(args.pop().unwrap())))
+                if args.len()==1 { Ok(EFuncTan(args.pop().unwrap()))
                 } else { Err(Error::new("expected one arg")) }
             }
             "asin" => {
-                if args.len()==1 { Ok(EFuncASin(Box::new(args.pop().unwrap())))
+                if args.len()==1 { Ok(EFuncASin(args.pop().unwrap()))
                 } else { Err(Error::new("expected one arg")) }
             }
             "acos" => {
-                if args.len()==1 { Ok(EFuncACos(Box::new(args.pop().unwrap())))
+                if args.len()==1 { Ok(EFuncACos(args.pop().unwrap()))
                 } else { Err(Error::new("expected one arg")) }
             }
             "atan" => {
-                if args.len()==1 { Ok(EFuncATan(Box::new(args.pop().unwrap())))
+                if args.len()==1 { Ok(EFuncATan(args.pop().unwrap()))
                 } else { Err(Error::new("expected one arg")) }
             }
             "sinh" => {
-                if args.len()==1 { Ok(EFuncSinH(Box::new(args.pop().unwrap())))
+                if args.len()==1 { Ok(EFuncSinH(args.pop().unwrap()))
                 } else { Err(Error::new("expected one arg")) }
             }
             "cosh" => {
-                if args.len()==1 { Ok(EFuncCosH(Box::new(args.pop().unwrap())))
+                if args.len()==1 { Ok(EFuncCosH(args.pop().unwrap()))
                 } else { Err(Error::new("expected one arg")) }
             }
             "tanh" => {
-                if args.len()==1 { Ok(EFuncTanH(Box::new(args.pop().unwrap())))
+                if args.len()==1 { Ok(EFuncTanH(args.pop().unwrap()))
                 } else { Err(Error::new("expected one arg")) }
             }
 
@@ -508,15 +508,15 @@ impl<'a> Parser<'a> {
             let expr = self.read_expression(bs,false)?;
 
             if kwargs_has(&kwargs,&name) { return Err(Error::new(&format!("already defined: {}",name))) }
-            kwargs.push(KWArg{name:name, expr:Box::new(expr)});
+            kwargs.push(KWArg{name:name, expr:expr});
         }
 
-        Ok(EvalFunc{expr:Box::new(eval_expr), kwargs:kwargs.into_boxed_slice()})
+        Ok(EvalFunc{expr:eval_expr, kwargs:kwargs.into_boxed_slice()})
     }
 
     fn read_expressionorstring(&self, bs:&mut &[u8]) -> Result<ExpressionOrString, Error> {
         if self.peek_string(bs) { Ok(EStr(self.read_string(bs)?))
-        } else { Ok(EExpr(Box::new(self.read_expression(bs,false)?))) }
+        } else { Ok(EExpr(self.read_expression(bs,false)?)) }
     }
 
     fn peek_string(&self, bs:&mut &[u8]) -> bool {
@@ -626,41 +626,41 @@ mod tests {
 
         assert_eq!(p.parse("12.34 + 43.21 + 11.11"),
                    Ok(Expression{
-                        first:EConstant(Constant(12.34)),
+                        first:Box::new(EConstant(Constant(12.34))),
                         pairs:Box::new([
                             ExprPair(EPlus, EConstant(Constant(43.21))),
                             ExprPair(EPlus, EConstant(Constant(11.11)))])}));
 
         assert_eq!(p.parse("12.34 + abs ( -43 - 0.21 ) + 11.11"),
                    Ok(Expression {
-                        first:EConstant(Constant(12.34)),
+                        first:Box::new(EConstant(Constant(12.34))),
                         pairs:Box::new([
-                            ExprPair(EPlus, ECallable(EFunc(EFuncAbs(Box::new(Expression {
-                                first:EUnaryOp(ENeg(Box::new(EConstant(Constant(43.0))))),
-                                pairs:Box::new([ExprPair(EMinus, EConstant(Constant(0.21)))]) }))))),
+                            ExprPair(EPlus, ECallable(EFunc(EFuncAbs(Expression {
+                                first:Box::new(EUnaryOp(ENeg(Box::new(EConstant(Constant(43.0)))))),
+                                pairs:Box::new([ExprPair(EMinus, EConstant(Constant(0.21)))]) })))),
                             ExprPair(EPlus, EConstant(Constant(11.11)))]) }));
 
         assert_eq!(p.parse("12.34 + print ( 43.21 ) + 11.11"),
                    Ok(Expression {
-                        first:EConstant(Constant(12.34)),
+                        first:Box::new(EConstant(Constant(12.34))),
                         pairs:Box::new([
                             ExprPair(EPlus, ECallable(EPrintFunc(PrintFunc(Box::new([
-                                EExpr(Box::new(Expression {
-                                    first:EConstant(Constant(43.21)),
-                                    pairs:Box::new([]) }))]))))),
+                                EExpr(Expression {
+                                    first:Box::new(EConstant(Constant(43.21))),
+                                    pairs:Box::new([]) })]))))),
                             ExprPair(EPlus, EConstant(Constant(11.11)))]) }));
 
         assert_eq!(p.parse("12.34 + eval ( x - y , x = 5 , y=4 ) + 11.11"),
                    Ok(Expression {
-                        first:EConstant(Constant(12.34)),
+                        first:Box::new(EConstant(Constant(12.34))),
                         pairs:Box::new([
                             ExprPair(EPlus, ECallable(EEvalFunc(EvalFunc {
-                                expr:Box::new(Expression {
-                                    first:EVariable(Variable("x".to_string())),
-                                    pairs:Box::new([ExprPair(EMinus, EVariable(Variable("y".to_string())))]) }),
+                                expr:Expression {
+                                    first:Box::new(EVariable(Variable("x".to_string()))),
+                                    pairs:Box::new([ExprPair(EMinus, EVariable(Variable("y".to_string())))]) },
                                 kwargs:Box::new([
-                                    KWArg { name: Variable("x".to_string()), expr:Box::new(Expression { first: EConstant(Constant(5.0)), pairs:Box::new([]) }) },
-                                    KWArg { name: Variable("y".to_string()), expr:Box::new(Expression { first: EConstant(Constant(4.0)), pairs:Box::new([]) }) }]) }))),
+                                    KWArg { name: Variable("x".to_string()), expr:Expression { first:Box::new(EConstant(Constant(5.0))), pairs:Box::new([]) } },
+                                    KWArg { name: Variable("y".to_string()), expr:Expression { first:Box::new(EConstant(Constant(4.0))), pairs:Box::new([]) } }]) }))),
                             ExprPair(EPlus, EConstant(Constant(11.11)))]) }));
     }
 }

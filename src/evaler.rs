@@ -74,7 +74,7 @@ impl Evaler for Expression {
         // Code for new Expression data structure:
         let mut vals : Vec<f64>      = Vec::with_capacity(self.pairs.len()/2+1);
         let mut ops  : Vec<BinaryOp> = Vec::with_capacity(self.pairs.len()/2  );
-        match ns.eval_bubble(&self.first) {
+        match ns.eval_bubble(self.first.as_ref()) {
             Ok(f) => vals.push(f),
             Err(e) => return Err(e.pre(&format!("eval_bubble({:?})",self.first))),
         }
@@ -181,7 +181,7 @@ impl Evaler for UnaryOp {
             EPos(box_val) => ns.eval_bubble(box_val.as_ref()),
             ENeg(box_val) => Ok(-ns.eval_bubble(box_val.as_ref())?),
             ENot(box_val) => Ok(bool_to_f64(ns.eval_bubble(box_val.as_ref())?==0.0)),
-            EParens(expr) => ns.eval_bubble(expr.as_ref()),
+            EParens(expr) => ns.eval_bubble(expr),
         }
     }
 }
@@ -223,33 +223,33 @@ impl Evaler for Callable {
 impl Evaler for Func {
     fn eval(&self, ns:&mut EvalNS) -> Result<f64, Error> {
         match self {
-            EFuncInt(expr) => { Ok(ns.eval_bubble(expr.as_ref())?.trunc()) }
-            EFuncCeil(expr) => { Ok(ns.eval_bubble(expr.as_ref())?.ceil()) }
-            EFuncFloor(expr) => { Ok(ns.eval_bubble(expr.as_ref())?.floor()) }
-            EFuncAbs(expr) => { Ok(ns.eval_bubble(expr.as_ref())?.abs()) }
+            EFuncInt(expr) => { Ok(ns.eval_bubble(expr)?.trunc()) }
+            EFuncCeil(expr) => { Ok(ns.eval_bubble(expr)?.ceil()) }
+            EFuncFloor(expr) => { Ok(ns.eval_bubble(expr)?.floor()) }
+            EFuncAbs(expr) => { Ok(ns.eval_bubble(expr)?.abs()) }
             EFuncLog{base,val} => {
                 let base = match base {
-                    Some(b_expr) => ns.eval_bubble(b_expr.as_ref())?,
+                    Some(b_expr) => ns.eval_bubble(b_expr)?,
                     None => 10.0,
                 };
-                Ok(ns.eval_bubble(val.as_ref())?.log(base))
+                Ok(ns.eval_bubble(val)?.log(base))
             }
             EFuncRound{modulus,val} => {
                 let modulus = match modulus {
-                    Some(m_expr) => ns.eval_bubble(m_expr.as_ref())?,
+                    Some(m_expr) => ns.eval_bubble(m_expr)?,
                     None => 1.0,
                 };
-                Ok((ns.eval_bubble(val.as_ref())?/modulus).round() * modulus)
+                Ok((ns.eval_bubble(val)?/modulus).round() * modulus)
             }
             EFuncMin{first,rest} => {
-                let mut min = ns.eval_bubble(first.as_ref())?;
+                let mut min = ns.eval_bubble(first)?;
                 for x in rest.iter() {
                     min = min.min(ns.eval_bubble(x)?);
                 }
                 Ok(min)
             }
             EFuncMax{first,rest} => {
-                let mut max = ns.eval_bubble(first.as_ref())?;
+                let mut max = ns.eval_bubble(first)?;
                 for x in rest.iter() {
                     max = max.max(ns.eval_bubble(x)?);
                 }
@@ -259,15 +259,15 @@ impl Evaler for Func {
             EFuncE => Ok(consts::E),
             EFuncPi => Ok(consts::PI),
 
-            EFuncSin(expr) => { Ok(ns.eval_bubble(expr.as_ref())?.sin()) },
-            EFuncCos(expr) => { Ok(ns.eval_bubble(expr.as_ref())?.cos()) },
-            EFuncTan(expr) => { Ok(ns.eval_bubble(expr.as_ref())?.tan()) },
-            EFuncASin(expr) => { Ok(ns.eval_bubble(expr.as_ref())?.asin()) },
-            EFuncACos(expr) => { Ok(ns.eval_bubble(expr.as_ref())?.acos()) },
-            EFuncATan(expr) => { Ok(ns.eval_bubble(expr.as_ref())?.atan()) },
-            EFuncSinH(expr) => { Ok(ns.eval_bubble(expr.as_ref())?.sinh()) },
-            EFuncCosH(expr) => { Ok(ns.eval_bubble(expr.as_ref())?.cosh()) },
-            EFuncTanH(expr) => { Ok(ns.eval_bubble(expr.as_ref())?.tanh()) },
+            EFuncSin(expr) => { Ok(ns.eval_bubble(expr)?.sin()) },
+            EFuncCos(expr) => { Ok(ns.eval_bubble(expr)?.cos()) },
+            EFuncTan(expr) => { Ok(ns.eval_bubble(expr)?.tan()) },
+            EFuncASin(expr) => { Ok(ns.eval_bubble(expr)?.asin()) },
+            EFuncACos(expr) => { Ok(ns.eval_bubble(expr)?.acos()) },
+            EFuncATan(expr) => { Ok(ns.eval_bubble(expr)?.atan()) },
+            EFuncSinH(expr) => { Ok(ns.eval_bubble(expr)?.sinh()) },
+            EFuncCosH(expr) => { Ok(ns.eval_bubble(expr)?.cosh()) },
+            EFuncTanH(expr) => { Ok(ns.eval_bubble(expr)?.tanh()) },
         }
     }
 }
@@ -302,7 +302,7 @@ impl Evaler for PrintFunc {
             if i>0 { out.push(' '); }
             match a {
                 EExpr(e) => {
-                    val = ns.eval_bubble(e.as_ref())?;
+                    val = ns.eval_bubble(e)?;
                     out.push_str(&format!("{}",val));
                 }
                 EStr(s) => out.push_str(&process_str(s)),
@@ -327,14 +327,14 @@ impl Evaler for EvalFunc {
         let res = (|| -> Result<f64, Error> {
 
             for kw in self.kwargs.iter() {
-                let val = ns.eval_bubble(kw.expr.as_ref())?;
+                let val = ns.eval_bubble(&kw.expr)?;
                 ns.create(kw.name.0.as_ref(), val)?;
             }
 
             ns.start_reeval_mode();
             // Another defer structure (a bit overly-complex for this simple case):
             let res = (|| -> Result<f64, Error> {
-                ns.eval_bubble(self.expr.as_ref())
+                ns.eval_bubble(&self.expr)
             })();
             ns.end_reeval_mode();
             res
