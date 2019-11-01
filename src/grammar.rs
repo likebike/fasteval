@@ -26,6 +26,10 @@
 //
 // EvalFunc: eval(Expression(,Variable=Expression)*)
 
+
+use crate::stackvec::{StackVec8, StackVec16};
+
+
 // #[derive(Debug, PartialEq)]
 // pub struct Expression(pub Box<[ExpressionTok]>);  // This data structure allows invalid states to exist, but it's so convenient!
 //
@@ -36,8 +40,10 @@
 // }
 
 
-pub struct ExpressionI(usize);
-pub struct ValueI(usize);
+#[derive(Debug, PartialEq)]
+pub struct ExpressionI(pub usize);
+#[derive(Debug, PartialEq)]
+pub struct ValueI(pub usize);
 
 
 #[derive(Debug, PartialEq)]  // More awkward, but unable to represent invalid states, and also more efficient.
@@ -61,7 +67,7 @@ pub enum Value {
 pub struct Constant(pub f64);
 
 #[derive(Debug, PartialEq)]
-pub struct Variable(pub String);
+pub struct Variable(pub StackString32);
 
 #[derive(Debug, PartialEq)]
 pub enum UnaryOp {
@@ -127,7 +133,7 @@ pub struct PrintFunc(pub StackVec16<ExpressionOrString>);
 #[derive(Debug, PartialEq)]
 pub enum ExpressionOrString {
     EExpr(ExpressionI),
-    EStr(String),
+    EStr(StackString256),
 }
 
 #[derive(Debug, PartialEq)]

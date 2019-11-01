@@ -11,13 +11,14 @@
 //   [ ] e() pi() ... or should i prefer variables?  Provide a default layer of variables?  Vars don't work well with TV symbols.
 
 pub mod error;
+pub mod stackvec;
+pub mod slab;
 pub mod grammar;
 pub mod parser;
 pub mod evaler;
 pub mod evalns;
 pub mod display;
 pub mod defaults;
-pub mod stackslab;
 
 #[cfg(test)]
 mod experiments;

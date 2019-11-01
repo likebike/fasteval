@@ -12,7 +12,8 @@ use crate::grammar::{Expression,
                      EvalFunc,
                      KWArg};
 use crate::error::Error;
-use crate::stackslab::StackSlab64;
+use crate::stackvec::{StackVec, StackVec16};
+use crate::slab::Slab;
 
 
 // Vec seems really inefficient to me because remove() does not just increment the internal pointer -- it shifts data all around.  There's also split_* methods but they seem to be designed to return new Vecs, not modify self.
@@ -97,19 +98,6 @@ fn space(bs:&mut &[u8]) {
 }
 
 
-pub struct ParseSlab {
-    expressions: StackSlab64<Expression>,
-    exprpairs:   StackSlab64<ExprPair>,
-}
-impl ParseSlab {
-    pub fn new() -> Self {
-        ParseSlab{
-            expressions:StackSlab64::new(),
-            exprpairs:  StackSlab64::new(),
-        }
-    }
-}
-
 
 pub struct Parser<'a> {
     pub is_const_byte:Option<&'a dyn Fn(u8,usize)->bool>,
@@ -149,33 +137,33 @@ impl<'a> Parser<'a> {
         self.call_is_var_byte(bo,i)
     }
 
-    pub fn parse(&self, slab:&ParseSlab, s:&str) -> Result<Expression, Error> {
+    pub fn parse(&self, slab:&Slab, s:&str) -> Result<Expression, Error> {
         let bs = &mut s.as_bytes();
-        self.read_expression(bs, true)
+        self.read_expression(slab, bs, true)
     }
 
-    fn read_expression(&self, bs:&mut &[u8], expect_eof:bool) -> Result<Expression, Error> {
-        let first = self.read_value(bs).map_err(|e| e.pre("read_value"))?;
-        let mut pairs : Vec<ExprPair> = Vec::new();
+    fn read_expression(&self, slab:&Slab, bs:&mut &[u8], expect_eof:bool) -> Result<Expression, Error> {
+        let first = self.read_value(slab,bs).map_err(|e| e.pre("read_value"))?;
+        let pairs = StackVec16::<ExprPair>::new();
         while self.peek_binaryop(bs) {
             let bop = self.read_binaryop(bs).map_err(|e| e.pre("read_binaryop"))?;
-            let val = self.read_value(bs).map_err(|e| e.pre("read_value"))?;
+            let val = self.read_value(slab,bs).map_err(|e| e.pre("read_value"))?;
             pairs.push(ExprPair(bop,val));
         }
         space(bs);
         if expect_eof && !is_at_eof(bs) { return Err(Error::new("unparsed tokens remaining")); }
-        Ok(Expression{first:first, pairs:pairs.into_boxed_slice()})
+        Ok(Expression{first, pairs})
     }
 
-    fn read_value(&self, bs:&mut &[u8]) -> Result<Value, Error> {
+    fn read_value(&self, slab:&Slab, bs:&mut &[u8]) -> Result<Value, Error> {
         if self.peek_const(bs) {
             return self.read_const(bs).map(|c| EConstant(c));
         }
         if self.peek_unaryop(bs) {
-            return self.read_unaryop(bs).map(|u| EUnaryOp(u));
+            return self.read_unaryop(slab,bs).map(|u| EUnaryOp(u));
         }
         if self.peek_callable(bs) {
-            return self.read_callable(bs).map(|c| ECallable(c));
+            return self.read_callable(slab,bs).map(|c| ECallable(c));
         }
         if self.peek_var(bs) {  // Should go last -- don't mask callables.
             return self.read_var(bs).map(|v| EVariable(v));
@@ -190,9 +178,9 @@ impl<'a> Parser<'a> {
     fn read_const(&self, bs:&mut &[u8]) -> Result<Constant, Error> {
         space(bs);
 
-        let mut buf : Vec<u8> = Vec::with_capacity(16);
+        let mut buf = StackString256::new();
         while self.call_is_const_byte(peek(bs,0),buf.len()) {
-            buf.push(read(bs)?);
+            buf.push(read(bs)?)?;
         }
 
         let mut multiple = 1.0;
@@ -220,12 +208,12 @@ impl<'a> Parser<'a> {
     fn read_var(&self, bs:&mut &[u8]) -> Result<Variable, Error> {
         space(bs);
 
-        let mut buf : Vec<u8> = Vec::with_capacity(16);
+        let mut buf = StackString32::new();
         while self.call_is_var_byte(peek(bs,0),buf.len()) {
             buf.push(read(bs)?);
         }
 
-        Ok(Variable(String::from_utf8(buf).map_err(|_| Error::new("Utf8Error"))?))
+        Ok(Variable(buf))
     }
 
     fn peek_unaryop(&self, bs:&mut &[u8]) -> bool {
@@ -235,26 +223,26 @@ impl<'a> Parser<'a> {
             _ => false,
         }
     }
-    fn read_unaryop(&self, bs:&mut &[u8]) -> Result<UnaryOp, Error> {
+    fn read_unaryop(&self, slab:&Slab, bs:&mut &[u8]) -> Result<UnaryOp, Error> {
         space(bs);
         match read(bs)? {
             b'+' => {
-                let v = self.read_value(bs)?;
-                Ok(EPos(Box::new(v)))
+                let v = self.read_value(slab,bs)?;
+                Ok(EPos(slab.push_val(v)?))
             }
             b'-' => {
-                let v = self.read_value(bs)?;
-                Ok(ENeg(Box::new(v)))
+                let v = self.read_value(slab,bs)?;
+                Ok(ENeg(slab.push_val(v)?))
             }
             b'!' => {
-                let v = self.read_value(bs)?;
-                Ok(ENot(Box::new(v)))
+                let v = self.read_value(slab,bs)?;
+                Ok(ENot(slab.push_val(v)?))
             }
             b'(' => {
-                let x = self.read_expression(bs,false)?;
+                let x = self.read_expression(slab,bs,false)?;
                 space(bs);
                 if read(bs)? != b')' { return Err(Error::new("Expected ')'")) }
-                Ok(EParens(Box::new(x)))
+                Ok(EParens(slab.push_expr(x)?))
             }
             _ => Err(Error::new("invalid unaryop")),
         }
@@ -303,7 +291,7 @@ impl<'a> Parser<'a> {
     fn peek_callable(&self, bs:&mut &[u8]) -> bool {
         self.peek_func(bs) || self.peek_printfunc(bs) || self.peek_evalfunc(bs)
     }
-    fn read_callable(&self, bs:&mut &[u8]) -> Result<Callable, Error> {
+    fn read_callable(&self, slab:&Slab, bs:&mut &[u8]) -> Result<Callable, Error> {
         if self.peek_printfunc(bs) {
             return self.read_printfunc(bs).map(|f| EPrintFunc(f));
         }
@@ -311,7 +299,7 @@ impl<'a> Parser<'a> {
             return self.read_evalfunc(bs).map(|f| EEvalFunc(f));
         }
         if self.peek_func(bs) {
-            return self.read_func(bs).map(|f| EFunc(f));
+            return self.read_func(slab,bs).map(|f| EFunc(f));
         }
         Err(Error::new("invalid callable"))
     }
@@ -327,10 +315,10 @@ impl<'a> Parser<'a> {
         }
         name_len>0 && peek(bs,name_len+post_name_spaces)==Some(b'(')
     }
-    fn read_func(&self, bs:&mut &[u8]) -> Result<Func, Error> {
+    fn read_func(&self, slab:&Slab, bs:&mut &[u8]) -> Result<Func, Error> {
         space(bs);
 
-        let mut fname : Vec<u8> = Vec::with_capacity(16);
+        let mut fname = StackString32::new();
         while self.call_is_func_byte(peek(bs,0),fname.len()) {
             fname.push(read(bs)?.to_ascii_lowercase());
         }
@@ -341,7 +329,7 @@ impl<'a> Parser<'a> {
         if let Ok(b'(') = read(bs) {}
         else { return Err(Error::new("expected '('")); }
 
-        let mut args : Vec<Expression> = Vec::new();
+        let mut args : Vec<Expression> = Vec::new();  HERE I AM, converting Vecs to stack stuff.
 
         loop {
             space(bs);
@@ -362,7 +350,7 @@ impl<'a> Parser<'a> {
                     _ => return Err(Error::new("expected ',' or ';'")),
                 }
             }
-            args.push(self.read_expression(bs,false).map_err(|e| e.pre("read_expression"))?);
+            args.push(self.read_expression(slab,bs,false).map_err(|e| e.pre("read_expression"))?);
         }
 
         match fname.as_ref() {
@@ -638,15 +626,15 @@ mod tests {
             assert_eq!(p.read_value(bs), Ok(EConstant(Constant(12.34))));
         }
 
-        let mut slab : ParseSlab;
-        assert_eq!(p.parse({slab=ParseSlab::new(); &slab}, "12.34 + 43.21 + 11.11"),
+        let mut slab : Slab;
+        assert_eq!(p.parse({slab=Slab::new(); &slab}, "12.34 + 43.21 + 11.11"),
                    Ok(Expression{
                         first:EConstant(Constant(12.34)),
                         pairs:Box::new([
                             ExprPair(EPlus, EConstant(Constant(43.21))),
                             ExprPair(EPlus, EConstant(Constant(11.11)))])}));
 
-        assert_eq!(p.parse({slab=ParseSlab::new(); &slab}, "12.34 + abs ( -43 - 0.21 ) + 11.11"),
+        assert_eq!(p.parse({slab=Slab::new(); &slab}, "12.34 + abs ( -43 - 0.21 ) + 11.11"),
                    Ok(Expression {
                         first:EConstant(Constant(12.34)),
                         pairs:Box::new([
@@ -655,7 +643,7 @@ mod tests {
                                 pairs:Box::new([ExprPair(EMinus, EConstant(Constant(0.21)))]) }))))),
                             ExprPair(EPlus, EConstant(Constant(11.11)))]) }));
 
-        assert_eq!(p.parse({slab=ParseSlab::new(); &slab}, "12.34 + print ( 43.21 ) + 11.11"),
+        assert_eq!(p.parse({slab=Slab::new(); &slab}, "12.34 + print ( 43.21 ) + 11.11"),
                    Ok(Expression {
                         first:EConstant(Constant(12.34)),
                         pairs:Box::new([
@@ -665,7 +653,7 @@ mod tests {
                                     pairs:Box::new([]) }))]))))),
                             ExprPair(EPlus, EConstant(Constant(11.11)))]) }));
 
-        assert_eq!(p.parse({slab=ParseSlab::new(); &slab}, "12.34 + eval ( x - y , x = 5 , y=4 ) + 11.11"),
+        assert_eq!(p.parse({slab=Slab::new(); &slab}, "12.34 + eval ( x - y , x = 5 , y=4 ) + 11.11"),
                    Ok(Expression {
                         first:EConstant(Constant(12.34)),
                         pairs:Box::new([
