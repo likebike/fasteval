@@ -12,7 +12,7 @@ use crate::grammar::{Expression,
                      EvalFunc,
                      KWArg};
 use crate::error::Error;
-use crate::stackslab::StackSlab32;
+use crate::stackslab::StackSlab64;
 
 
 // Vec seems really inefficient to me because remove() does not just increment the internal pointer -- it shifts data all around.  There's also split_* methods but they seem to be designed to return new Vecs, not modify self.
@@ -98,14 +98,14 @@ fn space(bs:&mut &[u8]) {
 
 
 pub struct ParseSlab {
-    expressions: StackSlab32<Expression>,
-    exprpairs:   StackSlab32<ExprPair>,
+    expressions: StackSlab64<Expression>,
+    exprpairs:   StackSlab64<ExprPair>,
 }
 impl ParseSlab {
     fn new() -> Self {
         ParseSlab{
-            expressions:StackSlab32::new(),
-            exprpairs:  StackSlab32::new(),
+            expressions:StackSlab64::new(),
+            exprpairs:  StackSlab64::new(),
         }
     }
 }
