@@ -8,10 +8,8 @@ trait StackSlab<T> {
 
     // Not possible: (https://doc.rust-lang.org/nomicon/lifetime-mismatch.html)
     // fn push(&mut self, t:T) -> &T
-    fn push(&self, t:T) -> Result<(),Error>;
+    fn push(&self, t:T) -> Result<usize,Error>;
     fn get(&self, i:usize) -> &T;
-
-    fn last(&self) -> &T { self.get(self.len()-1) }
 }
 
 macro_rules! def_stackslab {
@@ -29,21 +27,16 @@ macro_rules! def_stackslab {
         impl<T> StackSlab<T> for $name<T> {
             fn cap() -> usize { $size }
             fn len(&self) -> usize { self.length.get() }
-            fn push(&self, t:T) -> Result<(),Error> {
+            fn push(&self, t:T) -> Result<usize,Error> {
                 let i = self.len();
                 if i>=Self::cap() { return Err(Error::new("out-of-bounds")); }
                 unsafe { ( &mut *self.buf.get() )[i] = Some(t); }
                 self.length.set(i+1);
-                Ok(())
+                Ok(i)
             }
             fn get(&self, i:usize) -> &T {
                 if i>=self.len() { panic!("out-of-bounds"); }
                 unsafe { (& *self.buf.get())[i].as_ref().unwrap() }
-            }
-        }
-        impl<T> Drop for $name<T> {
-            fn drop(&mut self) {
-                eprintln!("in stackslab drop");
             }
         }
     }
@@ -73,13 +66,9 @@ mod tests {
     #[test]
     fn aaa_slab1() {
         let slab = StackSlab4::<i32>::new();
-        slab.push(0).unwrap();
-        let a1 = slab.last();
-        let a2 = slab.last();
-        slab.push(1).unwrap();
-        let b1 = slab.last();
-        let b2 = slab.last();
-        eprintln!("{} {} {} {}",a1,a2,b1,b2);
+        let ai = slab.push(0).unwrap();
+        let bi = slab.push(1).unwrap();
+        eprintln!("{} {}",slab.get(ai),slab.get(bi));
         slab.push(2).unwrap();
         slab.push(3).unwrap();
 
@@ -107,11 +96,16 @@ mod tests {
     }
 
 
+    // Just an experiment, to see how 'drop' works when overwriting values,
+    // and also to verify that we really are mutating the memory we expect:
     impl<T> StackSlab4<T> {
-        // Just an experiment, to see how 'drop' works when overwriting values,
-        // and also to verify that we really are mutating the memory we expect:
         fn set(&self, i:usize, t:T) {
             unsafe { ( &mut *self.buf.get() )[i] = Some(t); }
+        }
+    }
+    impl<T> Drop for StackSlab4<T> {
+        fn drop(&mut self) {
+            eprintln!("in stackslab drop");
         }
     }
 
@@ -120,8 +114,9 @@ mod tests {
         let slab = StackSlab4::<Dropper>::new();
         assert_eq!(slab.len(),0);
 
-        slab.push(Dropper(1)).unwrap();
-        let ref0 = slab.last();
+        let i0 = slab.push(Dropper(1)).unwrap();
+        assert_eq!(i0,0);
+        let ref0 = slab.get(i0);
         assert_eq!(ref0.0,1);
 
         slab.push(Dropper(2)).unwrap();

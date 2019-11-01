@@ -35,10 +35,15 @@
 //     EBinaryOp(BinaryOp),
 // }
 
-#[derive(Debug, PartialEq)]  // More awkward, but unable to represent invalid states.
+
+pub struct ExpressionI(usize);
+pub struct ValueI(usize);
+
+
+#[derive(Debug, PartialEq)]  // More awkward, but unable to represent invalid states, and also more efficient.
 pub struct Expression {
     pub first: Value,
-    pub pairs: Box<[ExprPair]>,
+    pub pairs: StackVec16<ExprPair>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -60,10 +65,10 @@ pub struct Variable(pub String);
 
 #[derive(Debug, PartialEq)]
 pub enum UnaryOp {
-    EPos(Box<Value>),
-    ENeg(Box<Value>),
-    ENot(Box<Value>),
-    EParens(Box<Expression>),
+    EPos(ValueI),
+    ENeg(ValueI),
+    ENot(ValueI),
+    EParens(ExpressionI),
 }
 
 #[derive(Debug, PartialEq, Copy, Clone)]
@@ -93,47 +98,47 @@ pub enum Callable {
 
 #[derive(Debug, PartialEq)]
 pub enum Func {
-    EFuncInt(Box<Expression>),
-    EFuncCeil(Box<Expression>),
-    EFuncFloor(Box<Expression>),
-    EFuncAbs(Box<Expression>),
-    EFuncLog{     base:Option<Box<Expression>>, val:Box<Expression>},
-    EFuncRound{modulus:Option<Box<Expression>>, val:Box<Expression>},
-    EFuncMin{first:Box<Expression>, rest:Box<[Expression]>},
-    EFuncMax{first:Box<Expression>, rest:Box<[Expression]>},
+    EFuncInt(ExpressionI),
+    EFuncCeil(ExpressionI),
+    EFuncFloor(ExpressionI),
+    EFuncAbs(ExpressionI),
+    EFuncLog{     base:Option<ExpressionI>, val:ExpressionI},
+    EFuncRound{modulus:Option<ExpressionI>, val:ExpressionI},
+    EFuncMin{first:ExpressionI, rest:StackVec8<ExpressionI>},
+    EFuncMax{first:ExpressionI, rest:StackVec8<ExpressionI>},
     //
     EFuncE,
     EFuncPi,
     //
-    EFuncSin(Box<Expression>),
-    EFuncCos(Box<Expression>),
-    EFuncTan(Box<Expression>),
-    EFuncASin(Box<Expression>),
-    EFuncACos(Box<Expression>),
-    EFuncATan(Box<Expression>),
-    EFuncSinH(Box<Expression>),
-    EFuncCosH(Box<Expression>),
-    EFuncTanH(Box<Expression>),
+    EFuncSin(ExpressionI),
+    EFuncCos(ExpressionI),
+    EFuncTan(ExpressionI),
+    EFuncASin(ExpressionI),
+    EFuncACos(ExpressionI),
+    EFuncATan(ExpressionI),
+    EFuncSinH(ExpressionI),
+    EFuncCosH(ExpressionI),
+    EFuncTanH(ExpressionI),
 }
 
 #[derive(Debug, PartialEq)]
-pub struct PrintFunc(pub Box<[ExpressionOrString]>);
+pub struct PrintFunc(pub StackVec16<ExpressionOrString>);
 
 #[derive(Debug, PartialEq)]
 pub enum ExpressionOrString {
-    EExpr(Box<Expression>),
+    EExpr(ExpressionI),
     EStr(String),
 }
 
 #[derive(Debug, PartialEq)]
 pub struct EvalFunc {
-    pub expr:   Box<Expression>,
-    pub kwargs: Box<[KWArg]>,
+    pub expr:   ExpressionI,
+    pub kwargs: StackVec16<KWArg>,
 }
 
 #[derive(Debug, PartialEq)]
 pub struct KWArg {
     pub name: Variable,
-    pub expr: Box<Expression>,
+    pub expr: ExpressionI,
 }
 

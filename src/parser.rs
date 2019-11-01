@@ -102,7 +102,7 @@ pub struct ParseSlab {
     exprpairs:   StackSlab64<ExprPair>,
 }
 impl ParseSlab {
-    fn new() -> Self {
+    pub fn new() -> Self {
         ParseSlab{
             expressions:StackSlab64::new(),
             exprpairs:  StackSlab64::new(),
@@ -114,7 +114,6 @@ impl ParseSlab {
 pub struct Parser<'a> {
     pub is_const_byte:Option<&'a dyn Fn(u8,usize)->bool>,
     pub is_var_byte  :Option<&'a dyn Fn(u8,usize)->bool>,  // Until proven otherwise, assume that function names follow the same rules as vars.
-    pub slab:Option<ParseSlab>,
 }
 
 impl<'a> Parser<'a> {
@@ -150,8 +149,7 @@ impl<'a> Parser<'a> {
         self.call_is_var_byte(bo,i)
     }
 
-    pub fn parse(&self, s:&str) -> Result<Expression, Error> {
-        //self.slab = Some(ParseSlab::new());
+    pub fn parse(&self, slab:&ParseSlab, s:&str) -> Result<Expression, Error> {
         let bs = &mut s.as_bytes();
         self.read_expression(bs, true)
     }
@@ -619,7 +617,6 @@ mod tests {
         let p = Parser{
             is_const_byte:None,
             is_var_byte:None,
-            slab:None,
         };
         assert!(p.call_is_var_byte(Some(b'a'),0));
         assert!(!p.call_is_const_byte(Some(b'a'),0));
@@ -627,14 +624,12 @@ mod tests {
         let p = Parser{
             is_const_byte:Some(&|_:u8, _:usize| true),
             is_var_byte:None,
-            slab:None,
         };
         assert!(p.call_is_const_byte(Some(b'a'),0));
 
         let p = Parser{
             is_const_byte:None,
             is_var_byte:None,
-            slab:None,
         };
         
         {
@@ -643,14 +638,15 @@ mod tests {
             assert_eq!(p.read_value(bs), Ok(EConstant(Constant(12.34))));
         }
 
-        assert_eq!(p.parse("12.34 + 43.21 + 11.11"),
+        let mut slab : ParseSlab;
+        assert_eq!(p.parse({slab=ParseSlab::new(); &slab}, "12.34 + 43.21 + 11.11"),
                    Ok(Expression{
                         first:EConstant(Constant(12.34)),
                         pairs:Box::new([
                             ExprPair(EPlus, EConstant(Constant(43.21))),
                             ExprPair(EPlus, EConstant(Constant(11.11)))])}));
 
-        assert_eq!(p.parse("12.34 + abs ( -43 - 0.21 ) + 11.11"),
+        assert_eq!(p.parse({slab=ParseSlab::new(); &slab}, "12.34 + abs ( -43 - 0.21 ) + 11.11"),
                    Ok(Expression {
                         first:EConstant(Constant(12.34)),
                         pairs:Box::new([
@@ -659,7 +655,7 @@ mod tests {
                                 pairs:Box::new([ExprPair(EMinus, EConstant(Constant(0.21)))]) }))))),
                             ExprPair(EPlus, EConstant(Constant(11.11)))]) }));
 
-        assert_eq!(p.parse("12.34 + print ( 43.21 ) + 11.11"),
+        assert_eq!(p.parse({slab=ParseSlab::new(); &slab}, "12.34 + print ( 43.21 ) + 11.11"),
                    Ok(Expression {
                         first:EConstant(Constant(12.34)),
                         pairs:Box::new([
@@ -669,7 +665,7 @@ mod tests {
                                     pairs:Box::new([]) }))]))))),
                             ExprPair(EPlus, EConstant(Constant(11.11)))]) }));
 
-        assert_eq!(p.parse("12.34 + eval ( x - y , x = 5 , y=4 ) + 11.11"),
+        assert_eq!(p.parse({slab=ParseSlab::new(); &slab}, "12.34 + eval ( x - y , x = 5 , y=4 ) + 11.11"),
                    Ok(Expression {
                         first:EConstant(Constant(12.34)),
                         pairs:Box::new([
