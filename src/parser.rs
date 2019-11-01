@@ -12,6 +12,7 @@ use crate::grammar::{Expression,
                      EvalFunc,
                      KWArg};
 use crate::error::Error;
+use crate::stackslab::StackSlab32;
 
 
 // Vec seems really inefficient to me because remove() does not just increment the internal pointer -- it shifts data all around.  There's also split_* methods but they seem to be designed to return new Vecs, not modify self.
@@ -96,10 +97,24 @@ fn space(bs:&mut &[u8]) {
 }
 
 
+pub struct ParseSlab {
+    expressions: StackSlab32<Expression>,
+    exprpairs:   StackSlab32<ExprPair>,
+}
+impl ParseSlab {
+    fn new() -> Self {
+        ParseSlab{
+            expressions:StackSlab32::new(),
+            exprpairs:  StackSlab32::new(),
+        }
+    }
+}
+
 
 pub struct Parser<'a> {
     pub is_const_byte:Option<&'a dyn Fn(u8,usize)->bool>,
     pub is_var_byte  :Option<&'a dyn Fn(u8,usize)->bool>,  // Until proven otherwise, assume that function names follow the same rules as vars.
+    pub slab:Option<ParseSlab>,
 }
 
 impl<'a> Parser<'a> {
@@ -136,6 +151,7 @@ impl<'a> Parser<'a> {
     }
 
     pub fn parse(&self, s:&str) -> Result<Expression, Error> {
+        //self.slab = Some(ParseSlab::new());
         let bs = &mut s.as_bytes();
         self.read_expression(bs, true)
     }
@@ -603,6 +619,7 @@ mod tests {
         let p = Parser{
             is_const_byte:None,
             is_var_byte:None,
+            slab:None,
         };
         assert!(p.call_is_var_byte(Some(b'a'),0));
         assert!(!p.call_is_const_byte(Some(b'a'),0));
@@ -610,12 +627,14 @@ mod tests {
         let p = Parser{
             is_const_byte:Some(&|_:u8, _:usize| true),
             is_var_byte:None,
+            slab:None,
         };
         assert!(p.call_is_const_byte(Some(b'a'),0));
 
         let p = Parser{
             is_const_byte:None,
             is_var_byte:None,
+            slab:None,
         };
         
         {

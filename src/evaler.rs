@@ -374,6 +374,7 @@ mod tests {
         let p = Parser{
             is_const_byte:None,
             is_var_byte:None,
+            slab:None,
         };
         assert_eq!(
             p.parse("12.34 + 43.21 + 11.11").unwrap().var_names().unwrap(),
@@ -541,6 +542,7 @@ mod tests {
         let p = Parser{
             is_const_byte:None,
             is_var_byte:None,
+            slab:None,
         };
         let mut ns = EvalNS::new(|_| None);
 

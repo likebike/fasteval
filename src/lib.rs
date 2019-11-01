@@ -16,6 +16,7 @@ pub mod parser;
 pub mod evaler;
 pub mod evalns;
 pub mod display;
+pub mod defaults;
 pub mod stackslab;
 
 #[cfg(test)]

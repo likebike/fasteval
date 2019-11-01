@@ -9,7 +9,8 @@ use std::collections::BTreeSet;
 
 fn parse_raw(s:&str) -> Result<Expression, Error> {
     Parser{is_const_byte:None,
-           is_var_byte:None}.parse(s)
+           is_var_byte:None,
+           slab:None}.parse(s)
 }
 fn parse(s:&str) -> Expression { parse_raw(s).unwrap() }
 

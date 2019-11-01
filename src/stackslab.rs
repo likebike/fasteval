@@ -15,31 +15,35 @@ trait StackSlab<T> {
 }
 
 macro_rules! def_stackslab {
-    ( $n:ident, $s:expr ) => {
-        pub struct $n<T> {
-            buf: UnsafeCell<[T; $s]>,
+    ( $name:ident, $size:expr ) => {
+        pub struct $name<T> {
+            buf: UnsafeCell<[Option<T>; $size]>,  // I'm using Option mainly for efficient drops.
             length: Cell<usize>,
         }
-        impl<T> $n<T> where T:Default {
+        impl<T> $name<T> {
             pub fn new() -> Self {
-                Self{ buf: UnsafeCell::new(Default::default()),
+                Self{ buf: Default::default(),
                       length: Cell::new(0) }
             }
         }
-        impl<T> StackSlab<T> for $n<T> {
-            fn cap() -> usize { $s }
+        impl<T> StackSlab<T> for $name<T> {
+            fn cap() -> usize { $size }
             fn len(&self) -> usize { self.length.get() }
             fn push(&self, t:T) -> Result<(),Error> {
                 let i = self.len();
                 if i>=Self::cap() { return Err(Error::new("out-of-bounds")); }
-                unsafe { ( &mut *self.buf.get() )[i] = t; }
+                unsafe { ( &mut *self.buf.get() )[i] = Some(t); }
                 self.length.set(i+1);
                 Ok(())
             }
             fn get(&self, i:usize) -> &T {
                 if i>=self.len() { panic!("out-of-bounds"); }
-                //unsafe { return &(& *self.buf.get())[i]; }
-                unsafe { &(& *self.buf.get())[i] }
+                unsafe { (& *self.buf.get())[i].as_ref().unwrap() }
+            }
+        }
+        impl<T> Drop for $name<T> {
+            fn drop(&mut self) {
+                eprintln!("in stackslab drop");
             }
         }
     }
@@ -62,6 +66,7 @@ def_stackslab!(  StackSlab32,   32);
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::mem::size_of;
 
     #[test]
     fn aaa_slab1() {
@@ -78,5 +83,63 @@ mod tests {
 
         assert_eq!(slab.push(4), Err(Error::new("out-of-bounds")));
     }
+
+
+    struct Dropper(i32);
+    impl Drop for Dropper {
+        fn drop(&mut self) {
+            eprintln!("in Dropper.drop: {}", self.0);
+        }
+    }
+    impl Default for Dropper {
+        fn default() -> Self { Self(0) }
+    }
+
+    #[test]
+    fn aaa_slab2() {
+        let slab = StackSlab4::<Dropper>::new();
+        assert_eq!(slab.len(),0);
+        slab.push(Dropper(1)).unwrap();
+        slab.push(Dropper(2)).unwrap();
+        slab.push(Dropper(3)).unwrap();
+    }
+
+
+    impl<T> StackSlab4<T> {
+        // Just an experiment, to see how 'drop' works when overwriting values,
+        // and also to verify that we really are mutating the memory we expect:
+        fn set(&self, i:usize, t:T) {
+            unsafe { ( &mut *self.buf.get() )[i] = Some(t); }
+        }
+    }
+
+    #[test]
+    fn aaa_slab3() {
+        let slab = StackSlab4::<Dropper>::new();
+        assert_eq!(slab.len(),0);
+
+        slab.push(Dropper(1)).unwrap();
+        let ref0 = slab.last();
+        assert_eq!(ref0.0,1);
+
+        slab.push(Dropper(2)).unwrap();
+
+        slab.set(0, Dropper(-1));
+        assert_eq!(ref0.0,-1);
+
+        slab.set(0, Dropper(-11));
+        assert_eq!(ref0.0,-11);
+
+        slab.set(3, Dropper(-3));
+
+        slab.push(Dropper(3)).unwrap();
+        slab.push(Dropper(4)).unwrap();
+    }
+
+    #[test]
+    fn aaa_optionlayout() {
+        eprintln!("i32 size: {},  Option<i32> size: {}", size_of::<i32>(), size_of::<Option<i32>>());
+    }
+
 }
 
