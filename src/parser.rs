@@ -320,16 +320,15 @@ impl<'a> Parser<'a> {
 
         let mut fname = StackString32::new();
         while self.call_is_func_byte(peek(bs,0),fname.len()) {
-            fname.push(read(bs)?.to_ascii_lowercase());
+            fname.push(read(bs)?.to_ascii_lowercase())?;
         }
-        let fname = String::from_utf8(fname).map_err(|_| Error::new("Utf8Error"))?;
 
         space(bs);
 
         if let Ok(b'(') = read(bs) {}
         else { return Err(Error::new("expected '('")); }
 
-        let mut args : Vec<Expression> = Vec::new();  HERE I AM, converting Vecs to stack stuff.
+        let mut args = StackVec8::<Expression>::new();
 
         loop {
             space(bs);
@@ -353,7 +352,7 @@ impl<'a> Parser<'a> {
             args.push(self.read_expression(slab,bs,false).map_err(|e| e.pre("read_expression"))?);
         }
 
-        match fname.as_ref() {
+        match fname.as_str() {
             "int" => {
                 if args.len()==1 { Ok(EFuncInt(Box::new(args.pop().unwrap())))
                 } else { Err(Error::new("expected one arg")) }
@@ -451,7 +450,7 @@ impl<'a> Parser<'a> {
     fn read_printfunc(&self, bs:&mut &[u8]) -> Result<PrintFunc, Error> {
         read_func(bs, b"print")?;
 
-        let mut args : Vec<ExpressionOrString> = Vec::new();
+        let mut args = StackVec16::<ExpressionOrString>::new();
         loop {
             space(bs);
             match peek(bs,0) {
@@ -472,7 +471,7 @@ impl<'a> Parser<'a> {
             args.push(self.read_expressionorstring(bs)?);
         }
 
-        Ok(PrintFunc(args.into_boxed_slice()))
+        Ok(PrintFunc(args))
     }
 
     fn peek_evalfunc(&self, bs:&mut &[u8]) -> bool { peek_func(bs, 0, b"eval") }
@@ -480,8 +479,8 @@ impl<'a> Parser<'a> {
         read_func(bs, b"eval")?;
 
         let eval_expr = self.read_expression(bs,false)?;
-        let mut kwargs : Vec<KWArg> = Vec::with_capacity(4);
-        fn kwargs_has(kwargs:&Vec<KWArg>, name:&Variable) -> bool {
+        let mut kwargs = StackVec16::<KWArg>::new();
+        fn kwargs_has(kwargs:&StackVec16<KWArg>, name:&Variable) -> bool {  HERE I AM, so much to do... keep going with Vec hunt.
             for kwarg in kwargs {
                 if kwarg.name==*name { return true; }
             }
