@@ -1,5 +1,8 @@
-use crate::error::Error;
+use crate::slab::Slab;
 use crate::evaler::Evaler;
+
+use kerr::KErr;
+use stacked::{SVec, SVec8};
 
 use std::collections::HashMap;
 
@@ -10,7 +13,7 @@ pub struct EvalNS<'a> {
     cb         :Box<dyn FnMut(&str)->Option<f64> + 'a>,  // I think a reference would be more efficient than a Box, but then I would need to use a funky 'let cb=|n|{}; EvalNS::new(&cb)' syntax.  The Box results in a super convenient pass-the-cb-by-value API interface.
     reeval_mode:i32,
 }
-struct NameStack(Vec<NameLayer>);
+struct NameStack(SVec8<NameLayer>);
 struct NameLayer {
     is_eval:bool,
     m      :HashMap<String,f64>,
@@ -37,14 +40,11 @@ impl<'a> EvalNS<'a> {
         });
     }
     pub fn pop(&mut self) {
-        match self.ns.0.pop() {
-            Some(_) => {},
-            None => panic!("too many pops"),
-        }
+        self.ns.0.pop();
     }
-    pub fn eval_bubble(&mut self, evaler:&dyn Evaler) -> Result<f64, Error> {
+    pub fn eval_bubble(&mut self, slab:&Slab, evaler:&impl Evaler) -> Result<f64,KErr> {
         self.push();
-        let out = evaler.eval(self);
+        let out = evaler.eval(slab, self);
         self.pop();
         out
     }
@@ -94,22 +94,22 @@ impl<'a> EvalNS<'a> {
 
         match (self.cb)(name) {
             Some(val) => {
-                self.ns.0.last_mut().unwrap().m.insert(name.to_string(),val);
+                self.ns.0[self.ns.0.len()-1].m.insert(name.to_string(),val);
                 Some(val)
             }
             None => None,
         }
     }
-    pub fn create(&mut self, name:&str, val:f64) -> Result<(),Error> {
-        let cur_layer = self.ns.0.last_mut().unwrap();
-        if cur_layer.m.contains_key(name) { return Err(Error::new("AlreadyExists")); }
+    pub fn create(&mut self, name:&str, val:f64) -> Result<(),KErr> {
+        let cur_layer = self.ns.0[self.ns.0.len()-1];
+        if cur_layer.m.contains_key(name) { return Err(KErr::new("AlreadyExists")); }
         cur_layer.m.insert(name.to_string(), val);
         Ok(())
     }
 }
 
 impl NameStack {
-    fn new() -> Self { NameStack(Vec::new()) }
+    fn new() -> Self { NameStack(SVec8::new()) }
 }
 
 //---- Tests:
@@ -120,7 +120,7 @@ mod tests {
     
     struct TestEvaler;
     impl Evaler for TestEvaler {
-        fn eval(&self, ns:&mut EvalNS) -> Result<f64, Error> {
+        fn eval(&self, _slab:&Slab, ns:&mut EvalNS) -> Result<f64,KErr> {
             match ns.get("x") {
                 Some(v) => Ok(v),
                 None => Ok(1.23),
@@ -130,10 +130,11 @@ mod tests {
 
     #[test]
     fn aaa_basics() {
+        let mut slab = Slab::new();
         let mut ns = EvalNS::new(|_| Some(5.4321));
-        assert_eq!(ns.eval_bubble(&TestEvaler{}).unwrap(), 5.4321);
+        assert_eq!(ns.eval_bubble(&slab, &TestEvaler{}).unwrap(), 5.4321);
         ns.create("x",1.111).unwrap();
-        assert_eq!(ns.eval_bubble(&TestEvaler{}).unwrap(), 1.111);
+        assert_eq!(ns.eval_bubble(&slab, &TestEvaler{}).unwrap(), 1.111);
         
         assert_eq!(ns.is_normal(), true);
         ns.start_reeval_mode();

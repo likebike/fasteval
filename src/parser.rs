@@ -1,4 +1,6 @@
-use crate::grammar::{Expression,
+use crate::slab::Slab;
+use crate::grammar::{ExpressionI, ValueI,
+                     Expression,
                      ExprPair,
                      Value::{self, EConstant, EVariable, EUnaryOp, ECallable},
                      Constant,
@@ -11,9 +13,9 @@ use crate::grammar::{Expression,
                      ExpressionOrString::{self, EExpr, EStr},
                      EvalFunc,
                      KWArg};
-use crate::error::Error;
-use crate::stackvec::{StackVec, StackVec16};
-use crate::slab::Slab;
+
+use kerr::KErr;
+use stacked::{SVec, SVec8, SVec16, SString32, SString256};
 
 
 // Vec seems really inefficient to me because remove() does not just increment the internal pointer -- it shifts data all around.  There's also split_* methods but they seem to be designed to return new Vecs, not modify self.
@@ -55,14 +57,14 @@ fn peek_func(bs:&[u8], skip:usize, name:&[u8]) -> bool {
     } else { false }
 }
 
-fn read(bs:&mut &[u8]) -> Result<u8, Error> {
+fn read(bs:&mut &[u8]) -> Result<u8, KErr> {
     if bs.len() > 0 {
         let b = bs[0];
         *bs = &bs[1..];
         Ok(b)
-    } else { Err(Error::new("EOF")) }
+    } else { Err(KErr::new("EOF")) }
 }
-fn read_word_ci(bs:&mut &[u8], word:&[u8]) -> Result<(), Error> {
+fn read_word_ci(bs:&mut &[u8], word:&[u8]) -> Result<(), KErr> {
     #[allow(non_snake_case)]
     for B in word.iter() {
         #[allow(non_snake_case)]
@@ -70,18 +72,18 @@ fn read_word_ci(bs:&mut &[u8], word:&[u8]) -> Result<(), Error> {
         match read(bs) {
             Ok(b) => {
                 let bl = b.to_ascii_lowercase();
-                if bl!=B { return Err(Error::new(&format!("unexpected '{}' when reading '{}'",b as char,std::str::from_utf8(word).map_err(|_| Error::new("Utf8Error"))?))) }
+                if bl!=B { return Err(KErr::new(&format!("unexpected '{}' when reading '{}'",b as char,std::str::from_utf8(word).map_err(|_| KErr::new("Utf8Error"))?))) }
             }
-            Err(e) => { return Err(e.pre(&format!("read_word_ci({})",std::str::from_utf8(word).map_err(|_| Error::new("Utf8Error"))?))) }
+            Err(e) => { return Err(e.pre(&format!("read_word_ci({})",std::str::from_utf8(word).map_err(|_| KErr::new("Utf8Error"))?))) }
         }
     }
     Ok(())
 }
-fn read_func(bs:&mut &[u8], name:&[u8]) -> Result<(), Error> {
+fn read_func(bs:&mut &[u8], name:&[u8]) -> Result<(), KErr> {
     read_word_ci(bs,name)?;
     space(bs);
     if read(bs)?==b'(' { Ok(())
-    } else { Err(Error::new("expected '('")) }
+    } else { Err(KErr::new("expected '('")) }
 }
 
 fn is_space(b:u8) -> bool {
@@ -137,25 +139,26 @@ impl<'a> Parser<'a> {
         self.call_is_var_byte(bo,i)
     }
 
-    pub fn parse(&self, slab:&Slab, s:&str) -> Result<Expression, Error> {
-        let bs = &mut s.as_bytes();
-        self.read_expression(slab, bs, true)
+    pub fn parse<'b>(&self, slab:&'b Slab, s:&str) -> Result<&'b Expression, KErr> {
+        let mut bs = s.as_bytes();
+        let expr_i = self.read_expression(slab, &mut bs, true)?;
+        Ok(slab.get_expr(expr_i))
     }
 
-    fn read_expression(&self, slab:&Slab, bs:&mut &[u8], expect_eof:bool) -> Result<Expression, Error> {
+    fn read_expression(&self, slab:&Slab, bs:&mut &[u8], expect_eof:bool) -> Result<ExpressionI, KErr> {
         let first = self.read_value(slab,bs).map_err(|e| e.pre("read_value"))?;
-        let pairs = StackVec16::<ExprPair>::new();
+        let pairs = SVec16::<ExprPair>::new();
         while self.peek_binaryop(bs) {
             let bop = self.read_binaryop(bs).map_err(|e| e.pre("read_binaryop"))?;
             let val = self.read_value(slab,bs).map_err(|e| e.pre("read_value"))?;
-            pairs.push(ExprPair(bop,val));
+            pairs.push(ExprPair(bop,val))?;
         }
         space(bs);
-        if expect_eof && !is_at_eof(bs) { return Err(Error::new("unparsed tokens remaining")); }
-        Ok(Expression{first, pairs})
+        if expect_eof && !is_at_eof(bs) { return Err(KErr::new("unparsed tokens remaining")); }
+        Ok(slab.push_expr(Expression{first, pairs})?)
     }
 
-    fn read_value(&self, slab:&Slab, bs:&mut &[u8]) -> Result<Value, Error> {
+    fn read_value(&self, slab:&Slab, bs:&mut &[u8]) -> Result<Value, KErr> {
         if self.peek_const(bs) {
             return self.read_const(bs).map(|c| EConstant(c));
         }
@@ -168,35 +171,36 @@ impl<'a> Parser<'a> {
         if self.peek_var(bs) {  // Should go last -- don't mask callables.
             return self.read_var(bs).map(|v| EVariable(v));
         }
-        Err(Error::new("invalid value"))
+        Err(KErr::new("invalid value"))
     }
 
     fn peek_const(&self, bs:&mut &[u8]) -> bool {
         space(bs);
         self.call_is_const_byte(peek(bs,0),0)
     }
-    fn read_const(&self, bs:&mut &[u8]) -> Result<Constant, Error> {
+    fn read_const(&self, bs:&mut &[u8]) -> Result<Constant, KErr> {
         space(bs);
 
-        let mut buf = StackString256::new();
+        let mut buf = SString256::new();
         while self.call_is_const_byte(peek(bs,0),buf.len()) {
             buf.push(read(bs)?)?;
         }
 
         let mut multiple = 1.0;
-        if buf.len()>0 {
-            match buf.last().unwrap() {
-                b'k' | b'K' => {   multiple=1000.0; buf.pop(); }
-                b'M' => {       multiple=1000000.0; buf.pop(); }
-                b'G' => {    multiple=1000000000.0; buf.pop(); }
-                b'T' => { multiple=1000000000000.0; buf.pop(); }
+        let buflen = buf.len();
+        if buflen>0 {
+            match buf[buflen-1] {
+                b'k' | b'K' => {      multiple=1_000.0; buf.pop(); }
+                b'M' => {         multiple=1_000_000.0; buf.pop(); }
+                b'G' => {     multiple=1_000_000_000.0; buf.pop(); }
+                b'T' => { multiple=1_000_000_000_000.0; buf.pop(); }
                 _ => {}
             }
         }
 
-        let bufstr = std::str::from_utf8(buf.as_slice()).map_err(|_| Error::new("Utf8Error"))?;
+        let bufstr = buf.as_str()?;
         let val = bufstr.parse::<f64>().map_err(|_| {
-            Error::new("parse<f64> error").pre(bufstr)
+            KErr::new("parse<f64> error").pre(bufstr)
         })?;
         Ok(Constant(val*multiple))
     }
@@ -205,12 +209,12 @@ impl<'a> Parser<'a> {
         space(bs);
         self.call_is_var_byte(peek(bs,0),0)
     }
-    fn read_var(&self, bs:&mut &[u8]) -> Result<Variable, Error> {
+    fn read_var(&self, bs:&mut &[u8]) -> Result<Variable, KErr> {
         space(bs);
 
-        let mut buf = StackString32::new();
+        let buf = SString32::new();
         while self.call_is_var_byte(peek(bs,0),buf.len()) {
-            buf.push(read(bs)?);
+            buf.push(read(bs)?)?;
         }
 
         Ok(Variable(buf))
@@ -223,7 +227,7 @@ impl<'a> Parser<'a> {
             _ => false,
         }
     }
-    fn read_unaryop(&self, slab:&Slab, bs:&mut &[u8]) -> Result<UnaryOp, Error> {
+    fn read_unaryop(&self, slab:&Slab, bs:&mut &[u8]) -> Result<UnaryOp, KErr> {
         space(bs);
         match read(bs)? {
             b'+' => {
@@ -239,12 +243,12 @@ impl<'a> Parser<'a> {
                 Ok(ENot(slab.push_val(v)?))
             }
             b'(' => {
-                let x = self.read_expression(slab,bs,false)?;
+                let xi = self.read_expression(slab,bs,false)?;
                 space(bs);
-                if read(bs)? != b')' { return Err(Error::new("Expected ')'")) }
-                Ok(EParens(slab.push_expr(x)?))
+                if read(bs)? != b')' { return Err(KErr::new("Expected ')'")) }
+                Ok(EParens(xi))
             }
-            _ => Err(Error::new("invalid unaryop")),
+            _ => Err(KErr::new("invalid unaryop")),
         }
     }
 
@@ -262,8 +266,8 @@ impl<'a> Parser<'a> {
             }
         }
     }
-    fn read_binaryop(&self, bs:&mut &[u8]) -> Result<BinaryOp, Error> {
-        let err = Error::new("illegal binaryop");
+    fn read_binaryop(&self, bs:&mut &[u8]) -> Result<BinaryOp, KErr> {
+        let err = KErr::new("illegal binaryop");
         space(bs);
         match read(bs)? {
             b'+' => Ok(EPlus),
@@ -291,17 +295,17 @@ impl<'a> Parser<'a> {
     fn peek_callable(&self, bs:&mut &[u8]) -> bool {
         self.peek_func(bs) || self.peek_printfunc(bs) || self.peek_evalfunc(bs)
     }
-    fn read_callable(&self, slab:&Slab, bs:&mut &[u8]) -> Result<Callable, Error> {
+    fn read_callable(&self, slab:&Slab, bs:&mut &[u8]) -> Result<Callable, KErr> {
         if self.peek_printfunc(bs) {
-            return self.read_printfunc(bs).map(|f| EPrintFunc(f));
+            return self.read_printfunc(slab,bs).map(|f| EPrintFunc(f));
         }
         if self.peek_evalfunc(bs) {
-            return self.read_evalfunc(bs).map(|f| EEvalFunc(f));
+            return self.read_evalfunc(slab,bs).map(|f| EEvalFunc(f));
         }
         if self.peek_func(bs) {
             return self.read_func(slab,bs).map(|f| EFunc(f));
         }
-        Err(Error::new("invalid callable"))
+        Err(KErr::new("invalid callable"))
     }
 
     fn peek_func(&self, bs:&mut &[u8]) -> bool {
@@ -315,10 +319,10 @@ impl<'a> Parser<'a> {
         }
         name_len>0 && peek(bs,name_len+post_name_spaces)==Some(b'(')
     }
-    fn read_func(&self, slab:&Slab, bs:&mut &[u8]) -> Result<Func, Error> {
+    fn read_func(&self, slab:&Slab, bs:&mut &[u8]) -> Result<Func, KErr> {
         space(bs);
 
-        let mut fname = StackString32::new();
+        let fname = SString32::new();
         while self.call_is_func_byte(peek(bs,0),fname.len()) {
             fname.push(read(bs)?.to_ascii_lowercase())?;
         }
@@ -326,9 +330,9 @@ impl<'a> Parser<'a> {
         space(bs);
 
         if let Ok(b'(') = read(bs) {}
-        else { return Err(Error::new("expected '('")); }
+        else { return Err(KErr::new("expected '('")); }
 
-        let mut args = StackVec8::<Expression>::new();
+        let mut args = SVec8::<ExpressionI>::new();
 
         loop {
             space(bs);
@@ -339,118 +343,119 @@ impl<'a> Parser<'a> {
                         break;
                     }
                 }
-                None => return Err(Error::new("Reached end of input while parsing function")),
+                None => return Err(KErr::new("Reached end of input while parsing function")),
             }
             if args.len()>0 {
                 match read(bs) {
                     Ok(b',') | Ok(b';') => {
                         // I accept ',' or ';' because the TV API disallows the ',' char in symbols... so I'm using ';' as a compromise.
                     }
-                    _ => return Err(Error::new("expected ',' or ';'")),
+                    _ => return Err(KErr::new("expected ',' or ';'")),
                 }
             }
-            args.push(self.read_expression(slab,bs,false).map_err(|e| e.pre("read_expression"))?);
+            args.push(self.read_expression(slab,bs,false).map_err(|e| e.pre("read_expression"))?)?;
         }
 
         match fname.as_str() {
-            "int" => {
-                if args.len()==1 { Ok(EFuncInt(Box::new(args.pop().unwrap())))
-                } else { Err(Error::new("expected one arg")) }
+            Ok("int") => {
+                if args.len()==1 { Ok(EFuncInt(args.pop()))
+                } else { Err(KErr::new("expected one arg")) }
             }
-            "ceil" => {
-                if args.len()==1 { Ok(EFuncCeil(Box::new(args.pop().unwrap())))
-                } else { Err(Error::new("expected one arg")) }
+            Ok("ceil") => {
+                if args.len()==1 { Ok(EFuncCeil(args.pop()))
+                } else { Err(KErr::new("expected one arg")) }
             }
-            "floor" => {
-                if args.len()==1 { Ok(EFuncFloor(Box::new(args.pop().unwrap())))
-                } else { Err(Error::new("expected one arg")) }
+            Ok("floor") => {
+                if args.len()==1 { Ok(EFuncFloor(args.pop()))
+                } else { Err(KErr::new("expected one arg")) }
             }
-            "abs" => {
-                if args.len()==1 { Ok(EFuncAbs(Box::new(args.pop().unwrap())))
-                } else { Err(Error::new("expected one arg")) }
+            Ok("abs") => {
+                if args.len()==1 { Ok(EFuncAbs(args.pop()))
+                } else { Err(KErr::new("expected one arg")) }
             }
-            "log" => {
-                if args.len()==1 { Ok(EFuncLog{base:None, val:Box::new(args.pop().unwrap())})
+            Ok("log") => {
+                if args.len()==1 { Ok(EFuncLog{base:None, expr:args.pop()})
                 } else if args.len()==2 {
-                    let val = args.pop().unwrap();
-                    Ok(EFuncLog{base:Some(Box::new(args.pop().unwrap())), val:Box::new(val)})
-                } else { Err(Error::new("expected log(x) or log(base,x)")) }
+                    let expr = args.pop();
+                    Ok(EFuncLog{base:Some(args.pop()), expr:expr})
+                } else { Err(KErr::new("expected log(x) or log(base,x)")) }
             }
-            "round" => {
-                if args.len()==1 { Ok(EFuncRound{modulus:None, val:Box::new(args.pop().unwrap())})
+            Ok("round") => {
+                if args.len()==1 { Ok(EFuncRound{modulus:None, expr:args.pop()})
                 } else if args.len()==2 {
-                    let val = args.pop().unwrap();
-                    Ok(EFuncRound{modulus:Some(Box::new(args.pop().unwrap())), val:Box::new(val)})
-                } else { Err(Error::new("expected round(x) or round(modulus,x)")) }
+                    let expr = args.pop();
+                    Ok(EFuncRound{modulus:Some(args.pop()), expr:expr})
+                } else { Err(KErr::new("expected round(x) or round(modulus,x)")) }
             }
-            "min" => {
+            Ok("min") => {
                 if args.len()>0 {
                     let first = args.remove(0);
-                    Ok(EFuncMin{first:Box::new(first), rest:args.into_boxed_slice()})
-                } else { Err(Error::new("expected one or more args")) }
+                    Ok(EFuncMin{first:first, rest:args})
+                } else { Err(KErr::new("expected one or more args")) }
             }
-            "max" => {
+            Ok("max") => {
                 if args.len()>0 {
                     let first = args.remove(0);
-                    Ok(EFuncMax{first:Box::new(first), rest:args.into_boxed_slice()})
-                } else { Err(Error::new("expected one or more args")) }
+                    Ok(EFuncMax{first:first, rest:args})
+                } else { Err(KErr::new("expected one or more args")) }
             }
 
-            "e" => {
+            Ok("e") => {
                 if args.len()==0 { Ok(EFuncE)
-                } else { Err(Error::new("expected no args")) }
+                } else { Err(KErr::new("expected no args")) }
             }
-            "pi" => {
+            Ok("pi") => {
                 if args.len()==0 { Ok(EFuncPi)
-                } else { Err(Error::new("expected no args")) }
+                } else { Err(KErr::new("expected no args")) }
             }
 
-            "sin" => {
-                if args.len()==1 { Ok(EFuncSin(Box::new(args.pop().unwrap())))
-                } else { Err(Error::new("expected one arg")) }
+            Ok("sin") => {
+                if args.len()==1 { Ok(EFuncSin(args.pop()))
+                } else { Err(KErr::new("expected one arg")) }
             }
-            "cos" => {
-                if args.len()==1 { Ok(EFuncCos(Box::new(args.pop().unwrap())))
-                } else { Err(Error::new("expected one arg")) }
+            Ok("cos") => {
+                if args.len()==1 { Ok(EFuncCos(args.pop()))
+                } else { Err(KErr::new("expected one arg")) }
             }
-            "tan" => {
-                if args.len()==1 { Ok(EFuncTan(Box::new(args.pop().unwrap())))
-                } else { Err(Error::new("expected one arg")) }
+            Ok("tan") => {
+                if args.len()==1 { Ok(EFuncTan(args.pop()))
+                } else { Err(KErr::new("expected one arg")) }
             }
-            "asin" => {
-                if args.len()==1 { Ok(EFuncASin(Box::new(args.pop().unwrap())))
-                } else { Err(Error::new("expected one arg")) }
+            Ok("asin") => {
+                if args.len()==1 { Ok(EFuncASin(args.pop()))
+                } else { Err(KErr::new("expected one arg")) }
             }
-            "acos" => {
-                if args.len()==1 { Ok(EFuncACos(Box::new(args.pop().unwrap())))
-                } else { Err(Error::new("expected one arg")) }
+            Ok("acos") => {
+                if args.len()==1 { Ok(EFuncACos(args.pop()))
+                } else { Err(KErr::new("expected one arg")) }
             }
-            "atan" => {
-                if args.len()==1 { Ok(EFuncATan(Box::new(args.pop().unwrap())))
-                } else { Err(Error::new("expected one arg")) }
+            Ok("atan") => {
+                if args.len()==1 { Ok(EFuncATan(args.pop()))
+                } else { Err(KErr::new("expected one arg")) }
             }
-            "sinh" => {
-                if args.len()==1 { Ok(EFuncSinH(Box::new(args.pop().unwrap())))
-                } else { Err(Error::new("expected one arg")) }
+            Ok("sinh") => {
+                if args.len()==1 { Ok(EFuncSinH(args.pop()))
+                } else { Err(KErr::new("expected one arg")) }
             }
-            "cosh" => {
-                if args.len()==1 { Ok(EFuncCosH(Box::new(args.pop().unwrap())))
-                } else { Err(Error::new("expected one arg")) }
+            Ok("cosh") => {
+                if args.len()==1 { Ok(EFuncCosH(args.pop()))
+                } else { Err(KErr::new("expected one arg")) }
             }
-            "tanh" => {
-                if args.len()==1 { Ok(EFuncTanH(Box::new(args.pop().unwrap())))
-                } else { Err(Error::new("expected one arg")) }
+            Ok("tanh") => {
+                if args.len()==1 { Ok(EFuncTanH(args.pop()))
+                } else { Err(KErr::new("expected one arg")) }
             }
 
-            _ => Err(Error::new(&format!("undefined function: {}",fname))),
+            Ok(_) => Err(KErr::new(&format!("undefined function: {}",fname))),
+            Err(e) => Err(e.pre("invalid function name")),
         }
     }
 
     fn peek_printfunc(&self, bs:&mut &[u8]) -> bool { peek_func(bs, 0, b"print") }
-    fn read_printfunc(&self, bs:&mut &[u8]) -> Result<PrintFunc, Error> {
+    fn read_printfunc(&self, slab:&Slab, bs:&mut &[u8]) -> Result<PrintFunc, KErr> {
         read_func(bs, b"print")?;
 
-        let mut args = StackVec16::<ExpressionOrString>::new();
+        let args = SVec16::<ExpressionOrString>::new();
         loop {
             space(bs);
             match peek(bs,0) {
@@ -460,27 +465,27 @@ impl<'a> Parser<'a> {
                         break;
                     }
                 }
-                None => { return Err(Error::new("reached end of inupt while parsing printfunc")) }
+                None => { return Err(KErr::new("reached end of inupt while parsing printfunc")) }
             }
             if args.len()>0 {
                 match read(bs) {
                     Ok(b',') | Ok(b';') => {}
-                    _ => { return Err(Error::new("expected ',' or ';'")) }
+                    _ => { return Err(KErr::new("expected ',' or ';'")) }
                 }
             }
-            args.push(self.read_expressionorstring(bs)?);
+            args.push(self.read_expressionorstring(slab,bs)?)?;
         }
 
         Ok(PrintFunc(args))
     }
 
     fn peek_evalfunc(&self, bs:&mut &[u8]) -> bool { peek_func(bs, 0, b"eval") }
-    fn read_evalfunc(&self, bs:&mut &[u8]) -> Result<EvalFunc, Error> {
+    fn read_evalfunc(&self, slab:&Slab, bs:&mut &[u8]) -> Result<EvalFunc, KErr> {
         read_func(bs, b"eval")?;
 
-        let eval_expr = self.read_expression(bs,false)?;
-        let mut kwargs = StackVec16::<KWArg>::new();
-        fn kwargs_has(kwargs:&StackVec16<KWArg>, name:&Variable) -> bool {  HERE I AM, so much to do... keep going with Vec hunt.
+        let eval_expr = self.read_expression(slab,bs,false)?;
+        let kwargs = SVec16::<KWArg>::new();
+        fn kwargs_has(kwargs:&SVec16<KWArg>, name:&Variable) -> bool {
             for kwarg in kwargs {
                 if kwarg.name==*name { return true; }
             }
@@ -496,64 +501,63 @@ impl<'a> Parser<'a> {
                         break;
                     }
                 }
-                None => { return Err(Error::new("reached end of input while parsing evalfunc")) }
+                None => { return Err(KErr::new("reached end of input while parsing evalfunc")) }
             }
             match read(bs) {
                 Ok(b',') | Ok(b';') => {}
-                _ => { return Err(Error::new("expected ',' or ';'")) }
+                _ => { return Err(KErr::new("expected ',' or ';'")) }
             }
             let name = self.read_var(bs)?;
             space(bs);
             if let Ok(b'=') = read(bs) {
-            } else { return Err(Error::new("expected '='")) }
-            let expr = self.read_expression(bs,false)?;
+            } else { return Err(KErr::new("expected '='")) }
+            let expr = self.read_expression(slab,bs,false)?;
 
-            if kwargs_has(&kwargs,&name) { return Err(Error::new(&format!("already defined: {}",name))) }
-            kwargs.push(KWArg{name:name, expr:Box::new(expr)});
+            if kwargs_has(&kwargs,&name) { return Err(KErr::new(&format!("already defined: {}",name.0))) }
+            kwargs.push(KWArg{name, expr})?;
         }
 
-        Ok(EvalFunc{expr:Box::new(eval_expr), kwargs:kwargs.into_boxed_slice()})
+        Ok(EvalFunc{expr:eval_expr, kwargs:kwargs})
     }
 
-    fn read_expressionorstring(&self, bs:&mut &[u8]) -> Result<ExpressionOrString, Error> {
+    fn read_expressionorstring(&self, slab:&Slab, bs:&mut &[u8]) -> Result<ExpressionOrString, KErr> {
         if self.peek_string(bs) { Ok(EStr(self.read_string(bs)?))
-        } else { Ok(EExpr(Box::new(self.read_expression(bs,false)?))) }
+        } else { Ok(EExpr(self.read_expression(slab,bs,false)?)) }
     }
 
     fn peek_string(&self, bs:&mut &[u8]) -> bool {
         space(bs);
         peek_is(bs,0,b'"')
     }
-    fn read_string(&self, bs:&mut &[u8]) -> Result<String, Error> {
+    fn read_string(&self, bs:&mut &[u8]) -> Result<SString256, KErr> {
         space(bs);
 
         match read(bs) {
             Ok(b) => {
-                if b!=b'"' { return Err(Error::new(r#"expected '"'"#)) }
+                if b!=b'"' { return Err(KErr::new(r#"expected '"'"#)) }
             }
             Err(e) => { return Err(e.pre("read_string")) }
         }
 
-        let mut buf : Vec<u8> = Vec::with_capacity(16);
+        let buf = SString256::new();
         loop {
             let b = read(bs)?;
             if b==b'"' { break; }
-            buf.push(b);
+            buf.push(b)?;
         }
 
-        String::from_utf8(buf).map_err(|_| Error::new("Utf8Error"))
+        //String::from_utf8(buf).map_err(|_| KErr::new("Utf8Error"))
+        Ok(buf)
     }
 }
 
-//---- Tests:
-
 #[cfg(test)]
-mod tests {
+mod internal_tests {
     use super::*;
 
     #[test]
-    fn aaa_util() {
-        match (|| -> Result<(),Error> {
+    fn util() {
+        match (|| -> Result<(),KErr> {
             let bsarr = [1,2,3];
             let bs = &mut &bsarr[..];
 
@@ -566,7 +570,7 @@ mod tests {
             assert_eq!(read(bs)?, 2);
             assert_eq!(read(bs)?, 3);
             match read(bs).err() {
-                Some(Error{..}) => {}  // Can I improve this so I can match the "EOF" ?
+                Some(KErr{..}) => {}  // Can I improve this so I can match the "EOF" ?
                 None => panic!("I expected an EOF")
             }
 
@@ -597,73 +601,6 @@ mod tests {
             space(bs);
             assert_eq!(bs, b"abc 123   ");
         }
-    }
-
-    #[test]
-    fn aaa_parser() {
-        let p = Parser{
-            is_const_byte:None,
-            is_var_byte:None,
-        };
-        assert!(p.call_is_var_byte(Some(b'a'),0));
-        assert!(!p.call_is_const_byte(Some(b'a'),0));
-
-        let p = Parser{
-            is_const_byte:Some(&|_:u8, _:usize| true),
-            is_var_byte:None,
-        };
-        assert!(p.call_is_const_byte(Some(b'a'),0));
-
-        let p = Parser{
-            is_const_byte:None,
-            is_var_byte:None,
-        };
-        
-        {
-            let bsarr = b"12.34";
-            let bs = &mut &bsarr[..];
-            assert_eq!(p.read_value(bs), Ok(EConstant(Constant(12.34))));
-        }
-
-        let mut slab : Slab;
-        assert_eq!(p.parse({slab=Slab::new(); &slab}, "12.34 + 43.21 + 11.11"),
-                   Ok(Expression{
-                        first:EConstant(Constant(12.34)),
-                        pairs:Box::new([
-                            ExprPair(EPlus, EConstant(Constant(43.21))),
-                            ExprPair(EPlus, EConstant(Constant(11.11)))])}));
-
-        assert_eq!(p.parse({slab=Slab::new(); &slab}, "12.34 + abs ( -43 - 0.21 ) + 11.11"),
-                   Ok(Expression {
-                        first:EConstant(Constant(12.34)),
-                        pairs:Box::new([
-                            ExprPair(EPlus, ECallable(EFunc(EFuncAbs(Box::new(Expression {
-                                first:EUnaryOp(ENeg(Box::new(EConstant(Constant(43.0))))),
-                                pairs:Box::new([ExprPair(EMinus, EConstant(Constant(0.21)))]) }))))),
-                            ExprPair(EPlus, EConstant(Constant(11.11)))]) }));
-
-        assert_eq!(p.parse({slab=Slab::new(); &slab}, "12.34 + print ( 43.21 ) + 11.11"),
-                   Ok(Expression {
-                        first:EConstant(Constant(12.34)),
-                        pairs:Box::new([
-                            ExprPair(EPlus, ECallable(EPrintFunc(PrintFunc(Box::new([
-                                EExpr(Box::new(Expression {
-                                    first:EConstant(Constant(43.21)),
-                                    pairs:Box::new([]) }))]))))),
-                            ExprPair(EPlus, EConstant(Constant(11.11)))]) }));
-
-        assert_eq!(p.parse({slab=Slab::new(); &slab}, "12.34 + eval ( x - y , x = 5 , y=4 ) + 11.11"),
-                   Ok(Expression {
-                        first:EConstant(Constant(12.34)),
-                        pairs:Box::new([
-                            ExprPair(EPlus, ECallable(EEvalFunc(EvalFunc {
-                                expr:Box::new(Expression {
-                                    first:EVariable(Variable("x".to_string())),
-                                    pairs:Box::new([ExprPair(EMinus, EVariable(Variable("y".to_string())))]) }),
-                                kwargs:Box::new([
-                                    KWArg { name: Variable("x".to_string()), expr:Box::new(Expression { first: EConstant(Constant(5.0)), pairs:Box::new([]) }) },
-                                    KWArg { name: Variable("y".to_string()), expr:Box::new(Expression { first: EConstant(Constant(4.0)), pairs:Box::new([]) }) }]) }))),
-                            ExprPair(EPlus, EConstant(Constant(11.11)))]) }));
     }
 }
 

@@ -27,29 +27,19 @@
 // EvalFunc: eval(Expression(,Variable=Expression)*)
 
 
-use crate::stackvec::{StackVec8, StackVec16};
+use stacked::{SVec8, SVec16, SString32, SString256};
 
 
-// #[derive(Debug, PartialEq)]
-// pub struct Expression(pub Box<[ExpressionTok]>);  // This data structure allows invalid states to exist, but it's so convenient!
-//
-// #[derive(Debug, PartialEq)]
-// pub enum ExpressionTok {
-//     EValue(Value),
-//     EBinaryOp(BinaryOp),
-// }
-
-
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Copy, Clone)]
 pub struct ExpressionI(pub usize);
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Copy, Clone)]
 pub struct ValueI(pub usize);
 
 
-#[derive(Debug, PartialEq)]  // More awkward, but unable to represent invalid states, and also more efficient.
+#[derive(Debug, PartialEq)]
 pub struct Expression {
     pub first: Value,
-    pub pairs: StackVec16<ExprPair>,
+    pub pairs: SVec16<ExprPair>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -67,7 +57,7 @@ pub enum Value {
 pub struct Constant(pub f64);
 
 #[derive(Debug, PartialEq)]
-pub struct Variable(pub StackString32);
+pub struct Variable(pub SString32);
 
 #[derive(Debug, PartialEq)]
 pub enum UnaryOp {
@@ -108,10 +98,10 @@ pub enum Func {
     EFuncCeil(ExpressionI),
     EFuncFloor(ExpressionI),
     EFuncAbs(ExpressionI),
-    EFuncLog{     base:Option<ExpressionI>, val:ExpressionI},
-    EFuncRound{modulus:Option<ExpressionI>, val:ExpressionI},
-    EFuncMin{first:ExpressionI, rest:StackVec8<ExpressionI>},
-    EFuncMax{first:ExpressionI, rest:StackVec8<ExpressionI>},
+    EFuncLog{     base:Option<ExpressionI>, expr:ExpressionI},
+    EFuncRound{modulus:Option<ExpressionI>, expr:ExpressionI},
+    EFuncMin{first:ExpressionI, rest:SVec8<ExpressionI>},
+    EFuncMax{first:ExpressionI, rest:SVec8<ExpressionI>},
     //
     EFuncE,
     EFuncPi,
@@ -128,18 +118,18 @@ pub enum Func {
 }
 
 #[derive(Debug, PartialEq)]
-pub struct PrintFunc(pub StackVec16<ExpressionOrString>);
+pub struct PrintFunc(pub SVec16<ExpressionOrString>);
 
 #[derive(Debug, PartialEq)]
 pub enum ExpressionOrString {
     EExpr(ExpressionI),
-    EStr(StackString256),
+    EStr(SString256),
 }
 
 #[derive(Debug, PartialEq)]
 pub struct EvalFunc {
     pub expr:   ExpressionI,
-    pub kwargs: StackVec16<KWArg>,
+    pub kwargs: SVec16<KWArg>,
 }
 
 #[derive(Debug, PartialEq)]
