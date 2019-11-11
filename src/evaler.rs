@@ -558,7 +558,7 @@ mod tests {
     }
 
     #[bench]
-    fn bench(b:&mut Bencher) {
+    fn bench(_b:&mut Bencher) {
         //return;
 
         eprintln!();
@@ -594,17 +594,6 @@ mod tests {
                 sum+=x;
             }
             eprintln!("raw  bench: {}  {}",sum,Instant::now().duration_since(start).as_secs_f64());
-        }
-
-        {
-            let mut sum = 0f64;
-            b.iter(|| {
-                let expr = p.parse({slab.clear(); &slab}, "(3 * (3 + 3) / 3)").unwrap();
-                match expr.eval(&slab, &mut ns) {
-                    Ok(f) => { sum+=f; }
-                    Err(e) => panic!(format!("error during benchmark: {}",e)),
-                }
-            });
         }
     }
 }

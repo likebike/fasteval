@@ -9,5 +9,5 @@ kerr = "0.1"
 stacked = { path = "../stacked" }
 
 [profile.bench]
-debug = false
+#debug = true
 
