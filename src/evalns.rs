@@ -2,7 +2,7 @@ use crate::slab::Slab;
 use crate::evaler::Evaler;
 
 use kerr::KErr;
-use stacked::{SVec, SVec8};
+use stacked::{SVec, SVec64};
 
 use std::collections::HashMap;
 
@@ -13,7 +13,7 @@ pub struct EvalNS<'a> {
     cb         :Box<dyn FnMut(&str)->Option<f64> + 'a>,  // I think a reference would be more efficient than a Box, but then I would need to use a funky 'let cb=|n|{}; EvalNS::new(&cb)' syntax.  The Box results in a super convenient pass-the-cb-by-value API interface.
     reeval_mode:i32,
 }
-struct NameStack(SVec8<NameLayer>);
+struct NameStack(SVec64<NameLayer>);
 struct NameLayer {
     is_eval:bool,
     m      :HashMap<String,f64>,
@@ -43,8 +43,8 @@ impl<'a> EvalNS<'a> {
         self.ns.0.pop();
     }
     pub fn eval_bubble(&mut self, slab:&Slab, evaler:&impl Evaler) -> Result<f64,KErr> {
-        self.push()?;
-        let out = evaler.eval(slab, self);
+        self.push().map_err(|e| e.pre("eval_bubble ns.push"))?;
+        let out = evaler.eval(slab, self).map_err(|e| e.pre(&format!("eval_bubble({:?})",evaler)));
         self.pop();
         out
     }
@@ -111,7 +111,7 @@ impl<'a> EvalNS<'a> {
 }
 
 impl NameStack {
-    fn new() -> Self { NameStack(SVec8::new()) }
+    fn new() -> Self { NameStack(SVec64::new()) }
 }
 
 //---- Tests:
@@ -120,6 +120,7 @@ impl NameStack {
 mod tests {
     use super::*;
     
+    #[derive(Debug)]
     struct TestEvaler;
     impl Evaler for TestEvaler {
         fn eval(&self, _slab:&Slab, ns:&mut EvalNS) -> Result<f64,KErr> {

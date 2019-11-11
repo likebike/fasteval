@@ -513,7 +513,7 @@ impl<'a> Parser<'a> {
             } else { return Err(KErr::new("expected '='")) }
             let expr = self.read_expression(slab,bs,false)?;
 
-            if kwargs_has(&kwargs,&name) { return Err(KErr::new(&format!("already defined: {}",name.0))) }
+            if kwargs_has(&kwargs,&name) { return Err(KErr::new(&format!("already defined: {}",name))) }
             kwargs.push(KWArg{name, expr})?;
         }
 

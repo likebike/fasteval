@@ -10,45 +10,18 @@ fn parser() {
     let mut slab = Slab::new();
     p.parse({slab.clear(); &slab}, "12.34 + 43.21 + 11.11").unwrap();
     assert_eq!(format!("{:?}",&slab),
-               "
-               Ok(&Expression{
-                    first:EConstant(Constant(12.34)),
-                    pairs:vec![ExprPair(EPlus, EConstant(Constant(43.21))),
-                               ExprPair(EPlus, EConstant(Constant(11.11)))].into()})");
+"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(12.34)), pairs: SVec8[ ExprPair(EPlus, EConstant(Constant(43.21))), ExprPair(EPlus, EConstant(Constant(11.11))) ] } }, vals:{} }");
 
     p.parse({slab.clear(); &slab}, "12.34 + abs ( -43 - 0.21 ) + 11.11").unwrap();
     assert_eq!(format!("{:?}",&slab),
-               "Ok(Expression {
-                    first:EConstant(Constant(12.34)),
-                    pairs:Box::new([
-                        ExprPair(EPlus, ECallable(EFunc(EFuncAbs(Box::new(Expression {
-                            first:EUnaryOp(ENeg(Box::new(EConstant(Constant(43.0))))),
-                            pairs:vec![ExprPair(EMinus, EConstant(Constant(0.21)))].into() }))))),
-                        ExprPair(EPlus, EConstant(Constant(11.11)))]) })");
+"Slab{ exprs:{ 0:Expression { first: EUnaryOp(ENeg(ValueI(0))), pairs: SVec8[ ExprPair(EMinus, EConstant(Constant(0.21))) ] }, 1:Expression { first: EConstant(Constant(12.34)), pairs: SVec8[ ExprPair(EPlus, ECallable(EFunc(EFuncAbs(ExpressionI(0))))), ExprPair(EPlus, EConstant(Constant(11.11))) ] } }, vals:{ 0:EConstant(Constant(43.0)) } }");
 
     p.parse({slab.clear(); &slab}, "12.34 + print ( 43.21 ) + 11.11").unwrap();
     assert_eq!(format!("{:?}",&slab),
-               "Ok(Expression {
-                    first:EConstant(Constant(12.34)),
-                    pairs:Box::new([
-                        ExprPair(EPlus, ECallable(EPrintFunc(PrintFunc(Box::new([
-                            EExpr(Box::new(Expression {
-                                first:EConstant(Constant(43.21)),
-                                pairs:Box::new([]) }))]))))),
-                        ExprPair(EPlus, EConstant(Constant(11.11)))]) })");
+"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(43.21)), pairs: SVec8[] }, 1:Expression { first: EConstant(Constant(12.34)), pairs: SVec8[ ExprPair(EPlus, ECallable(EPrintFunc(PrintFunc(SVec8[ EExpr(ExpressionI(0)) ])))), ExprPair(EPlus, EConstant(Constant(11.11))) ] } }, vals:{} }");
 
     p.parse({slab.clear(); &slab}, "12.34 + eval ( x - y , x = 5 , y=4 ) + 11.11").unwrap();
     assert_eq!(format!("{:?}",&slab),
-               r#"Ok(Expression {
-                    first:EConstant(Constant(12.34)),
-                    pairs:Box::new([
-                        ExprPair(EPlus, ECallable(EEvalFunc(EvalFunc {
-                            expr:Box::new(Expression {
-                                first:EVariable(Variable("x".to_string())),
-                                pairs:Box::new([ExprPair(EMinus, EVariable(Variable("y".to_string())))]) }),
-                            kwargs:Box::new([
-                                KWArg { name: Variable("x".to_string()), expr:Box::new(Expression { first: EConstant(Constant(5.0)), pairs:Box::new([]) }) },
-                                KWArg { name: Variable("y".to_string()), expr:Box::new(Expression { first: EConstant(Constant(4.0)), pairs:Box::new([]) }) }]) }))),
-                        ExprPair(EPlus, EConstant(Constant(11.11)))]) })"#);
+"Slab{ exprs:{ 0:Expression { first: EVariable(Variable(`x`)), pairs: SVec8[ ExprPair(EMinus, EVariable(Variable(`y`))) ] }, 1:Expression { first: EConstant(Constant(5.0)), pairs: SVec8[] }, 2:Expression { first: EConstant(Constant(4.0)), pairs: SVec8[] }, 3:Expression { first: EConstant(Constant(12.34)), pairs: SVec8[ ExprPair(EPlus, ECallable(EEvalFunc(EvalFunc { expr: ExpressionI(0), kwargs: SVec16[ KWArg { name: Variable(`x`), expr: ExpressionI(1) }, KWArg { name: Variable(`y`), expr: ExpressionI(2) } ] }))), ExprPair(EPlus, EConstant(Constant(11.11))) ] } }, vals:{} }");
 }
 

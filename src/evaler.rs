@@ -17,10 +17,11 @@ use stacked::{SVec, SVec8};
 
 use std::collections::HashSet;
 use std::f64::consts;
+use std::fmt;
 
 //---- Types:
 
-pub trait Evaler {
+pub trait Evaler : fmt::Debug {
     fn eval(&self, slab:&Slab, ns:&mut EvalNS) -> Result<f64,KErr>;
 
     fn var_names(&self, slab:&Slab) -> Result<HashSet<String>,KErr> {
@@ -77,16 +78,10 @@ impl Evaler for Expression {
         // Code for new Expression data structure:
         let mut vals = self.pairs.new_of::<f64>();
         let mut ops  = self.pairs.new_of::<BinaryOp>();
-        match ns.eval_bubble(slab, &self.first) {
-            Ok(f) => vals.push(f)?,
-            Err(e) => return Err(e.pre(&format!("eval_bubble({:?})",self.first))),
-        };
+        ns.eval_bubble(slab, &self.first).and_then(|f| vals.push(f))?;
         for pair in self.pairs.iter() {
             ops.push(pair.0)?;
-            match ns.eval_bubble(slab, &pair.1) {
-                Ok(f) => { vals.push(f)?; }
-                Err(e) => return Err(e.pre(&format!("eval_bubble({:?})",pair.1))),
-            }
+            ns.eval_bubble(slab, &pair.1).and_then(|f| vals.push(f))?;
         }
 
 
@@ -564,8 +559,7 @@ mod tests {
 
     #[bench]
     fn bench(b:&mut Bencher) {
-        #[cfg(test)]
-        return;
+        //return;
 
         eprintln!();
 
