@@ -10,11 +10,13 @@
 //   [ ] optimize after parse
 //   [ ] optimize the peek/read process -- be able to read N bytes if we peek successfully.
 
+#![feature(test)]
+
 pub mod slab;
 pub mod grammar;
 pub mod parser;
 pub mod evaler;
 pub mod evalns;
-//pub mod display;
+pub mod display;
 //pub mod defaults;
 

@@ -13,7 +13,7 @@ use crate::grammar::{Expression,
                      ExpressionOrString::{EExpr, EStr}};
 
 use kerr::KErr;
-use stacked::{SVec, SVec16};
+use stacked::{SVec, SVec8};
 
 use std::collections::HashSet;
 use std::f64::consts;
@@ -78,11 +78,11 @@ impl Evaler for Expression {
         let mut vals = self.pairs.new_of::<f64>();
         let mut ops  = self.pairs.new_of::<BinaryOp>();
         match ns.eval_bubble(slab, &self.first) {
-            Ok(f) => vals.push(f),
+            Ok(f) => vals.push(f)?,
             Err(e) => return Err(e.pre(&format!("eval_bubble({:?})",self.first))),
         };
         for pair in self.pairs.iter() {
-            ops.push(pair.0);
+            ops.push(pair.0)?;
             match ns.eval_bubble(slab, &pair.1) {
                 Ok(f) => { vals.push(f)?; }
                 Err(e) => return Err(e.pre(&format!("eval_bubble({:?})",pair.1))),
@@ -104,12 +104,12 @@ impl Evaler for Expression {
 
         // I am defining rtol and ltor as 'fn' rather than closures to make it extra-clear that they don't capture anything.
         // I need to pass all those items around as args rather than just capturing because Rust doesn't like multiple closures to capture the same stuff when at least one of them mutates.
-        let mut eval_op = |ops:&mut SVec16<BinaryOp>, i:usize| {
+        let mut eval_op = |ops:&mut SVec8<BinaryOp>, i:usize| {
             let result = ops[i].binaryop_eval(vals[i], vals[i+1]);
             vals[i]=result; vals.remove(i+1);
             ops.remove(i);
         };
-        fn rtol(eval_op:&mut dyn FnMut(&mut SVec16<BinaryOp>,usize), ops:&mut SVec16<BinaryOp>, op:BinaryOp) {
+        fn rtol(eval_op:&mut dyn FnMut(&mut SVec8<BinaryOp>,usize), ops:&mut SVec8<BinaryOp>, op:BinaryOp) {
             // for-loop structure:
             let mut i = ops.len() as i64;
             loop { i-=1; if i<0 { break }
@@ -118,7 +118,7 @@ impl Evaler for Expression {
                 if ops[i]==op { eval_op(ops,i); }
             }
         };
-        fn ltor(eval_op:&mut dyn FnMut(&mut SVec16<BinaryOp>,usize), ops:&mut SVec16<BinaryOp>, op:BinaryOp) {
+        fn ltor(eval_op:&mut dyn FnMut(&mut SVec8<BinaryOp>,usize), ops:&mut SVec8<BinaryOp>, op:BinaryOp) {
             'outer: loop {
                 // for-loop structure:
                 let mut i : i64 = -1;
@@ -308,7 +308,7 @@ impl Evaler for PrintFunc {
                     val = ns.eval_bubble(slab, slab.get_expr(*e_i))?;
                     out.push_str(&val.to_string());
                 }
-                EStr(s) => out.push_str(s.as_str()?),
+                EStr(s) => out.push_str(&process_str(s.as_str()?)),
             }
         }
         eprintln!("{}", out);
@@ -325,7 +325,7 @@ impl Evaler for EvalFunc {
         //     var b=eval(1,a=9)
         //     var _=print(a,b)   // "0 1"
         //     var _=print(b,a)   // "1 9"
-        ns.push_eval(true);
+        ns.push_eval(true)?;
         // This is my 'defer ns.pop();' structure:
         let res = (|| -> Result<f64,KErr> {
 
@@ -362,10 +362,14 @@ pub fn bool_to_f64(b:bool) -> f64 {
 
 #[cfg(test)]
 mod tests {
+    extern crate test;  // 'extern crate' seems to be required for this scenario: https://github.com/rust-lang/rust/issues/57288
+
     use super::*;
     use crate::parser::Parser;
     use crate::slab::Slab;
     use std::time::Instant;
+    use std::mem;
+    use test::Bencher;
 
     #[test]
     fn aaa_util() {
@@ -374,181 +378,202 @@ mod tests {
     }
 
     #[test]
+    fn aaa_aaa_sizes() {
+        eprintln!("sizeof(Slab):{}", mem::size_of::<Slab>());
+        assert!(mem::size_of::<Slab>()<2usize.pow(18));  // 256kB
+
+    }
+
+    #[test]
+    fn aaa_aab_single() {
+        let p = Parser{
+            is_const_byte:None,
+            is_var_byte:None,
+        };
+        let slab = Slab::new();
+        let mut ns = EvalNS::new(|_| None);
+        assert_eq!(p.parse(&slab, "123.456").unwrap().eval(&slab, &mut ns).unwrap(), 123.456f64);
+    }
+
+    #[test]
     fn aaa_basics() {
         let p = Parser{
             is_const_byte:None,
             is_var_byte:None,
         };
-        let mut slab : Slab;
+        let mut slab = Slab::new();
 
         assert_eq!(
-            p.parse({slab=Slab::new(); &slab}, "12.34 + 43.21 + 11.11").unwrap().var_names(&slab).unwrap(),
+            p.parse({slab.clear(); &slab}, "12.34 + 43.21 + 11.11").unwrap().var_names(&slab).unwrap(),
             HashSet::new());
 
         let mut ns = EvalNS::new(|_| None);
         assert_eq!(
-            p.parse({slab=Slab::new(); &slab}, "12.34 + 43.21 + 11.11").unwrap().eval(&slab, &mut ns),
+            p.parse({slab.clear(); &slab}, "12.34 + 43.21 + 11.11").unwrap().eval(&slab, &mut ns),
             Ok(66.66));
         assert_eq!(
-            p.parse({slab=Slab::new(); &slab}, "12.34 + 43.21 - 11.11").unwrap().eval(&slab, &mut ns),
+            p.parse({slab.clear(); &slab}, "12.34 + 43.21 - 11.11").unwrap().eval(&slab, &mut ns),
             Ok(44.44));
         assert_eq!(
-            p.parse({slab=Slab::new(); &slab}, "11.11 * 3").unwrap().eval(&slab, &mut ns),
+            p.parse({slab.clear(); &slab}, "11.11 * 3").unwrap().eval(&slab, &mut ns),
             Ok(33.33));
         assert_eq!(
-            p.parse({slab=Slab::new(); &slab}, "33.33 / 3").unwrap().eval(&slab, &mut ns),
+            p.parse({slab.clear(); &slab}, "33.33 / 3").unwrap().eval(&slab, &mut ns),
             Ok(11.11));
         assert_eq!(
-            p.parse({slab=Slab::new(); &slab}, "33.33 % 3").unwrap().eval(&slab, &mut ns),
+            p.parse({slab.clear(); &slab}, "33.33 % 3").unwrap().eval(&slab, &mut ns),
             Ok(0.3299999999999983));
         assert_eq!(
-            p.parse({slab=Slab::new(); &slab}, "1 and 2").unwrap().eval(&slab, &mut ns),
+            p.parse({slab.clear(); &slab}, "1 and 2").unwrap().eval(&slab, &mut ns),
             Ok(2.0));
         assert_eq!(
-            p.parse({slab=Slab::new(); &slab}, "2 or 0").unwrap().eval(&slab, &mut ns),
+            p.parse({slab.clear(); &slab}, "2 or 0").unwrap().eval(&slab, &mut ns),
             Ok(2.0));
         assert_eq!(
-            p.parse({slab=Slab::new(); &slab}, "1 > 0").unwrap().eval(&slab, &mut ns),
+            p.parse({slab.clear(); &slab}, "1 > 0").unwrap().eval(&slab, &mut ns),
             Ok(1.0));
         assert_eq!(
-            p.parse({slab=Slab::new(); &slab}, "1 < 0").unwrap().eval(&slab, &mut ns),
+            p.parse({slab.clear(); &slab}, "1 < 0").unwrap().eval(&slab, &mut ns),
             Ok(0.0));
 
         assert_eq!(
-            p.parse({slab=Slab::new(); &slab}, "+5.5").unwrap().eval(&slab, &mut ns),
+            p.parse({slab.clear(); &slab}, "+5.5").unwrap().eval(&slab, &mut ns),
             Ok(5.5));
         assert_eq!(
-            p.parse({slab=Slab::new(); &slab}, "-5.5").unwrap().eval(&slab, &mut ns),
+            p.parse({slab.clear(); &slab}, "-5.5").unwrap().eval(&slab, &mut ns),
             Ok(-5.5));
         assert_eq!(
-            p.parse({slab=Slab::new(); &slab}, "!5.5").unwrap().eval(&slab, &mut ns),
+            p.parse({slab.clear(); &slab}, "!5.5").unwrap().eval(&slab, &mut ns),
             Ok(0.0));
         assert_eq!(
-            p.parse({slab=Slab::new(); &slab}, "!0").unwrap().eval(&slab, &mut ns),
+            p.parse({slab.clear(); &slab}, "!0").unwrap().eval(&slab, &mut ns),
             Ok(1.0));
         assert_eq!(
-            p.parse({slab=Slab::new(); &slab}, "(3 * 3 + 3 / 3)").unwrap().eval(&slab, &mut ns),
+            p.parse({slab.clear(); &slab}, "(3 * 3 + 3 / 3)").unwrap().eval(&slab, &mut ns),
             Ok(10.0));
         assert_eq!(
-            p.parse({slab=Slab::new(); &slab}, "(3 * (3 + 3) / 3)").unwrap().eval(&slab, &mut ns),
+            p.parse({slab.clear(); &slab}, "(3 * (3 + 3) / 3)").unwrap().eval(&slab, &mut ns),
             Ok(6.0));
 
         assert_eq!(
-            p.parse({slab=Slab::new(); &slab}, "4.4 + -5.5").unwrap().eval(&slab, &mut ns),
+            p.parse({slab.clear(); &slab}, "4.4 + -5.5").unwrap().eval(&slab, &mut ns),
             Ok(-1.0999999999999996));
         assert_eq!(
-            p.parse({slab=Slab::new(); &slab}, "4.4 + +5.5").unwrap().eval(&slab, &mut ns),
+            p.parse({slab.clear(); &slab}, "4.4 + +5.5").unwrap().eval(&slab, &mut ns),
             Ok(9.9));
 
         assert_eq!(
-            p.parse({slab=Slab::new(); &slab}, "x + 1").unwrap().eval(&slab, &mut ns),
+            p.parse({slab.clear(); &slab}, "x + 1").unwrap().eval(&slab, &mut ns),
             Err(KErr::new("variable undefined")));
 
         let mut ns = EvalNS::new(|_| Some(3.0));
         assert_eq!(
-            p.parse({slab=Slab::new(); &slab}, "x + 1").unwrap().eval(&slab, &mut ns),
+            p.parse({slab.clear(); &slab}, "x + 1").unwrap().eval(&slab, &mut ns),
             Ok(4.0));
 
         assert_eq!(
-            p.parse({slab=Slab::new(); &slab}, "1.2 + int(3.4)").unwrap().eval(&slab, &mut ns),
+            p.parse({slab.clear(); &slab}, "1.2 + int(3.4)").unwrap().eval(&slab, &mut ns),
             Ok(4.2));
         assert_eq!(
-            p.parse({slab=Slab::new(); &slab}, "1.2 + ceil(3.4)").unwrap().eval(&slab, &mut ns),
+            p.parse({slab.clear(); &slab}, "1.2 + ceil(3.4)").unwrap().eval(&slab, &mut ns),
             Ok(5.2));
         assert_eq!(
-            p.parse({slab=Slab::new(); &slab}, "1.2 + floor(3.4)").unwrap().eval(&slab, &mut ns),
+            p.parse({slab.clear(); &slab}, "1.2 + floor(3.4)").unwrap().eval(&slab, &mut ns),
             Ok(4.2));
         assert_eq!(
-            p.parse({slab=Slab::new(); &slab}, "1.2 + abs(-3.4)").unwrap().eval(&slab, &mut ns),
+            p.parse({slab.clear(); &slab}, "1.2 + abs(-3.4)").unwrap().eval(&slab, &mut ns),
             Ok(4.6));
         assert_eq!(
-            p.parse({slab=Slab::new(); &slab}, "1.2 + log(1)").unwrap().eval(&slab, &mut ns),
+            p.parse({slab.clear(); &slab}, "1.2 + log(1)").unwrap().eval(&slab, &mut ns),
             Ok(1.2));
         assert_eq!(
-            p.parse({slab=Slab::new(); &slab}, "1.2 + log(10)").unwrap().eval(&slab, &mut ns),
+            p.parse({slab.clear(); &slab}, "1.2 + log(10)").unwrap().eval(&slab, &mut ns),
             Ok(2.2));
         assert_eq!(
-            p.parse({slab=Slab::new(); &slab}, "1.2 + log(0)").unwrap().eval(&slab, &mut ns),
+            p.parse({slab.clear(); &slab}, "1.2 + log(0)").unwrap().eval(&slab, &mut ns),
             Ok(std::f64::NEG_INFINITY));
-        assert!(p.parse({slab=Slab::new(); &slab}, "1.2 + log(-1)").unwrap().eval(&slab, &mut ns).unwrap().is_nan());
+        assert!(p.parse({slab.clear(); &slab}, "1.2 + log(-1)").unwrap().eval(&slab, &mut ns).unwrap().is_nan());
         assert_eq!(
-            p.parse({slab=Slab::new(); &slab}, "1.2 + round(3.4)").unwrap().eval(&slab, &mut ns),
+            p.parse({slab.clear(); &slab}, "1.2 + round(3.4)").unwrap().eval(&slab, &mut ns),
             Ok(4.2));
         assert_eq!(
-            p.parse({slab=Slab::new(); &slab}, "1.2 + round(0.5, 3.4)").unwrap().eval(&slab, &mut ns),
+            p.parse({slab.clear(); &slab}, "1.2 + round(0.5, 3.4)").unwrap().eval(&slab, &mut ns),
             Ok(4.7));
         assert_eq!(
-            p.parse({slab=Slab::new(); &slab}, "1.2 + round(-3.4)").unwrap().eval(&slab, &mut ns),
+            p.parse({slab.clear(); &slab}, "1.2 + round(-3.4)").unwrap().eval(&slab, &mut ns),
             Ok(-1.8));
         assert_eq!(
-            p.parse({slab=Slab::new(); &slab}, "1.2 + round(0.5, -3.4)").unwrap().eval(&slab, &mut ns),
+            p.parse({slab.clear(); &slab}, "1.2 + round(0.5, -3.4)").unwrap().eval(&slab, &mut ns),
             Ok(-2.3));
         assert_eq!(
-            p.parse({slab=Slab::new(); &slab}, "1.2 + min(1,2,0,3.3,-1)").unwrap().eval(&slab, &mut ns),
+            p.parse({slab.clear(); &slab}, "1.2 + min(1,2,0,3.3,-1)").unwrap().eval(&slab, &mut ns),
             Ok(0.19999999999999996));
         assert_eq!(
-            p.parse({slab=Slab::new(); &slab}, "1.2 + min(1)").unwrap().eval(&slab, &mut ns),
+            p.parse({slab.clear(); &slab}, "1.2 + min(1)").unwrap().eval(&slab, &mut ns),
             Ok(2.2));
         assert_eq!(
-            p.parse({slab=Slab::new(); &slab}, "1.2 + max(1,2,0,3.3,-1)").unwrap().eval(&slab, &mut ns),
+            p.parse({slab.clear(); &slab}, "1.2 + max(1,2,0,3.3,-1)").unwrap().eval(&slab, &mut ns),
             Ok(4.5));
         assert_eq!(
-            p.parse({slab=Slab::new(); &slab}, "1.2 + max(1)").unwrap().eval(&slab, &mut ns),
+            p.parse({slab.clear(); &slab}, "1.2 + max(1)").unwrap().eval(&slab, &mut ns),
             Ok(2.2));
 
         assert_eq!(
-            p.parse({slab=Slab::new(); &slab}, r#"12.34 + print ( 43.21, "yay" ) + 11.11"#).unwrap().eval(&slab, &mut ns),
+            p.parse({slab.clear(); &slab}, r#"12.34 + print ( 43.21, "yay" ) + 11.11"#).unwrap().eval(&slab, &mut ns),
             Ok(66.66));
 
         assert_eq!(
-            p.parse({slab=Slab::new(); &slab}, r#"12.34 + eval ( x + 43.21 - y, x=2.5, y = 2.5 ) + 11.11"#).unwrap().eval(&slab, &mut ns),
+            p.parse({slab.clear(); &slab}, r#"12.34 + eval ( x + 43.21 - y, x=2.5, y = 2.5 ) + 11.11"#).unwrap().eval(&slab, &mut ns),
             Ok(66.66));
 
         assert_eq!(
-            p.parse({slab=Slab::new(); &slab}, "e()").unwrap().eval(&slab, &mut ns),
+            p.parse({slab.clear(); &slab}, "e()").unwrap().eval(&slab, &mut ns),
             Ok(2.718281828459045));
         assert_eq!(
-            p.parse({slab=Slab::new(); &slab}, "pi()").unwrap().eval(&slab, &mut ns),
+            p.parse({slab.clear(); &slab}, "pi()").unwrap().eval(&slab, &mut ns),
             Ok(3.141592653589793));
 
         assert_eq!(
-            p.parse({slab=Slab::new(); &slab}, "sin(pi()/2)").unwrap().eval(&slab, &mut ns),
+            p.parse({slab.clear(); &slab}, "sin(pi()/2)").unwrap().eval(&slab, &mut ns),
             Ok(1.0));
         assert_eq!(
-            p.parse({slab=Slab::new(); &slab}, "cos(pi()/2)").unwrap().eval(&slab, &mut ns),
+            p.parse({slab.clear(); &slab}, "cos(pi()/2)").unwrap().eval(&slab, &mut ns),
             Ok(0.00000000000000006123233995736766));
         assert_eq!(
-            p.parse({slab=Slab::new(); &slab}, "tan(pi()/4)").unwrap().eval(&slab, &mut ns),
+            p.parse({slab.clear(); &slab}, "tan(pi()/4)").unwrap().eval(&slab, &mut ns),
             Ok(0.9999999999999999));
         assert_eq!(
-            p.parse({slab=Slab::new(); &slab}, "asin(1)").unwrap().eval(&slab, &mut ns),
+            p.parse({slab.clear(); &slab}, "asin(1)").unwrap().eval(&slab, &mut ns),
             Ok(1.5707963267948966));
         assert_eq!(
-            p.parse({slab=Slab::new(); &slab}, "acos(0)").unwrap().eval(&slab, &mut ns),
+            p.parse({slab.clear(); &slab}, "acos(0)").unwrap().eval(&slab, &mut ns),
             Ok(1.5707963267948966));
         assert_eq!(
-            p.parse({slab=Slab::new(); &slab}, "atan(1)").unwrap().eval(&slab, &mut ns),
+            p.parse({slab.clear(); &slab}, "atan(1)").unwrap().eval(&slab, &mut ns),
             Ok(0.7853981633974483));
         assert_eq!(
-            p.parse({slab=Slab::new(); &slab}, "sinh(pi()/2)").unwrap().eval(&slab, &mut ns),
+            p.parse({slab.clear(); &slab}, "sinh(pi()/2)").unwrap().eval(&slab, &mut ns),
             Ok(2.3012989023072947));
         assert_eq!(
-            p.parse({slab=Slab::new(); &slab}, "cosh(pi()/2)").unwrap().eval(&slab, &mut ns),
+            p.parse({slab.clear(); &slab}, "cosh(pi()/2)").unwrap().eval(&slab, &mut ns),
             Ok(2.5091784786580567));
         assert_eq!(
-            p.parse({slab=Slab::new(); &slab}, "tanh(pi()/4)").unwrap().eval(&slab, &mut ns),
+            p.parse({slab.clear(); &slab}, "tanh(pi()/4)").unwrap().eval(&slab, &mut ns),
             Ok(0.6557942026326724));
     }
 
-    #[test]
-    fn bench() {
+    #[bench]
+    fn bench(b:&mut Bencher) {
+        #[cfg(test)]
+        return;
+
         eprintln!();
 
         let p = Parser{
             is_const_byte:None,
             is_var_byte:None,
         };
-        let mut slab : Slab;
+        let mut slab = Slab::new();
 
         let mut ns = EvalNS::new(|_| None);
 
@@ -558,7 +583,7 @@ mod tests {
             let mut sum = 0f64;
             let start = Instant::now();
             for _ in 0..count {
-                let expr = p.parse({slab=Slab::new(); &slab}, "(3 * (3 + 3) / 3)").unwrap();
+                let expr = p.parse({slab.clear(); &slab}, "(3 * (3 + 3) / 3)").unwrap();
                 match expr.eval(&slab, &mut ns) {
                     Ok(f) => { sum+=f; }
                     Err(e) => panic!(format!("error during benchmark: {}",e)),
@@ -575,6 +600,17 @@ mod tests {
                 sum+=x;
             }
             eprintln!("raw  bench: {}  {}",sum,Instant::now().duration_since(start).as_secs_f64());
+        }
+
+        {
+            let mut sum = 0f64;
+            b.iter(|| {
+                let expr = p.parse({slab.clear(); &slab}, "(3 * (3 + 3) / 3)").unwrap();
+                match expr.eval(&slab, &mut ns) {
+                    Ok(f) => { sum+=f; }
+                    Err(e) => panic!(format!("error during benchmark: {}",e)),
+                }
+            });
         }
     }
 }

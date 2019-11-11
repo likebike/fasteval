@@ -1,5 +1,5 @@
 use crate::slab::Slab;
-use crate::grammar::{ExpressionI, ValueI,
+use crate::grammar::{ExpressionI,
                      Expression,
                      ExprPair,
                      Value::{self, EConstant, EVariable, EUnaryOp, ECallable},
@@ -15,7 +15,7 @@ use crate::grammar::{ExpressionI, ValueI,
                      KWArg};
 
 use kerr::KErr;
-use stacked::{SVec, SVec8, SVec16, SString32, SString256};
+use stacked::{SVec, SVec8, SVec16, SString16, SString64};
 
 
 // Vec seems really inefficient to me because remove() does not just increment the internal pointer -- it shifts data all around.  There's also split_* methods but they seem to be designed to return new Vecs, not modify self.
@@ -147,7 +147,7 @@ impl<'a> Parser<'a> {
 
     fn read_expression(&self, slab:&Slab, bs:&mut &[u8], expect_eof:bool) -> Result<ExpressionI, KErr> {
         let first = self.read_value(slab,bs).map_err(|e| e.pre("read_value"))?;
-        let pairs = SVec16::<ExprPair>::new();
+        let pairs = SVec8::<ExprPair>::new();
         while self.peek_binaryop(bs) {
             let bop = self.read_binaryop(bs).map_err(|e| e.pre("read_binaryop"))?;
             let val = self.read_value(slab,bs).map_err(|e| e.pre("read_value"))?;
@@ -181,7 +181,7 @@ impl<'a> Parser<'a> {
     fn read_const(&self, bs:&mut &[u8]) -> Result<Constant, KErr> {
         space(bs);
 
-        let mut buf = SString256::new();
+        let mut buf = SString64::new();
         while self.call_is_const_byte(peek(bs,0),buf.len()) {
             buf.push(read(bs)?)?;
         }
@@ -212,7 +212,7 @@ impl<'a> Parser<'a> {
     fn read_var(&self, bs:&mut &[u8]) -> Result<Variable, KErr> {
         space(bs);
 
-        let buf = SString32::new();
+        let buf = SString16::new();
         while self.call_is_var_byte(peek(bs,0),buf.len()) {
             buf.push(read(bs)?)?;
         }
@@ -322,7 +322,7 @@ impl<'a> Parser<'a> {
     fn read_func(&self, slab:&Slab, bs:&mut &[u8]) -> Result<Func, KErr> {
         space(bs);
 
-        let fname = SString32::new();
+        let fname = SString16::new();
         while self.call_is_func_byte(peek(bs,0),fname.len()) {
             fname.push(read(bs)?.to_ascii_lowercase())?;
         }
@@ -455,7 +455,7 @@ impl<'a> Parser<'a> {
     fn read_printfunc(&self, slab:&Slab, bs:&mut &[u8]) -> Result<PrintFunc, KErr> {
         read_func(bs, b"print")?;
 
-        let args = SVec16::<ExpressionOrString>::new();
+        let args = SVec8::<ExpressionOrString>::new();
         loop {
             space(bs);
             match peek(bs,0) {
@@ -529,7 +529,7 @@ impl<'a> Parser<'a> {
         space(bs);
         peek_is(bs,0,b'"')
     }
-    fn read_string(&self, bs:&mut &[u8]) -> Result<SString256, KErr> {
+    fn read_string(&self, bs:&mut &[u8]) -> Result<SString64,KErr> {
         space(bs);
 
         match read(bs) {
@@ -539,7 +539,7 @@ impl<'a> Parser<'a> {
             Err(e) => { return Err(e.pre("read_string")) }
         }
 
-        let buf = SString256::new();
+        let buf = SString64::new();
         loop {
             let b = read(bs)?;
             if b==b'"' { break; }
@@ -600,6 +600,35 @@ mod internal_tests {
             let bs = &mut &bsarr[..];
             space(bs);
             assert_eq!(bs, b"abc 123   ");
+        }
+    }
+
+    #[test]
+    fn priv_tests() {
+        let p = Parser{
+            is_const_byte:None,
+            is_var_byte:None,
+        };
+        assert!(p.call_is_var_byte(Some(b'a'),0));
+        assert!(!p.call_is_const_byte(Some(b'a'),0));
+
+        let p = Parser{
+            is_const_byte:Some(&|_:u8, _:usize| true),
+            is_var_byte:None,
+        };
+        assert!(p.call_is_const_byte(Some(b'a'),0));
+
+        let p = Parser{
+            is_const_byte:None,
+            is_var_byte:None,
+        };
+
+        let slab : Slab;
+        
+        {
+            let bsarr = b"12.34";
+            let bs = &mut &bsarr[..];
+            assert_eq!(p.read_value({slab=Slab::new(); &slab}, bs), Ok(EConstant(Constant(12.34))));
         }
     }
 }

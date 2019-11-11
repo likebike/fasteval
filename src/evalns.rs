@@ -28,22 +28,22 @@ impl<'a> EvalNS<'a> {
             cb:Box::new(cb),
             reeval_mode:0,
         };
-        ns.push();
+        ns.push().unwrap();
         ns
     }
 
-    pub fn push(&mut self) { self.push_eval(self.is_reeval()) }
-    pub fn push_eval(&mut self, is_eval:bool) {
+    pub fn push(&mut self) -> Result<usize,KErr> { self.push_eval(self.is_reeval()) }
+    pub fn push_eval(&mut self, is_eval:bool) -> Result<usize,KErr> {
         self.ns.0.push(NameLayer{
             is_eval:is_eval,
             m:HashMap::new(),
-        });
+        })
     }
     pub fn pop(&mut self) {
         self.ns.0.pop();
     }
     pub fn eval_bubble(&mut self, slab:&Slab, evaler:&impl Evaler) -> Result<f64,KErr> {
-        self.push();
+        self.push()?;
         let out = evaler.eval(slab, self);
         self.pop();
         out
@@ -94,14 +94,16 @@ impl<'a> EvalNS<'a> {
 
         match (self.cb)(name) {
             Some(val) => {
-                self.ns.0[self.ns.0.len()-1].m.insert(name.to_string(),val);
+                let len = self.ns.0.len();
+                self.ns.0[len-1].m.insert(name.to_string(),val);
                 Some(val)
             }
             None => None,
         }
     }
     pub fn create(&mut self, name:&str, val:f64) -> Result<(),KErr> {
-        let cur_layer = self.ns.0[self.ns.0.len()-1];
+        let len = self.ns.0.len();
+        let cur_layer = &mut self.ns.0[len-1];
         if cur_layer.m.contains_key(name) { return Err(KErr::new("AlreadyExists")); }
         cur_layer.m.insert(name.to_string(), val);
         Ok(())
@@ -130,7 +132,7 @@ mod tests {
 
     #[test]
     fn aaa_basics() {
-        let mut slab = Slab::new();
+        let slab = Slab::new();
         let mut ns = EvalNS::new(|_| Some(5.4321));
         assert_eq!(ns.eval_bubble(&slab, &TestEvaler{}).unwrap(), 5.4321);
         ns.create("x",1.111).unwrap();
@@ -142,7 +144,7 @@ mod tests {
 
             ns.start_reeval_mode();
                 assert_eq!(ns.is_normal(), false);
-                assert_eq!(ns.eval_bubble(&TestEvaler{}).unwrap(), 1.111);
+                assert_eq!(ns.eval_bubble(&slab, &TestEvaler{}).unwrap(), 1.111);
             ns.end_reeval_mode();
 
             assert_eq!(ns.is_normal(), false);

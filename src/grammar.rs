@@ -27,7 +27,7 @@
 // EvalFunc: eval(Expression(,Variable=Expression)*)
 
 
-use stacked::{SVec8, SVec16, SString32, SString256};
+use stacked::{SVec8, SVec16, SString16, SString64};
 
 
 #[derive(Debug, PartialEq, Copy, Clone)]
@@ -39,7 +39,7 @@ pub struct ValueI(pub usize);
 #[derive(Debug, PartialEq)]
 pub struct Expression {
     pub first: Value,
-    pub pairs: SVec16<ExprPair>,
+    pub pairs: SVec8<ExprPair>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -56,8 +56,8 @@ pub enum Value {
 #[derive(Debug, PartialEq)]
 pub struct Constant(pub f64);
 
-#[derive(Debug, PartialEq)]
-pub struct Variable(pub SString32);
+#[derive(PartialEq)]
+pub struct Variable(pub SString16);
 
 #[derive(Debug, PartialEq)]
 pub enum UnaryOp {
@@ -118,12 +118,12 @@ pub enum Func {
 }
 
 #[derive(Debug, PartialEq)]
-pub struct PrintFunc(pub SVec16<ExpressionOrString>);
+pub struct PrintFunc(pub SVec8<ExpressionOrString>);
 
 #[derive(Debug, PartialEq)]
 pub enum ExpressionOrString {
     EExpr(ExpressionI),
-    EStr(SString256),
+    EStr(SString64),
 }
 
 #[derive(Debug, PartialEq)]
