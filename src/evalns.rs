@@ -2,7 +2,6 @@ use crate::slab::Slab;
 use crate::evaler::Evaler;
 
 use kerr::KErr;
-use stacked::{SVec, SVec64};
 
 use std::collections::HashMap;
 
@@ -13,7 +12,7 @@ pub struct EvalNS<'a> {
     cb         :Box<dyn FnMut(&str)->Option<f64> + 'a>,  // I think a reference would be more efficient than a Box, but then I would need to use a funky 'let cb=|n|{}; EvalNS::new(&cb)' syntax.  The Box results in a super convenient pass-the-cb-by-value API interface.
     reeval_mode:i32,
 }
-struct NameStack(SVec64<NameLayer>);
+struct NameStack(Vec<NameLayer>);
 struct NameLayer {
     is_eval:bool,
     m      :HashMap<String,f64>,
@@ -34,10 +33,13 @@ impl<'a> EvalNS<'a> {
 
     pub fn push(&mut self) -> Result<usize,KErr> { self.push_eval(self.is_reeval()) }
     pub fn push_eval(&mut self, is_eval:bool) -> Result<usize,KErr> {
+        let i = self.ns.0.len();
+        if i>=self.ns.0.capacity() { return Err(KErr::new("overflow")) }
         self.ns.0.push(NameLayer{
             is_eval:is_eval,
             m:HashMap::new(),
-        })
+        });
+        Ok(i)
     }
     pub fn pop(&mut self) {
         self.ns.0.pop();
@@ -101,17 +103,17 @@ impl<'a> EvalNS<'a> {
             None => None,
         }
     }
-    pub fn create(&mut self, name:&str, val:f64) -> Result<(),KErr> {
+    pub fn create(&mut self, name:String, val:f64) -> Result<(),KErr> {
         let len = self.ns.0.len();
         let cur_layer = &mut self.ns.0[len-1];
-        if cur_layer.m.contains_key(name) { return Err(KErr::new("AlreadyExists")); }
-        cur_layer.m.insert(name.to_string(), val);
+        if cur_layer.m.contains_key(&name) { return Err(KErr::new("AlreadyExists")); }
+        cur_layer.m.insert(name, val);
         Ok(())
     }
 }
 
 impl NameStack {
-    fn new() -> Self { NameStack(SVec64::new()) }
+    fn new() -> Self { NameStack(Vec::with_capacity(64)) }
 }
 
 //---- Tests:
@@ -136,7 +138,7 @@ mod tests {
         let slab = Slab::new();
         let mut ns = EvalNS::new(|_| Some(5.4321));
         assert_eq!(ns.eval_bubble(&slab, &TestEvaler{}).unwrap(), 5.4321);
-        ns.create("x",1.111).unwrap();
+        ns.create("x".to_string(),1.111).unwrap();
         assert_eq!(ns.eval_bubble(&slab, &TestEvaler{}).unwrap(), 1.111);
         
         assert_eq!(ns.is_normal(), true);

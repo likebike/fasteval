@@ -6,8 +6,8 @@ edition = "2018"
 
 [dependencies]
 kerr = "0.1"
-stacked = { path = "../stacked" }
+# stacked = { path = "../stacked" }
 
 [profile.bench]
-#debug = true
+debug = true
 

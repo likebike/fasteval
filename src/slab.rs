@@ -2,27 +2,45 @@ use crate::grammar::{ExpressionI, ValueI,
                      Expression,  Value};
 
 use kerr::KErr;
-use stacked::{SVec, SVec32};
 use std::fmt;
 
+impl ExpressionI {
+    #[inline]
+    pub fn get<'a>(self, slab:&'a Slab) -> &'a Expression {
+        slab.get_expr(self)
+    }
+}
+impl ValueI {
+    #[inline]
+    pub fn get<'a>(self, slab:&'a Slab) -> &'a Value {
+        slab.get_val(self)
+    }
+}
+
 pub struct Slab {
-    exprs: SVec32<Expression>,
-    vals:  SVec32<Value>,
+    exprs:Vec<Expression>,
+    vals: Vec<Value>,
 }
 impl Slab {
     pub fn new() -> Self {
         Self{
-            exprs:SVec32::new(),
-            vals: SVec32::new(),
+            exprs:Vec::with_capacity(32),
+            vals: Vec::with_capacity(32),
         }
     }
     #[inline]
-    pub fn push_expr(&self, expr:Expression) -> Result<ExpressionI,KErr> {
-        self.exprs.push(expr).map(|i| ExpressionI(i))
+    pub fn push_expr(&mut self, expr:Expression) -> Result<ExpressionI,KErr> {
+        let i = self.exprs.len();
+        if i>=self.exprs.capacity() { return Err(KErr::new("overflow")); }
+        self.exprs.push(expr);
+        Ok(ExpressionI(i))
     }
     #[inline]
-    pub fn push_val(&self, val:Value) -> Result<ValueI,KErr> {
-        self.vals.push(val).map(|i| ValueI(i))
+    pub fn push_val(&mut self, val:Value) -> Result<ValueI,KErr> {
+        let i = self.vals.len();
+        if i>=self.vals.capacity() { return Err(KErr::new("overflow")); }
+        self.vals.push(val);
+        Ok(ValueI(i))
     }
     #[inline]
     pub fn get_expr(&self, expr_i:ExpressionI) -> &Expression {
@@ -40,7 +58,7 @@ impl Slab {
 }
 impl fmt::Debug for Slab {
     fn fmt(&self, f:&mut fmt::Formatter) -> Result<(), fmt::Error> {
-        fn write_indexed_list<V,T>(f:&mut fmt::Formatter, lst:&V) -> Result<(), fmt::Error> where T:fmt::Debug, V:SVec<Item=T, Output=T> {
+        fn write_indexed_list<T>(f:&mut fmt::Formatter, lst:&Vec<T>) -> Result<(), fmt::Error> where T:fmt::Debug {
             write!(f, "{{")?;
             let mut nonempty = false;
             for (i,x) in lst.iter().enumerate() {

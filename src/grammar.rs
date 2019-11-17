@@ -27,8 +27,6 @@
 // EvalFunc: eval(Expression(,Variable=Expression)*)
 
 
-use stacked::{SVec8, SVec16, SString16, SString64};
-
 
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub struct ExpressionI(pub usize);
@@ -39,7 +37,7 @@ pub struct ValueI(pub usize);
 #[derive(Debug, PartialEq)]
 pub struct Expression {
     pub first: Value,
-    pub pairs: SVec8<ExprPair>,
+    pub pairs: Vec<ExprPair>,  // cap=8
 }
 
 #[derive(Debug, PartialEq)]
@@ -57,7 +55,7 @@ pub enum Value {
 pub struct Constant(pub f64);
 
 #[derive(PartialEq)]
-pub struct Variable(pub SString16);
+pub struct Variable(pub String);  // cap=16
 
 #[derive(Debug, PartialEq)]
 pub enum UnaryOp {
@@ -100,8 +98,8 @@ pub enum Func {
     EFuncAbs(ExpressionI),
     EFuncLog{     base:Option<ExpressionI>, expr:ExpressionI},
     EFuncRound{modulus:Option<ExpressionI>, expr:ExpressionI},
-    EFuncMin{first:ExpressionI, rest:SVec8<ExpressionI>},
-    EFuncMax{first:ExpressionI, rest:SVec8<ExpressionI>},
+    EFuncMin{first:ExpressionI, rest:Vec<ExpressionI>},  // cap=8
+    EFuncMax{first:ExpressionI, rest:Vec<ExpressionI>},  // cap=8
     //
     EFuncE,
     EFuncPi,
@@ -118,18 +116,18 @@ pub enum Func {
 }
 
 #[derive(Debug, PartialEq)]
-pub struct PrintFunc(pub SVec8<ExpressionOrString>);
+pub struct PrintFunc(pub Vec<ExpressionOrString>);  // cap=8
 
 #[derive(Debug, PartialEq)]
 pub enum ExpressionOrString {
     EExpr(ExpressionI),
-    EStr(SString64),
+    EStr(String),  // cap=64
 }
 
 #[derive(Debug, PartialEq)]
 pub struct EvalFunc {
     pub expr:   ExpressionI,
-    pub kwargs: SVec16<KWArg>,
+    pub kwargs: Vec<KWArg>,  // cap=16
 }
 
 #[derive(Debug, PartialEq)]

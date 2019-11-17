@@ -15,46 +15,27 @@ use crate::grammar::{ExpressionI,
                      KWArg};
 
 use kerr::KErr;
-use stacked::{SVec, SVec8, SVec16, SString16, SString64};
+
+
+enum Tok<T> {
+    Pass,
+    Bite(T),
+}
+use Tok::{Pass, Bite};
 
 
 // Vec seems really inefficient to me because remove() does not just increment the internal pointer -- it shifts data all around.  There's also split_* methods but they seem to be designed to return new Vecs, not modify self.
 // Just use slices instead, which I know will be very efficient:
 fn peek(bs:&[u8], skip:usize) -> Option<u8> {
-    if bs.len() > skip { Some(bs[skip])
-    } else { None }
+    if bs.len()>skip { Some(bs[skip]) }
+    else { None }
 }
 fn is_at_eof(bs:&[u8]) -> bool { bs.len() == 0 }
 fn peek_is(bs:&[u8], skip:usize, val:u8) -> bool {
     match peek(bs,skip) {
-        None => false,
         Some(b) => b==val,
+        None => false,
     }
-}
-fn peek_word_ci(bs:&[u8], skip:usize, word:&[u8]) -> bool {  // 'ci' = case insensitive
-    #[allow(non_snake_case)]
-    for (i,B) in word.iter().enumerate() {
-        #[allow(non_snake_case)]
-        let B = B.to_ascii_lowercase();
-        match peek(bs,skip+i) {
-            Some(b) => {
-                let b = b.to_ascii_lowercase();
-                if b!=B { return false; }
-            }
-            None => return false,
-        }
-    }
-    true
-}
-fn peek_func(bs:&[u8], skip:usize, name:&[u8]) -> bool {
-    if peek_word_ci(bs,skip,name) {
-        let mut post_name_spaces = 0;
-        while let Some(b) = peek(bs,skip+name.len()+post_name_spaces) {
-            if !is_space(b) { break; }
-            post_name_spaces+=1;
-        }
-        name.len()>0 && peek(bs,skip+name.len()+post_name_spaces)==Some(b'(')
-    } else { false }
 }
 
 fn read(bs:&mut &[u8]) -> Result<u8, KErr> {
@@ -64,33 +45,10 @@ fn read(bs:&mut &[u8]) -> Result<u8, KErr> {
         Ok(b)
     } else { Err(KErr::new("EOF")) }
 }
-fn read_word_ci(bs:&mut &[u8], word:&[u8]) -> Result<(), KErr> {
-    #[allow(non_snake_case)]
-    for B in word.iter() {
-        #[allow(non_snake_case)]
-        let B = B.to_ascii_lowercase();
-        match read(bs) {
-            Ok(b) => {
-                let bl = b.to_ascii_lowercase();
-                if bl!=B { return Err(KErr::new(&format!("unexpected '{}' when reading '{}'",b as char,std::str::from_utf8(word).map_err(|_| KErr::new("Utf8Error"))?))) }
-            }
-            Err(e) => { return Err(e.pre(&format!("read_word_ci({})",std::str::from_utf8(word).map_err(|_| KErr::new("Utf8Error"))?))) }
-        }
-    }
-    Ok(())
-}
-fn read_func(bs:&mut &[u8], name:&[u8]) -> Result<(), KErr> {
-    read_word_ci(bs,name)?;
-    space(bs);
-    if read(bs)?==b'(' { Ok(())
-    } else { Err(KErr::new("expected '('")) }
-}
 
 fn is_space(b:u8) -> bool {
-    match b {
-    b' ' | b'\t' | b'\r' | b'\n' => true,
-    _ => false,
-    }
+    if b>b' ' { return false }  // Try to improve performance of the common case.
+    return b==b' ' || b==b'\n' || b==b'\t' || b==b'\r'
 }
 fn space(bs:&mut &[u8]) {
     while let Some(b) = peek(bs,0) {
@@ -102,11 +60,18 @@ fn space(bs:&mut &[u8]) {
 
 
 pub struct Parser<'a> {
-    pub is_const_byte:Option<&'a dyn Fn(u8,usize)->bool>,
-    pub is_var_byte  :Option<&'a dyn Fn(u8,usize)->bool>,  // Until proven otherwise, assume that function names follow the same rules as vars.
+    is_const_byte:&'a dyn Fn(u8,usize)->bool,
+    is_var_byte  :&'a dyn Fn(u8,usize)->bool,  // Until proven otherwise, assume that function names follow the same rules as vars.
 }
 
-impl<'a> Parser<'a> {
+impl Parser<'_> {
+    pub fn new<'b>(is_const_byte:Option<&'b dyn Fn(u8,usize)->bool>,
+               is_var_byte:Option<&'b dyn Fn(u8,usize)->bool>) -> Parser<'b> {
+        Parser{
+            is_const_byte:is_const_byte.unwrap_or(&Parser::default_is_const_byte),
+            is_var_byte:is_var_byte.unwrap_or(&Parser::default_is_var_byte),
+        }
+    }
     fn default_is_const_byte(b:u8, i:usize) -> bool {
         if b'0'<=b && b<=b'9' || b==b'.' { return true }
         if i>0 && ( b==b'k' || b==b'K' || b==b'M' || b==b'G' || b==b'T' ) { return true }
@@ -116,223 +81,225 @@ impl<'a> Parser<'a> {
         (b'A'<=b && b<=b'Z') || (b'a'<=b && b<=b'z') || b==b'_' || (i>0 && b'0'<=b && b<=b'9')
     }
 
+    #[inline]
     fn call_is_const_byte(&self, bo:Option<u8>, i:usize) -> bool {
         match bo {
-            Some(b) => match self.is_const_byte {
-                Some(f) => f(b,i),
-                None => Parser::default_is_const_byte(b,i),
-            }
-            None => false
+            Some(b) => (self.is_const_byte)(b,i),
+            None => false,
         }
     }
+    #[inline]
     fn call_is_var_byte(&self, bo:Option<u8>, i:usize) -> bool {
         match bo {
-            Some(b) => match self.is_var_byte {
-                Some(f) => f(b,i),
-                None => Parser::default_is_var_byte(b,i),
-            }
-            None => false
+            Some(b) => (self.is_var_byte)(b,i),
+            None => false,
         }
     }
     // Re-use var logic until proven otherwise:
+    #[inline]
     fn call_is_func_byte(&self, bo:Option<u8>, i:usize) -> bool {
         self.call_is_var_byte(bo,i)
     }
 
-    pub fn parse<'b>(&self, slab:&'b Slab, s:&str) -> Result<&'b Expression, KErr> {
+    // I cannot return Result<&Expression> because it would prolong the mut:
+    pub fn parse<'b>(&self, slab:&'b mut Slab, s:&str) -> Result<ExpressionI, KErr> {
         let mut bs = s.as_bytes();
-        let expr_i = self.read_expression(slab, &mut bs, true)?;
-        Ok(slab.get_expr(expr_i))
+        self.read_expression(slab, &mut bs, true)
     }
 
-    fn read_expression(&self, slab:&Slab, bs:&mut &[u8], expect_eof:bool) -> Result<ExpressionI, KErr> {
+    fn read_expression(&self, slab:&mut Slab, bs:&mut &[u8], expect_eof:bool) -> Result<ExpressionI, KErr> {
         let first = self.read_value(slab,bs).map_err(|e| e.pre("read_value"))?;
-        let pairs = SVec8::<ExprPair>::new();
-        while self.peek_binaryop(bs) {
-            let bop = self.read_binaryop(bs).map_err(|e| e.pre("read_binaryop"))?;
-            let val = self.read_value(slab,bs).map_err(|e| e.pre("read_value"))?;
-            pairs.push(ExprPair(bop,val))?;
+        let mut pairs = Vec::<ExprPair>::with_capacity(8);
+        loop {
+            match self.read_binaryop(bs).map_err(|e| e.pre("read_binaryop"))? {
+                Pass => break,
+                Bite(bop) => {
+                    let val = self.read_value(slab,bs).map_err(|e| e.pre("read_value"))?;
+                    pairs.push(ExprPair(bop,val));
+                }
+            }
         }
         space(bs);
         if expect_eof && !is_at_eof(bs) { return Err(KErr::new("unparsed tokens remaining")); }
         Ok(slab.push_expr(Expression{first, pairs})?)
     }
 
-    fn read_value(&self, slab:&Slab, bs:&mut &[u8]) -> Result<Value, KErr> {
-        if self.peek_const(bs) {
-            return self.read_const(bs).map(|c| EConstant(c));
+    fn read_value(&self, slab:&mut Slab, bs:&mut &[u8]) -> Result<Value, KErr> {
+        match self.read_const(bs)? {
+            Pass => {}
+            Bite(c) => return Ok(EConstant(c)),
         }
-        if self.peek_unaryop(bs) {
-            return self.read_unaryop(slab,bs).map(|u| EUnaryOp(u));
+        match self.read_unaryop(slab,bs)? {
+            Pass => {}
+            Bite(u) => return Ok(EUnaryOp(u)),
         }
-        if self.peek_callable(bs) {
-            return self.read_callable(slab,bs).map(|c| ECallable(c));
+        match self.read_callable(slab,bs)? {
+            Pass => {}
+            Bite(c) => return Ok(ECallable(c)),
         }
-        if self.peek_var(bs) {  // Should go last -- don't mask callables.
-            return self.read_var(bs).map(|v| EVariable(v));
+        match self.read_var(bs)? {  // Should go last -- don't mask callables.
+            Pass => {}
+            Bite(v) => return Ok(EVariable(v)),
         }
         Err(KErr::new("invalid value"))
     }
 
-    fn peek_const(&self, bs:&mut &[u8]) -> bool {
-        space(bs);
-        self.call_is_const_byte(peek(bs,0),0)
-    }
-    fn read_const(&self, bs:&mut &[u8]) -> Result<Constant, KErr> {
+    fn read_const(&self, bs:&mut &[u8]) -> Result<Tok<Constant>, KErr> {
         space(bs);
 
-        let mut buf = SString64::new();
+        let mut buf = String::with_capacity(64);
         while self.call_is_const_byte(peek(bs,0),buf.len()) {
-            buf.push(read(bs)?)?;
+            buf.push(read(bs)? as char);
         }
+
+        let buflen = buf.len();
+        if buflen==0 { return Ok(Pass); }
 
         let mut multiple = 1.0;
-        let buflen = buf.len();
-        if buflen>0 {
-            match buf[buflen-1] {
-                b'k' | b'K' => {      multiple=1_000.0; buf.pop(); }
-                b'M' => {         multiple=1_000_000.0; buf.pop(); }
-                b'G' => {     multiple=1_000_000_000.0; buf.pop(); }
-                b'T' => { multiple=1_000_000_000_000.0; buf.pop(); }
-                _ => {}
-            }
+        match buf.as_bytes()[buflen-1] {
+            b'k' | b'K' => {      multiple=1_000.0; buf.pop(); }
+            b'M' => {         multiple=1_000_000.0; buf.pop(); }
+            b'G' => {     multiple=1_000_000_000.0; buf.pop(); }
+            b'T' => { multiple=1_000_000_000_000.0; buf.pop(); }
+            _ => {}
         }
 
-        let bufstr = buf.as_str()?;
-        let val = bufstr.parse::<f64>().map_err(|_| {
-            KErr::new("parse<f64> error").pre(bufstr)
+        let val = buf.parse::<f64>().map_err(|_| {
+            KErr::new("parse<f64> error").pre(&buf)
         })?;
-        Ok(Constant(val*multiple))
+        Ok(Bite(Constant(val*multiple)))
     }
 
-    fn peek_var(&self, bs:&mut &[u8]) -> bool {
-        space(bs);
-        self.call_is_var_byte(peek(bs,0),0)
-    }
-    fn read_var(&self, bs:&mut &[u8]) -> Result<Variable, KErr> {
+    fn read_var(&self, bs:&mut &[u8]) -> Result<Tok<Variable>, KErr> {
         space(bs);
 
-        let buf = SString16::new();
+        let mut buf = String::with_capacity(16);
         while self.call_is_var_byte(peek(bs,0),buf.len()) {
-            buf.push(read(bs)?)?;
+            buf.push(read(bs)? as char);
         }
 
-        Ok(Variable(buf))
+        if buf.len()==0 { return Ok(Pass); }  // This is NOT a Pass after a read() -- len=0 so no read occurred.
+
+        Ok(Bite(Variable(buf)))
     }
 
-    fn peek_unaryop(&self, bs:&mut &[u8]) -> bool {
+    fn read_unaryop(&self, slab:&mut Slab, bs:&mut &[u8]) -> Result<Tok<UnaryOp>, KErr> {
         space(bs);
         match peek(bs,0) {
-            Some(b'+') | Some(b'-') | Some(b'(') | Some(b'!') => true,
-            _ => false,
-        }
-    }
-    fn read_unaryop(&self, slab:&Slab, bs:&mut &[u8]) -> Result<UnaryOp, KErr> {
-        space(bs);
-        match read(bs)? {
-            b'+' => {
-                let v = self.read_value(slab,bs)?;
-                Ok(EPos(slab.push_val(v)?))
-            }
-            b'-' => {
-                let v = self.read_value(slab,bs)?;
-                Ok(ENeg(slab.push_val(v)?))
-            }
-            b'!' => {
-                let v = self.read_value(slab,bs)?;
-                Ok(ENot(slab.push_val(v)?))
-            }
-            b'(' => {
-                let xi = self.read_expression(slab,bs,false)?;
-                space(bs);
-                if read(bs)? != b')' { return Err(KErr::new("Expected ')'")) }
-                Ok(EParens(xi))
-            }
-            _ => Err(KErr::new("invalid unaryop")),
-        }
-    }
-
-    fn peek_binaryop(&self, bs:&mut &[u8]) -> bool {
-        space(bs);
-        match peek(bs,0) {
-            None => false,
+            None => Err(KErr::new("EOF")),
             Some(b) => match b {
-                b'+'|b'-'|b'*'|b'/'|b'%'|b'^'|b'<'|b'>' => true,
-                b'=' => peek_is(bs,1,b'='),
-                b'!' => peek_is(bs,1,b'='),
-                b'o' => peek_is(bs,1,b'r'),
-                b'a' => peek_is(bs,1,b'n') && peek_is(bs,2,b'd'),
-                _ => false,
+                b'+' => {
+                    read(bs)?;
+                    let v = self.read_value(slab,bs)?;
+                    Ok(Bite(EPos(slab.push_val(v)?)))
+                }
+                b'-' => {
+                    read(bs)?;
+                    let v = self.read_value(slab,bs)?;
+                    Ok(Bite(ENeg(slab.push_val(v)?)))
+                }
+                b'(' => {
+                    read(bs)?;
+                    let xi = self.read_expression(slab,bs,false)?;
+                    space(bs);
+                    if read(bs)? != b')' { return Err(KErr::new("Expected ')'")) }
+                    Ok(Bite(EParens(xi)))
+                }
+                b'!' => {
+                    read(bs)?;
+                    let v = self.read_value(slab,bs)?;
+                    Ok(Bite(ENot(slab.push_val(v)?)))
+                }
+                _ => Ok(Pass),
             }
         }
     }
-    fn read_binaryop(&self, bs:&mut &[u8]) -> Result<BinaryOp, KErr> {
-        let err = KErr::new("illegal binaryop");
+
+    fn read_binaryop(&self, bs:&mut &[u8]) -> Result<Tok<BinaryOp>, KErr> {
         space(bs);
-        match read(bs)? {
-            b'+' => Ok(EPlus),
-            b'-' => Ok(EMinus),
-            b'*' => Ok(EMul),
-            b'/' => Ok(EDiv),
-            b'%' => Ok(EMod),
-            b'^' => Ok(EExp),
-            b'<' => if peek_is(bs,0,b'=') { read(bs)?; Ok(ELTE)
-                    } else { Ok(ELT) },
-            b'>' => if peek_is(bs,0,b'=') { read(bs)?; Ok(EGTE)
-                    } else { Ok(EGT) },
-            b'=' => if peek_is(bs,0,b'=') { read(bs)?; Ok(EEQ)
-                    } else { Err(err) },
-            b'!' => if peek_is(bs,0,b'=') { read(bs)?; Ok(ENE)
-                    } else { Err(err) },
-            b'o' => if peek_is(bs,0,b'r') { read(bs)?; Ok(EOR)
-                    } else { Err(err) },
-            b'a' => if peek_is(bs,0,b'n') && peek_is(bs,1,b'd') { read(bs)?; read(bs)?; Ok(EAND)
-                    } else { Err(err) },
-            _ => Err(err),
+        match peek(bs,0) {
+            None => Ok(Pass), // Err(KErr::new("EOF")), -- EOF is usually OK in a BinaryOp position.
+            Some(b) => match b {
+                b'+' => { read(bs)?; Ok(Bite(EPlus)) }
+                b'-' => { read(bs)?; Ok(Bite(EMinus)) }
+                b'*' => { read(bs)?; Ok(Bite(EMul)) }
+                b'/' => { read(bs)?; Ok(Bite(EDiv)) }
+                b'%' => { read(bs)?; Ok(Bite(EMod)) }
+                b'^' => { read(bs)?; Ok(Bite(EExp)) }
+                b'<' => { read(bs)?;
+                          if peek_is(bs,0,b'=') { read(bs)?; Ok(Bite(ELTE)) }
+                          else { Ok(Bite(ELT)) } }
+                b'>' => { read(bs)?;
+                          if peek_is(bs,0,b'=') { read(bs)?; Ok(Bite(EGTE)) }
+                          else { Ok(Bite(EGT)) } }
+                b'=' if peek_is(bs,1,b'=') => { read(bs)?; read(bs)?;
+                                                Ok(Bite(EEQ)) }
+                b'!' if peek_is(bs,1,b'=') => { read(bs)?; read(bs)?;
+                                                Ok(Bite(ENE)) }
+                b'o' if peek_is(bs,1,b'r') => { read(bs)?; read(bs)?;
+                                                Ok(Bite(EOR)) }
+                b'a' if peek_is(bs,1,b'n') && peek_is(bs,2,b'd') => { read(bs)?; read(bs)?; read(bs)?;
+                                                                      Ok(Bite(EAND)) }
+                _ => Ok(Pass),
+            }
         }
     }
 
-    fn peek_callable(&self, bs:&mut &[u8]) -> bool {
-        self.peek_func(bs) || self.peek_printfunc(bs) || self.peek_evalfunc(bs)
-    }
-    fn read_callable(&self, slab:&Slab, bs:&mut &[u8]) -> Result<Callable, KErr> {
-        if self.peek_printfunc(bs) {
-            return self.read_printfunc(slab,bs).map(|f| EPrintFunc(f));
+    fn read_callable(&self, slab:&mut Slab, bs:&mut &[u8]) -> Result<Tok<Callable>, KErr> {
+        match self.read_printfunc(slab,bs)? {
+            Pass => {}
+            Bite(f) => return Ok(Bite(EPrintFunc(f))),
         }
-        if self.peek_evalfunc(bs) {
-            return self.read_evalfunc(slab,bs).map(|f| EEvalFunc(f));
+        match self.read_evalfunc(slab,bs)? {
+            Pass => {}
+            Bite(f) => return Ok(Bite(EEvalFunc(f))),
         }
-        if self.peek_func(bs) {
-            return self.read_func(slab,bs).map(|f| EFunc(f));
+        match self.read_func(slab,bs)? {
+            Pass => {}
+            Bite(f) => return Ok(Bite(EFunc(f))),
         }
-        Err(KErr::new("invalid callable"))
+        Ok(Pass)
     }
 
-    fn peek_func(&self, bs:&mut &[u8]) -> bool {
+    fn read_func_start(&self, bs:&mut &[u8], expected_name:Option<&str>) -> Result<Tok<String>, KErr> {
         space(bs);
 
-        let mut name_len=0; let mut post_name_spaces=0;
-        while self.call_is_func_byte(peek(bs,name_len),name_len) { name_len+=1; }
-        while let Some(b) = peek(bs,name_len+post_name_spaces) {
+        let mut name = String::with_capacity(16);  // TODO: Avoid allocation here.
+        loop {
+            match peek(bs,name.len()) {
+                None => break,
+                Some(b) => {
+                    if self.call_is_func_byte(Some(b),name.len()) { name.push(b.to_ascii_lowercase() as char); }
+                    else { break; }
+                }
+            }
+        }
+        if name.len()==0 { return Ok(Pass) }
+        if let Some(xn) = expected_name {
+            if name!=xn { return Ok(Pass) }
+        }
+
+        let mut post_name_spaces=0;
+        while let Some(b) = peek(bs,name.len()+post_name_spaces) {
             if !is_space(b) { break; }
             post_name_spaces+=1;
         }
-        name_len>0 && peek(bs,name_len+post_name_spaces)==Some(b'(')
-    }
-    fn read_func(&self, slab:&Slab, bs:&mut &[u8]) -> Result<Func, KErr> {
-        space(bs);
+        if peek(bs,name.len()+post_name_spaces) != Some(b'(') { return Ok(Pass) }
 
-        let fname = SString16::new();
-        while self.call_is_func_byte(peek(bs,0),fname.len()) {
-            fname.push(read(bs)?.to_ascii_lowercase())?;
+        // Begin 'Bite':
+        for _ in 0..name.len()+post_name_spaces { read(bs)?; }
+        if read(bs)? != b'(' { return Err(KErr::new("expected '('")) }
+
+        Ok(Bite(name))
+    }
+    fn read_func(&self, slab:&mut Slab, bs:&mut &[u8]) -> Result<Tok<Func>, KErr> {
+        let fname : String;
+        match self.read_func_start(bs,None)? {
+            Pass => return Ok(Pass),
+            Bite(n) => fname=n,
         }
 
-        space(bs);
-
-        if let Ok(b'(') = read(bs) {}
-        else { return Err(KErr::new("expected '('")); }
-
-        let mut args = SVec8::<ExpressionI>::new();
+        let mut args = Vec::<ExpressionI>::with_capacity(8);
 
         loop {
             space(bs);
@@ -353,109 +320,110 @@ impl<'a> Parser<'a> {
                     _ => return Err(KErr::new("expected ',' or ';'")),
                 }
             }
-            args.push(self.read_expression(slab,bs,false).map_err(|e| e.pre("read_expression"))?)?;
+            args.push(self.read_expression(slab,bs,false).map_err(|e| e.pre("read_expression"))?);
         }
 
         match fname.as_str() {
-            Ok("int") => {
-                if args.len()==1 { Ok(EFuncInt(args.pop()))
+            "int" => {
+                if args.len()==1 { Ok(Bite(EFuncInt(args.pop().unwrap())))
                 } else { Err(KErr::new("expected one arg")) }
             }
-            Ok("ceil") => {
-                if args.len()==1 { Ok(EFuncCeil(args.pop()))
+            "ceil" => {
+                if args.len()==1 { Ok(Bite(EFuncCeil(args.pop().unwrap())))
                 } else { Err(KErr::new("expected one arg")) }
             }
-            Ok("floor") => {
-                if args.len()==1 { Ok(EFuncFloor(args.pop()))
+            "floor" => {
+                if args.len()==1 { Ok(Bite(EFuncFloor(args.pop().unwrap())))
                 } else { Err(KErr::new("expected one arg")) }
             }
-            Ok("abs") => {
-                if args.len()==1 { Ok(EFuncAbs(args.pop()))
+            "abs" => {
+                if args.len()==1 { Ok(Bite(EFuncAbs(args.pop().unwrap())))
                 } else { Err(KErr::new("expected one arg")) }
             }
-            Ok("log") => {
-                if args.len()==1 { Ok(EFuncLog{base:None, expr:args.pop()})
+            "log" => {
+                if args.len()==1 { Ok(Bite(EFuncLog{base:None, expr:args.pop().unwrap()}))
                 } else if args.len()==2 {
-                    let expr = args.pop();
-                    Ok(EFuncLog{base:Some(args.pop()), expr:expr})
+                    let expr = args.pop().unwrap();
+                    Ok(Bite(EFuncLog{base:Some(args.pop().unwrap()), expr:expr}))
                 } else { Err(KErr::new("expected log(x) or log(base,x)")) }
             }
-            Ok("round") => {
-                if args.len()==1 { Ok(EFuncRound{modulus:None, expr:args.pop()})
+            "round" => {
+                if args.len()==1 { Ok(Bite(EFuncRound{modulus:None, expr:args.pop().unwrap()}))
                 } else if args.len()==2 {
-                    let expr = args.pop();
-                    Ok(EFuncRound{modulus:Some(args.pop()), expr:expr})
+                    let expr = args.pop().unwrap();
+                    Ok(Bite(EFuncRound{modulus:Some(args.pop().unwrap()), expr:expr}))
                 } else { Err(KErr::new("expected round(x) or round(modulus,x)")) }
             }
-            Ok("min") => {
+            "min" => {
                 if args.len()>0 {
                     let first = args.remove(0);
-                    Ok(EFuncMin{first:first, rest:args})
+                    Ok(Bite(EFuncMin{first:first, rest:args}))
                 } else { Err(KErr::new("expected one or more args")) }
             }
-            Ok("max") => {
+            "max" => {
                 if args.len()>0 {
                     let first = args.remove(0);
-                    Ok(EFuncMax{first:first, rest:args})
+                    Ok(Bite(EFuncMax{first:first, rest:args}))
                 } else { Err(KErr::new("expected one or more args")) }
             }
 
-            Ok("e") => {
-                if args.len()==0 { Ok(EFuncE)
+            "e" => {
+                if args.len()==0 { Ok(Bite(EFuncE))
                 } else { Err(KErr::new("expected no args")) }
             }
-            Ok("pi") => {
-                if args.len()==0 { Ok(EFuncPi)
+            "pi" => {
+                if args.len()==0 { Ok(Bite(EFuncPi))
                 } else { Err(KErr::new("expected no args")) }
             }
 
-            Ok("sin") => {
-                if args.len()==1 { Ok(EFuncSin(args.pop()))
+            "sin" => {
+                if args.len()==1 { Ok(Bite(EFuncSin(args.pop().unwrap())))
                 } else { Err(KErr::new("expected one arg")) }
             }
-            Ok("cos") => {
-                if args.len()==1 { Ok(EFuncCos(args.pop()))
+            "cos" => {
+                if args.len()==1 { Ok(Bite(EFuncCos(args.pop().unwrap())))
                 } else { Err(KErr::new("expected one arg")) }
             }
-            Ok("tan") => {
-                if args.len()==1 { Ok(EFuncTan(args.pop()))
+            "tan" => {
+                if args.len()==1 { Ok(Bite(EFuncTan(args.pop().unwrap())))
                 } else { Err(KErr::new("expected one arg")) }
             }
-            Ok("asin") => {
-                if args.len()==1 { Ok(EFuncASin(args.pop()))
+            "asin" => {
+                if args.len()==1 { Ok(Bite(EFuncASin(args.pop().unwrap())))
                 } else { Err(KErr::new("expected one arg")) }
             }
-            Ok("acos") => {
-                if args.len()==1 { Ok(EFuncACos(args.pop()))
+            "acos" => {
+                if args.len()==1 { Ok(Bite(EFuncACos(args.pop().unwrap())))
                 } else { Err(KErr::new("expected one arg")) }
             }
-            Ok("atan") => {
-                if args.len()==1 { Ok(EFuncATan(args.pop()))
+            "atan" => {
+                if args.len()==1 { Ok(Bite(EFuncATan(args.pop().unwrap())))
                 } else { Err(KErr::new("expected one arg")) }
             }
-            Ok("sinh") => {
-                if args.len()==1 { Ok(EFuncSinH(args.pop()))
+            "sinh" => {
+                if args.len()==1 { Ok(Bite(EFuncSinH(args.pop().unwrap())))
                 } else { Err(KErr::new("expected one arg")) }
             }
-            Ok("cosh") => {
-                if args.len()==1 { Ok(EFuncCosH(args.pop()))
+            "cosh" => {
+                if args.len()==1 { Ok(Bite(EFuncCosH(args.pop().unwrap())))
                 } else { Err(KErr::new("expected one arg")) }
             }
-            Ok("tanh") => {
-                if args.len()==1 { Ok(EFuncTanH(args.pop()))
+            "tanh" => {
+                if args.len()==1 { Ok(Bite(EFuncTanH(args.pop().unwrap())))
                 } else { Err(KErr::new("expected one arg")) }
             }
 
-            Ok(_) => Err(KErr::new(&format!("undefined function: {}",fname))),
-            Err(e) => Err(e.pre("invalid function name")),
+            _ => Err(KErr::new(&format!("undefined function: {}",fname))),
         }
     }
 
-    fn peek_printfunc(&self, bs:&mut &[u8]) -> bool { peek_func(bs, 0, b"print") }
-    fn read_printfunc(&self, slab:&Slab, bs:&mut &[u8]) -> Result<PrintFunc, KErr> {
-        read_func(bs, b"print")?;
+    fn read_printfunc(&self, slab:&mut Slab, bs:&mut &[u8]) -> Result<Tok<PrintFunc>, KErr> {
+        match self.read_func_start(bs,Some("print"))? {
+            Pass => return Ok(Pass),
+            Bite(_) => {}  // We already know this is 'print'.
+        }
 
-        let args = SVec8::<ExpressionOrString>::new();
+        let mut args = Vec::<ExpressionOrString>::with_capacity(8);
         loop {
             space(bs);
             match peek(bs,0) {
@@ -473,24 +441,27 @@ impl<'a> Parser<'a> {
                     _ => { return Err(KErr::new("expected ',' or ';'")) }
                 }
             }
-            args.push(self.read_expressionorstring(slab,bs)?)?;
+            args.push(self.read_expressionorstring(slab,bs)?);
         }
 
-        Ok(PrintFunc(args))
+        Ok(Bite(PrintFunc(args)))
     }
 
-    fn peek_evalfunc(&self, bs:&mut &[u8]) -> bool { peek_func(bs, 0, b"eval") }
-    fn read_evalfunc(&self, slab:&Slab, bs:&mut &[u8]) -> Result<EvalFunc, KErr> {
-        read_func(bs, b"eval")?;
+    fn read_evalfunc(&self, slab:&mut Slab, bs:&mut &[u8]) -> Result<Tok<EvalFunc>, KErr> {
+        match self.read_func_start(bs,Some("eval"))? {
+            Pass => return Ok(Pass),
+            Bite(_) => {}  // We already know this is 'eval'.
+        }
 
         let eval_expr = self.read_expression(slab,bs,false)?;
-        let kwargs = SVec16::<KWArg>::new();
-        fn kwargs_has(kwargs:&SVec16<KWArg>, name:&Variable) -> bool {
+        let mut kwargs = Vec::<KWArg>::with_capacity(16);
+        fn kwargs_has(kwargs:&Vec<KWArg>, name:&Variable) -> bool {
             for kwarg in kwargs {
                 if kwarg.name==*name { return true; }
             }
             false
         }
+
 
         loop {
             space(bs);
@@ -507,47 +478,49 @@ impl<'a> Parser<'a> {
                 Ok(b',') | Ok(b';') => {}
                 _ => { return Err(KErr::new("expected ',' or ';'")) }
             }
-            let name = self.read_var(bs)?;
+            let name : Variable;
+            match self.read_var(bs) {
+                Ok(Pass) => return Err(KErr::new("unexpected read_var pass")),
+                Ok(Bite(v)) => name=v,
+                Err(e) => return Err(e),
+            }
             space(bs);
             if let Ok(b'=') = read(bs) {
             } else { return Err(KErr::new("expected '='")) }
             let expr = self.read_expression(slab,bs,false)?;
 
             if kwargs_has(&kwargs,&name) { return Err(KErr::new(&format!("already defined: {}",name))) }
-            kwargs.push(KWArg{name, expr})?;
+            kwargs.push(KWArg{name, expr});
         }
 
-        Ok(EvalFunc{expr:eval_expr, kwargs:kwargs})
+        Ok(Bite(EvalFunc{expr:eval_expr, kwargs:kwargs}))
     }
 
-    fn read_expressionorstring(&self, slab:&Slab, bs:&mut &[u8]) -> Result<ExpressionOrString, KErr> {
-        if self.peek_string(bs) { Ok(EStr(self.read_string(bs)?))
-        } else { Ok(EExpr(self.read_expression(slab,bs,false)?)) }
+    fn read_expressionorstring(&self, slab:&mut Slab, bs:&mut &[u8]) -> Result<ExpressionOrString, KErr> {
+        match self.read_string(bs)? {
+            Pass => {}
+            Bite(s) => return Ok(EStr(s)),
+        }
+        Ok(EExpr(self.read_expression(slab,bs,false)?))
     }
 
-    fn peek_string(&self, bs:&mut &[u8]) -> bool {
+    fn read_string(&self, bs:&mut &[u8]) -> Result<Tok<String>,KErr> {
         space(bs);
-        peek_is(bs,0,b'"')
-    }
-    fn read_string(&self, bs:&mut &[u8]) -> Result<SString64,KErr> {
-        space(bs);
 
-        match read(bs) {
-            Ok(b) => {
-                if b!=b'"' { return Err(KErr::new(r#"expected '"'"#)) }
-            }
-            Err(e) => { return Err(e.pre("read_string")) }
+        match peek(bs,0) {
+            None => return Err(KErr::new("EOF while reading opening quote of string")),
+            Some(b'"') => { read(bs)?; }
+            Some(_) => { return Ok(Pass) }
         }
 
-        let buf = SString64::new();
+        let mut buf = String::with_capacity(64);
         loop {
             let b = read(bs)?;
             if b==b'"' { break; }
-            buf.push(b)?;
+            buf.push(b as char);
         }
 
-        //String::from_utf8(buf).map_err(|_| KErr::new("Utf8Error"))
-        Ok(buf)
+        Ok(Bite(buf))
     }
 }
 
@@ -605,30 +578,21 @@ mod internal_tests {
 
     #[test]
     fn priv_tests() {
-        let p = Parser{
-            is_const_byte:None,
-            is_var_byte:None,
-        };
+        let p = Parser::new(None,None);
         assert!(p.call_is_var_byte(Some(b'a'),0));
         assert!(!p.call_is_const_byte(Some(b'a'),0));
 
-        let p = Parser{
-            is_const_byte:Some(&|_:u8, _:usize| true),
-            is_var_byte:None,
-        };
+        let p = Parser::new(Some(&|_:u8, _:usize| true), None);
         assert!(p.call_is_const_byte(Some(b'a'),0));
 
-        let p = Parser{
-            is_const_byte:None,
-            is_var_byte:None,
-        };
+        let p = Parser::new(None,None);
 
-        let slab : Slab;
+        let mut slab : Slab;
         
         {
             let bsarr = b"12.34";
             let bs = &mut &bsarr[..];
-            assert_eq!(p.read_value({slab=Slab::new(); &slab}, bs), Ok(EConstant(Constant(12.34))));
+            assert_eq!(p.read_value({slab=Slab::new(); &mut slab}, bs), Ok(EConstant(Constant(12.34))));
         }
     }
 }
