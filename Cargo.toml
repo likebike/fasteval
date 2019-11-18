@@ -2,12 +2,11 @@
 name = "algebra"
 version = "0.1.0"
 authors = ["Christopher Sebastian <csebastian3@gmail.com>"]
+license = "MIT"
+repository = "https://github.com/likebike/algebra"
+description = """Dynamic evaluation of algebraic expressions"""
 edition = "2018"
 
 [dependencies]
 kerr = "0.1"
-# stacked = { path = "../stacked" }
-
-[profile.bench]
-debug = true
 
