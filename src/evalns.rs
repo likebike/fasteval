@@ -31,6 +31,7 @@ impl<'a> EvalNS<'a> {
         ns
     }
 
+    #[inline]
     pub fn push(&mut self) -> Result<usize,KErr> { self.push_eval(self.is_reeval()) }
     pub fn push_eval(&mut self, is_eval:bool) -> Result<usize,KErr> {
         let i = self.ns.0.len();
@@ -41,17 +42,25 @@ impl<'a> EvalNS<'a> {
         });
         Ok(i)
     }
+    #[inline]
     pub fn pop(&mut self) {
         self.ns.0.pop();
     }
-    pub fn eval_bubble(&mut self, slab:&Slab, evaler:&impl Evaler) -> Result<f64,KErr> {
+    #[inline]
+    pub fn eval_bubble(&mut self, slab:&Slab, evaler:& impl Evaler) -> Result<f64,KErr> {
         self.push().map_err(|e| e.pre("eval_bubble ns.push"))?;
-        let out = evaler.eval(slab, self).map_err(|e| e.pre(&format!("eval_bubble({:?})",evaler)));
+        let out = self.eval(slab,evaler);
         self.pop();
         out
     }
+    #[inline]
+    pub fn eval(&mut self, slab:&Slab, evaler:& impl Evaler) -> Result<f64,KErr> {
+        evaler.eval(slab, self).map_err(|e| e.pre(&format!("eval({:?})",evaler)))
+    }
 
+    #[inline]
     pub fn start_reeval_mode(&mut self) { self.reeval_mode+=1; }
+    #[inline]
     pub fn end_reeval_mode(&mut self) {
         self.reeval_mode-=1;
         if self.reeval_mode<0 { panic!("too many end_reeval_mdoe"); }
@@ -113,7 +122,8 @@ impl<'a> EvalNS<'a> {
 }
 
 impl NameStack {
-    fn new() -> Self { NameStack(Vec::with_capacity(64)) }
+    #[inline]
+    fn new() -> Self { NameStack(Vec::with_capacity(8)) }
 }
 
 //---- Tests:

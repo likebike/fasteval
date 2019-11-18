@@ -1,8 +1,4 @@
-use algebra::grammar::ExpressionI;
-use algebra::parser::Parser;
-use algebra::slab::Slab;
-use algebra::evalns::EvalNS;
-use algebra::evaler::Evaler;
+use algebra::{ExpressionI, Parser, Slab, EvalNS, Evaler};
 
 use kerr::KErr;
 
@@ -281,7 +277,7 @@ fn aaa_test_k() {
 
 // TODO: Capture -- i bet i can re-use rust's existing test-output capturing feature:
 //    stderr:=CaptureStderr(func(){
-//        Eval(Parse(`print("a",print("b",print("c",5,"C"),"B"),"A")`))    // Other stuff process from-inside-to-out.
+//        ez_eval(r#"print("a",print("b",print("c",5,"C"),"B"),"A")"#);    // Other stuff process from-inside-to-out.
 //    })
 //    stderr=strings.TrimSpace(stderr)
 //    Assert(stderr==`c 5 C

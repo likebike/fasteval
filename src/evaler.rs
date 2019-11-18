@@ -77,10 +77,10 @@ impl Evaler for Expression {
         // Code for new Expression data structure:
         let mut vals = Vec::<f64>::with_capacity(self.pairs.len()+1);
         let mut ops  = Vec::<BinaryOp>::with_capacity(self.pairs.len());
-        ns.eval_bubble(slab, &self.first).map(|f| vals.push(f))?;
+        ns.eval(slab, &self.first).map(|f| vals.push(f))?;
         for pair in self.pairs.iter() {
             ops.push(pair.0);
-            ns.eval_bubble(slab, &pair.1).map(|f| vals.push(f))?;
+            ns.eval(slab, &pair.1).map(|f| vals.push(f))?;
         }
 
 
@@ -175,10 +175,10 @@ impl Evaler for Variable {
 impl Evaler for UnaryOp {
     fn eval(&self, slab:&Slab, ns:&mut EvalNS) -> Result<f64,KErr> {
         match self {
-            EPos(val_i) => ns.eval_bubble(slab, slab.get_val(*val_i)),
-            ENeg(val_i) => Ok(-ns.eval_bubble(slab, slab.get_val(*val_i))?),
-            ENot(val_i) => Ok(bool_to_f64(ns.eval_bubble(slab, slab.get_val(*val_i))?==0.0)),
-            EParens(expr_i) => ns.eval_bubble(slab, slab.get_expr(*expr_i)),
+            EPos(val_i) => ns.eval(slab, slab.get_val(*val_i)),
+            ENeg(val_i) => Ok(-ns.eval(slab, slab.get_val(*val_i))?),
+            ENot(val_i) => Ok(bool_to_f64(ns.eval(slab, slab.get_val(*val_i))?==0.0)),
+            EParens(expr_i) => ns.eval(slab, slab.get_expr(*expr_i)),
         }
     }
 }
@@ -210,9 +210,9 @@ impl BinaryOp {
 impl Evaler for Callable {
     fn eval(&self, slab:&Slab, ns:&mut EvalNS) -> Result<f64,KErr> {
         match self {
-            EFunc(f) => ns.eval_bubble(slab, f),
-            EEvalFunc(f) => ns.eval_bubble(slab, f),
-            EPrintFunc(f) => ns.eval_bubble(slab, f),
+            EFunc(f) => ns.eval(slab, f),
+            EEvalFunc(f) => ns.eval(slab, f),
+            EPrintFunc(f) => ns.eval(slab, f),
         }
     }
 }
@@ -220,35 +220,35 @@ impl Evaler for Callable {
 impl Evaler for Func {
     fn eval(&self, slab:&Slab, ns:&mut EvalNS) -> Result<f64,KErr> {
         match self {
-            EFuncInt(expr_i) => { Ok(ns.eval_bubble(slab, slab.get_expr(*expr_i))?.trunc()) }
-            EFuncCeil(expr_i) => { Ok(ns.eval_bubble(slab, slab.get_expr(*expr_i))?.ceil()) }
-            EFuncFloor(expr_i) => { Ok(ns.eval_bubble(slab, slab.get_expr(*expr_i))?.floor()) }
-            EFuncAbs(expr_i) => { Ok(ns.eval_bubble(slab, slab.get_expr(*expr_i))?.abs()) }
+            EFuncInt(expr_i) => { Ok(ns.eval(slab, slab.get_expr(*expr_i))?.trunc()) }
+            EFuncCeil(expr_i) => { Ok(ns.eval(slab, slab.get_expr(*expr_i))?.ceil()) }
+            EFuncFloor(expr_i) => { Ok(ns.eval(slab, slab.get_expr(*expr_i))?.floor()) }
+            EFuncAbs(expr_i) => { Ok(ns.eval(slab, slab.get_expr(*expr_i))?.abs()) }
             EFuncLog{base:base_opt, expr:expr_i} => {
                 let base = match base_opt {
-                    Some(b_expr_i) => ns.eval_bubble(slab, slab.get_expr(*b_expr_i))?,
+                    Some(b_expr_i) => ns.eval(slab, slab.get_expr(*b_expr_i))?,
                     None => 10.0,
                 };
-                Ok(ns.eval_bubble(slab, slab.get_expr(*expr_i))?.log(base))
+                Ok(ns.eval(slab, slab.get_expr(*expr_i))?.log(base))
             }
             EFuncRound{modulus:modulus_opt, expr:expr_i} => {
                 let modulus = match modulus_opt {
-                    Some(m_expr_i) => ns.eval_bubble(slab, slab.get_expr(*m_expr_i))?,
+                    Some(m_expr_i) => ns.eval(slab, slab.get_expr(*m_expr_i))?,
                     None => 1.0,
                 };
-                Ok((ns.eval_bubble(slab, slab.get_expr(*expr_i))?/modulus).round() * modulus)
+                Ok((ns.eval(slab, slab.get_expr(*expr_i))?/modulus).round() * modulus)
             }
             EFuncMin{first:first_i, rest} => {
-                let mut min = ns.eval_bubble(slab, slab.get_expr(*first_i))?;
+                let mut min = ns.eval(slab, slab.get_expr(*first_i))?;
                 for x_i in rest.iter() {
-                    min = min.min(ns.eval_bubble(slab, slab.get_expr(*x_i))?);
+                    min = min.min(ns.eval(slab, slab.get_expr(*x_i))?);
                 }
                 Ok(min)
             }
             EFuncMax{first:first_i, rest} => {
-                let mut max = ns.eval_bubble(slab, slab.get_expr(*first_i))?;
+                let mut max = ns.eval(slab, slab.get_expr(*first_i))?;
                 for x_i in rest.iter() {
-                    max = max.max(ns.eval_bubble(slab, slab.get_expr(*x_i))?);
+                    max = max.max(ns.eval(slab, slab.get_expr(*x_i))?);
                 }
                 Ok(max)
             }
@@ -256,15 +256,15 @@ impl Evaler for Func {
             EFuncE => Ok(consts::E),
             EFuncPi => Ok(consts::PI),
 
-            EFuncSin(expr_i) => { Ok(ns.eval_bubble(slab, slab.get_expr(*expr_i))?.sin()) },
-            EFuncCos(expr_i) => { Ok(ns.eval_bubble(slab, slab.get_expr(*expr_i))?.cos()) },
-            EFuncTan(expr_i) => { Ok(ns.eval_bubble(slab, slab.get_expr(*expr_i))?.tan()) },
-            EFuncASin(expr_i) => { Ok(ns.eval_bubble(slab, slab.get_expr(*expr_i))?.asin()) },
-            EFuncACos(expr_i) => { Ok(ns.eval_bubble(slab, slab.get_expr(*expr_i))?.acos()) },
-            EFuncATan(expr_i) => { Ok(ns.eval_bubble(slab, slab.get_expr(*expr_i))?.atan()) },
-            EFuncSinH(expr_i) => { Ok(ns.eval_bubble(slab, slab.get_expr(*expr_i))?.sinh()) },
-            EFuncCosH(expr_i) => { Ok(ns.eval_bubble(slab, slab.get_expr(*expr_i))?.cosh()) },
-            EFuncTanH(expr_i) => { Ok(ns.eval_bubble(slab, slab.get_expr(*expr_i))?.tanh()) },
+            EFuncSin(expr_i) => { Ok(ns.eval(slab, slab.get_expr(*expr_i))?.sin()) },
+            EFuncCos(expr_i) => { Ok(ns.eval(slab, slab.get_expr(*expr_i))?.cos()) },
+            EFuncTan(expr_i) => { Ok(ns.eval(slab, slab.get_expr(*expr_i))?.tan()) },
+            EFuncASin(expr_i) => { Ok(ns.eval(slab, slab.get_expr(*expr_i))?.asin()) },
+            EFuncACos(expr_i) => { Ok(ns.eval(slab, slab.get_expr(*expr_i))?.acos()) },
+            EFuncATan(expr_i) => { Ok(ns.eval(slab, slab.get_expr(*expr_i))?.atan()) },
+            EFuncSinH(expr_i) => { Ok(ns.eval(slab, slab.get_expr(*expr_i))?.sinh()) },
+            EFuncCosH(expr_i) => { Ok(ns.eval(slab, slab.get_expr(*expr_i))?.cosh()) },
+            EFuncTanH(expr_i) => { Ok(ns.eval(slab, slab.get_expr(*expr_i))?.tanh()) },
         }
     }
 }
@@ -299,7 +299,7 @@ impl Evaler for PrintFunc {
             if i>0 { out.push(' '); }
             match a {
                 EExpr(e_i) => {
-                    val = ns.eval_bubble(slab, slab.get_expr(*e_i))?;
+                    val = ns.eval(slab, slab.get_expr(*e_i))?;
                     out.push_str(&val.to_string());
                 }
                 EStr(s) => out.push_str(&process_str(s))
@@ -325,13 +325,13 @@ impl Evaler for EvalFunc {
 
             for kw in self.kwargs.iter() {
                 let val = ns.eval_bubble(slab, slab.get_expr(kw.expr))?;
-                ns.create(kw.name.0.clone(), val)?;
+                ns.create(kw.name.0.clone(), val)?;  // Should we delay the 'create' until after evaluating all the kwargs, so they don't affect each other?
             }
 
             ns.start_reeval_mode();
             // Another defer structure (a bit overly-complex for this simple case):
             let res = (|| -> Result<f64,KErr> {
-                ns.eval_bubble(slab, slab.get_expr(self.expr))
+                ns.eval(slab, slab.get_expr(self.expr))
             })();
             ns.end_reeval_mode();
             res
@@ -566,7 +566,7 @@ mod tests {
         {
             let mut sum = 0f64;
             let start = Instant::now();
-            for _ in 0..count/* *100 */ {
+            for _ in 0..count {
                 let expr = p.parse({slab.clear(); &mut slab}, "(3 * (3 + 3) / 3)").unwrap().get(&slab);
                 match expr.eval(&slab, &mut ns) {
                     Ok(f) => { sum+=f; }
@@ -580,7 +580,7 @@ mod tests {
             let mut sum = 0f64;
             let start = Instant::now();
             let expr = p.parse({slab.clear(); &mut slab}, "(3 * (3 + 3) / 3)").unwrap().get(&slab);
-            for _ in 0..count {
+            for _ in 0..count /* *100 */ {
                 match expr.eval(&slab, &mut ns) {
                     Ok(f) => { sum+=f; }
                     Err(e) => panic!(format!("error during benchmark: {}",e)),

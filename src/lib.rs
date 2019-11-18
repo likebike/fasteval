@@ -20,3 +20,8 @@ pub mod evalns;
 pub mod display;
 //pub mod defaults;
 
+pub use self::grammar::{Expression, ExpressionI, Value, ValueI};
+pub use self::slab::Slab;
+pub use self::parser::Parser;
+pub use self::evalns::EvalNS;
+pub use self::evaler::Evaler;
