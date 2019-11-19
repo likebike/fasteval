@@ -1,3 +1,20 @@
+// ---- Results (2019-11-20 on a 2012 i7 laptop) ----
+// al:
+//     test eval_only           ... bench:    253 ns/iter (+/- 89)
+//     test eval_only_100x      ... bench: 25,378 ns/iter (+/- 5,003)
+//     test ez                  ... bench:    976 ns/iter (+/- 106)
+//     test native_100x         ... bench:     48 ns/iter (+/- 5)
+//     test parse_and_eval      ... bench:    800 ns/iter (+/- 105)
+//     test parse_and_eval_100x ... bench: 79,619 ns/iter (+/- 12,509)
+//
+// caldyn:
+
+
+
+
+
+
+
 #![feature(test)]
 extern crate test;  // 'extern crate' seems to be required for this scenario: https://github.com/rust-lang/rust/issues/57288
 use test::{Bencher, black_box};
