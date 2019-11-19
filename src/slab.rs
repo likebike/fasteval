@@ -6,13 +6,13 @@ use std::fmt;
 
 impl ExpressionI {
     #[inline]
-    pub fn get<'a>(self, slab:&'a Slab) -> &'a Expression {
+    pub fn from<'a>(self, slab:&'a Slab) -> &'a Expression {
         slab.get_expr(self)
     }
 }
 impl ValueI {
     #[inline]
-    pub fn get<'a>(self, slab:&'a Slab) -> &'a Value {
+    pub fn from<'a>(self, slab:&'a Slab) -> &'a Value {
         slab.get_val(self)
     }
 }

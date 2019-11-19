@@ -13,7 +13,7 @@ fn parse<'a>(slab:&'a mut Slab, s:&str) -> ExpressionI { parse_raw(slab,s).unwra
 fn ez_eval(s:&str) -> f64 {
     let mut slab = Slab::new();
     let mut ns = EvalNS::new(|_| None);
-    parse(&mut slab, s).get(&slab).eval(&slab, &mut ns).unwrap()
+    parse(&mut slab, s).from(&slab).eval(&slab, &mut ns).unwrap()
 }
 
 fn capture_stderr(f:&dyn Fn()) -> String {
@@ -192,12 +192,12 @@ fn aaa_test_e() {
 fn aaa_test_f() {
     let mut slab = Slab::new();
 
-    assert_eq!(parse({slab.clear(); &mut slab}, "(x)^(3)").get(&slab).eval(&slab, &mut EvalNS::new(|n| { [("x",2.0)].iter().cloned().collect::<HashMap<&str,f64>>().get(n).cloned() })).unwrap(), 8.0);
-    assert_eq!(parse({slab.clear(); &mut slab}, "(x)^(y)").get(&slab).eval(&slab, &mut EvalNS::new(|n| { [("x",2.0),("y",3.0)].iter().cloned().collect::<HashMap<&str,f64>>().get(n).cloned() })).unwrap(), 8.0);
-    assert_eq!(parse({slab.clear(); &mut slab}, "(x)^(y)").get(&slab).var_names(&slab).unwrap().len(), 2);
-    assert_eq!(parse({slab.clear(); &mut slab}, "1+(x*y/2)^(z)").get(&slab).var_names(&slab).unwrap().len(), 3);
-    assert_eq!(format!("{:?}",parse({slab.clear(); &mut slab}, "1+(x*y/2)^(z)").get(&slab).var_names(&slab).unwrap().iter().collect::<BTreeSet<&String>>()), r#"{"x", "y", "z"}"#);
-    assert_eq!(format!("{:?}",parse({slab.clear(); &mut slab}, "1+(x/y/2)^(z)").get(&slab).var_names(&slab).unwrap().iter().collect::<BTreeSet<&String>>()), r#"{"x", "y", "z"}"#);  // Test a division-by-0 during VariableNames()
+    assert_eq!(parse({slab.clear(); &mut slab}, "(x)^(3)").from(&slab).eval(&slab, &mut EvalNS::new(|n| { [("x",2.0)].iter().cloned().collect::<HashMap<&str,f64>>().get(n).cloned() })).unwrap(), 8.0);
+    assert_eq!(parse({slab.clear(); &mut slab}, "(x)^(y)").from(&slab).eval(&slab, &mut EvalNS::new(|n| { [("x",2.0),("y",3.0)].iter().cloned().collect::<HashMap<&str,f64>>().get(n).cloned() })).unwrap(), 8.0);
+    assert_eq!(parse({slab.clear(); &mut slab}, "(x)^(y)").from(&slab).var_names(&slab).unwrap().len(), 2);
+    assert_eq!(parse({slab.clear(); &mut slab}, "1+(x*y/2)^(z)").from(&slab).var_names(&slab).unwrap().len(), 3);
+    assert_eq!(format!("{:?}",parse({slab.clear(); &mut slab}, "1+(x*y/2)^(z)").from(&slab).var_names(&slab).unwrap().iter().collect::<BTreeSet<&String>>()), r#"{"x", "y", "z"}"#);
+    assert_eq!(format!("{:?}",parse({slab.clear(); &mut slab}, "1+(x/y/2)^(z)").from(&slab).var_names(&slab).unwrap().iter().collect::<BTreeSet<&String>>()), r#"{"x", "y", "z"}"#);  // Test a division-by-0 during VariableNames()
     assert_eq!(format!("{}",ez_eval("1/0")), "inf");  // Test an explicit division-by-0.  Go says "+Inf".
 }
 
@@ -267,7 +267,7 @@ fn aaa_test_k() {
     assert_eq!(ez_eval("eval(one, one=1)"), 1.0);
     assert_eq!(ez_eval("eval(one+one, one=1)"), 2.0);
     assert_eq!(ez_eval("eval(one+one*one/one, one=1)"), 2.0);
-    assert_eq!(format!("{:?}",parse({slab.clear(); &mut slab}, "eval(one+two, one=1)").get(&slab).var_names(&slab).unwrap()), r#"{"two"}"#);
+    assert_eq!(format!("{:?}",parse({slab.clear(); &mut slab}, "eval(one+two, one=1)").from(&slab).var_names(&slab).unwrap()), r#"{"two"}"#);
 
     assert_eq!(parse_raw({slab.clear(); &mut slab}, "eval(one, one=1, one=2)"), Err(KErr::new("already defined: one")));
 

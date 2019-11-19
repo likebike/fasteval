@@ -25,5 +25,5 @@ pub use self::slab::Slab;
 pub use self::parser::Parser;
 pub use self::evalns::EvalNS;
 pub use self::evaler::Evaler;
-pub use self::ez::EZ;
+pub use self::ez::ez_eval;
 

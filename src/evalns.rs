@@ -66,9 +66,10 @@ impl<'a> EvalNS<'a> {
         if self.reeval_mode<0 { panic!("too many end_reeval_mdoe"); }
     }
 
-    #[allow(dead_code)]
-    fn is_normal(&self) -> bool { self.reeval_mode==0 }
-    fn is_reeval(&self) -> bool { self.reeval_mode>0 }
+    #[inline]
+    pub fn is_normal(&self) -> bool { self.reeval_mode==0 }
+    #[inline]
+    pub fn is_reeval(&self) -> bool { self.reeval_mode>0 }
 
     // Later layers take precedence...
     // ...but groups of 'eval' layers should be treated as one layer, and *earlier* layers take precedence!
@@ -124,45 +125,5 @@ impl<'a> EvalNS<'a> {
 impl NameStack {
     #[inline]
     fn new() -> Self { NameStack(Vec::with_capacity(8)) }
-}
-
-//---- Tests:
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    
-    #[derive(Debug)]
-    struct TestEvaler;
-    impl Evaler for TestEvaler {
-        fn eval(&self, _slab:&Slab, ns:&mut EvalNS) -> Result<f64,KErr> {
-            match ns.get("x") {
-                Some(v) => Ok(v),
-                None => Ok(1.23),
-            }
-        }
-    }
-
-    #[test]
-    fn aaa_basics() {
-        let slab = Slab::new();
-        let mut ns = EvalNS::new(|_| Some(5.4321));
-        assert_eq!(ns.eval_bubble(&slab, &TestEvaler{}).unwrap(), 5.4321);
-        ns.create("x".to_string(),1.111).unwrap();
-        assert_eq!(ns.eval_bubble(&slab, &TestEvaler{}).unwrap(), 1.111);
-        
-        assert_eq!(ns.is_normal(), true);
-        ns.start_reeval_mode();
-            assert_eq!(ns.is_normal(), false);
-
-            ns.start_reeval_mode();
-                assert_eq!(ns.is_normal(), false);
-                assert_eq!(ns.eval_bubble(&slab, &TestEvaler{}).unwrap(), 1.111);
-            ns.end_reeval_mode();
-
-            assert_eq!(ns.is_normal(), false);
-        ns.end_reeval_mode();
-        assert_eq!(ns.is_normal(), true);
-    }
 }
 
