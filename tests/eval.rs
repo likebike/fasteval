@@ -1,4 +1,4 @@
-use algebra::{Slab, Parser, EvalNS, Evaler};
+use al::{Slab, Parser, EvalNS, Evaler};
 
 use kerr::KErr;
 

@@ -1,4 +1,4 @@
-use algebra::EZ;
+use al::EZ;
 
 use kerr::KErr;
 

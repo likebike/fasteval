@@ -1,4 +1,4 @@
-use algebra::{Slab, Parser};
+use al::{Slab, Parser};
 
 #[test]
 fn parser() {
