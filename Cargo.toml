@@ -1,9 +1,9 @@
 [package]
-name = "algebra"
+name = "al"
 version = "0.1.0"
 authors = ["Christopher Sebastian <csebastian3@gmail.com>"]
 license = "MIT"
-repository = "https://github.com/likebike/algebra"
+repository = "https://github.com/likebike/al"
 description = """Dynamic evaluation of algebraic expressions"""
 edition = "2018"
 
