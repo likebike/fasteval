@@ -1,4 +1,4 @@
-use crate::grammar::Variable;
+use crate::parser::Variable;
 
 use std::fmt;
 

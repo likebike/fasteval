@@ -35,7 +35,7 @@ impl<'a> EvalNS<'a> {
     pub fn push(&mut self) -> Result<usize,KErr> { self.push_eval(self.is_reeval()) }
     pub fn push_eval(&mut self, is_eval:bool) -> Result<usize,KErr> {
         let i = self.ns.0.len();
-        if i>=self.ns.0.capacity() { return Err(KErr::new("overflow")) }
+        if i>=self.ns.0.capacity() { return Err(KErr::new("evalns overflow")) }
         self.ns.0.push(NameLayer{
             is_eval:is_eval,
             m:HashMap::new(),

@@ -1,20 +1,154 @@
-use crate::slab::Slab;
-use crate::grammar::{ExpressionI,
-                     Expression,
-                     ExprPair,
-                     Value::{self, EConstant, EVariable, EUnaryOp, ECallable},
-                     Constant,
-                     Variable,
-                     UnaryOp::{self, EPos, ENeg, EParens, ENot},
-                     BinaryOp::{self, EPlus, EMinus, EMul, EDiv, EMod, EExp, ELT, ELTE, EEQ, ENE, EGTE, EGT, EOR, EAND},
-                     Callable::{self, EFunc, EPrintFunc, EEvalFunc},
-                     Func::{self, EFuncInt, EFuncCeil, EFuncFloor, EFuncAbs, EFuncLog, EFuncRound, EFuncMin, EFuncMax, EFuncE, EFuncPi, EFuncSin, EFuncCos, EFuncTan, EFuncASin, EFuncACos, EFuncATan, EFuncSinH, EFuncCosH, EFuncTanH},
-                     PrintFunc,
-                     ExpressionOrString::{self, EExpr, EStr},
-                     EvalFunc,
-                     KWArg};
-
+use crate::slab::ParseSlab;
 use kerr::KErr;
+
+
+
+// === Algebra Grammar ===
+//
+// Expression: Value (BinaryOp Value)*
+//
+// Value: Constant || UnaryOp || Callable || Variable
+// #^^^ Variable must be last to avoid masking.
+//
+// Constant: (\.[0-9])+(k || K || M || G || T)?
+//
+// Variable: [a-zA-Z_][a-zA-Z_0-9]*
+//
+// UnaryOp: +Value || -Value || (Expression) || !Value
+//
+// BinaryOp: + || - || * || / || % || ^ || < || <= || == || != || >= || > || or || and
+//
+// Callable: PrintFunc || EvalFunc || Function
+// #^^^ Function must be last to avoid masking.
+//
+// Function: Variable(Expression(,Expression)*)
+//
+// PrintFunc: print(ExpressionOrString,*)
+//
+// ExpressionOrString: Expression || String
+//
+// String: ".*"
+//
+// EvalFunc: eval(Expression(,Variable=Expression)*)
+
+
+
+#[derive(Debug, PartialEq, Copy, Clone)]
+pub struct ExpressionI(pub usize);
+#[derive(Debug, PartialEq, Copy, Clone)]
+pub struct ValueI(pub usize);
+
+
+#[derive(Debug, PartialEq)]
+pub struct Expression {
+    pub first: Value,
+    pub pairs: Vec<ExprPair>,  // cap=8
+}
+
+#[derive(Debug, PartialEq)]
+pub struct ExprPair(pub BinaryOp, pub Value);
+
+#[derive(Debug, PartialEq)]
+pub enum Value {
+    EConstant(Constant),
+    EVariable(Variable),
+    EUnaryOp(UnaryOp),
+    ECallable(Callable),
+}
+use Value::{EConstant, EVariable, EUnaryOp, ECallable};
+
+#[derive(Debug, PartialEq)]
+pub struct Constant(pub f64);
+
+#[derive(PartialEq)]
+pub struct Variable(pub String);  // cap=16
+
+#[derive(Debug, PartialEq)]
+pub enum UnaryOp {
+    EPos(ValueI),
+    ENeg(ValueI),
+    ENot(ValueI),
+    EParens(ExpressionI),
+}
+use UnaryOp::{EPos, ENeg, ENot, EParens};
+
+#[derive(Debug, PartialEq, PartialOrd, Copy, Clone)]
+pub enum BinaryOp {
+    // Sorted in order of precedence (low-priority to high-priority):
+    // Keep this order in-sync with evaler.rs.  (Search for 'rtol' and 'ltor'.)
+    EOR    =  1,  // Lowest Priority
+    EAND   =  2,
+    ENE    =  3,
+    EEQ    =  4,
+    EGTE   =  5,
+    ELTE   =  6,
+    EGT    =  7,
+    ELT    =  8,
+    EPlus  =  9,
+    EMinus = 10,
+    EMul   = 11,
+    EDiv   = 12,
+    EMod   = 13,
+    EExp   = 14,  // Highest Priority
+}
+use BinaryOp::{EPlus, EMinus, EMul, EDiv, EMod, EExp, ELT, ELTE, EEQ, ENE, EGTE, EGT, EOR, EAND};
+
+#[derive(Debug, PartialEq)]
+pub enum Callable {
+    EFunc(Func),
+    EPrintFunc(PrintFunc),
+    EEvalFunc(EvalFunc),
+}
+use Callable::{EFunc, EPrintFunc, EEvalFunc};
+
+#[derive(Debug, PartialEq)]
+pub enum Func {
+    EFuncInt(ExpressionI),
+    EFuncCeil(ExpressionI),
+    EFuncFloor(ExpressionI),
+    EFuncAbs(ExpressionI),
+    EFuncLog{     base:Option<ExpressionI>, expr:ExpressionI},
+    EFuncRound{modulus:Option<ExpressionI>, expr:ExpressionI},
+    EFuncMin{first:ExpressionI, rest:Vec<ExpressionI>},  // cap=8
+    EFuncMax{first:ExpressionI, rest:Vec<ExpressionI>},  // cap=8
+    //
+    EFuncE,
+    EFuncPi,
+    //
+    EFuncSin(ExpressionI),
+    EFuncCos(ExpressionI),
+    EFuncTan(ExpressionI),
+    EFuncASin(ExpressionI),
+    EFuncACos(ExpressionI),
+    EFuncATan(ExpressionI),
+    EFuncSinH(ExpressionI),
+    EFuncCosH(ExpressionI),
+    EFuncTanH(ExpressionI),
+}
+use Func::{EFuncInt, EFuncCeil, EFuncFloor, EFuncAbs, EFuncLog, EFuncRound, EFuncMin, EFuncMax, EFuncE, EFuncPi, EFuncSin, EFuncCos, EFuncTan, EFuncASin, EFuncACos, EFuncATan, EFuncSinH, EFuncCosH, EFuncTanH};
+
+#[derive(Debug, PartialEq)]
+pub struct PrintFunc(pub Vec<ExpressionOrString>);  // cap=8
+
+#[derive(Debug, PartialEq)]
+pub enum ExpressionOrString {
+    EExpr(ExpressionI),
+    EStr(String),  // cap=64
+}
+use ExpressionOrString::{EExpr, EStr};
+
+#[derive(Debug, PartialEq)]
+pub struct EvalFunc {
+    pub expr:   ExpressionI,
+    pub kwargs: Vec<KWArg>,  // cap=16
+}
+
+#[derive(Debug, PartialEq)]
+pub struct KWArg {
+    pub name: Variable,
+    pub expr: ExpressionI,
+}
+
 
 
 enum Tok<T> {
@@ -102,12 +236,13 @@ impl Parser<'_> {
     }
 
     // I cannot return Result<&Expression> because it would prolong the mut:
-    pub fn parse<'b>(&self, slab:&'b mut Slab, s:&str) -> Result<ExpressionI, KErr> {
+    pub fn parse(&self, slab:&mut ParseSlab, s:&str) -> Result<ExpressionI, KErr> {
+        if s.len()>4096 { return Err(KErr::new("expression string is too long")); }  // Restrict length for safety
         let mut bs = s.as_bytes();
         self.read_expression(slab, &mut bs, true)
     }
 
-    fn read_expression(&self, slab:&mut Slab, bs:&mut &[u8], expect_eof:bool) -> Result<ExpressionI, KErr> {
+    fn read_expression(&self, slab:&mut ParseSlab, bs:&mut &[u8], expect_eof:bool) -> Result<ExpressionI, KErr> {
         let first = self.read_value(slab,bs).map_err(|e| e.pre("read_value"))?;
         let mut pairs = Vec::<ExprPair>::with_capacity(8);
         loop {
@@ -124,7 +259,7 @@ impl Parser<'_> {
         Ok(slab.push_expr(Expression{first, pairs})?)
     }
 
-    fn read_value(&self, slab:&mut Slab, bs:&mut &[u8]) -> Result<Value, KErr> {
+    fn read_value(&self, slab:&mut ParseSlab, bs:&mut &[u8]) -> Result<Value, KErr> {
         match self.read_const(bs)? {
             Pass => {}
             Bite(c) => return Ok(EConstant(c)),
@@ -183,7 +318,7 @@ impl Parser<'_> {
         Ok(Bite(Variable(buf)))
     }
 
-    fn read_unaryop(&self, slab:&mut Slab, bs:&mut &[u8]) -> Result<Tok<UnaryOp>, KErr> {
+    fn read_unaryop(&self, slab:&mut ParseSlab, bs:&mut &[u8]) -> Result<Tok<UnaryOp>, KErr> {
         space(bs);
         match peek(bs,0) {
             None => Err(KErr::new("EOF")),
@@ -245,7 +380,7 @@ impl Parser<'_> {
         }
     }
 
-    fn read_callable(&self, slab:&mut Slab, bs:&mut &[u8]) -> Result<Tok<Callable>, KErr> {
+    fn read_callable(&self, slab:&mut ParseSlab, bs:&mut &[u8]) -> Result<Tok<Callable>, KErr> {
         match self.read_printfunc(slab,bs)? {
             Pass => {}
             Bite(f) => return Ok(Bite(EPrintFunc(f))),
@@ -292,7 +427,7 @@ impl Parser<'_> {
 
         Ok(Bite(name))
     }
-    fn read_func(&self, slab:&mut Slab, bs:&mut &[u8]) -> Result<Tok<Func>, KErr> {
+    fn read_func(&self, slab:&mut ParseSlab, bs:&mut &[u8]) -> Result<Tok<Func>, KErr> {
         let fname : String;
         match self.read_func_start(bs,None)? {
             Pass => return Ok(Pass),
@@ -417,7 +552,7 @@ impl Parser<'_> {
         }
     }
 
-    fn read_printfunc(&self, slab:&mut Slab, bs:&mut &[u8]) -> Result<Tok<PrintFunc>, KErr> {
+    fn read_printfunc(&self, slab:&mut ParseSlab, bs:&mut &[u8]) -> Result<Tok<PrintFunc>, KErr> {
         match self.read_func_start(bs,Some("print"))? {
             Pass => return Ok(Pass),
             Bite(_) => {}  // We already know this is 'print'.
@@ -447,7 +582,7 @@ impl Parser<'_> {
         Ok(Bite(PrintFunc(args)))
     }
 
-    fn read_evalfunc(&self, slab:&mut Slab, bs:&mut &[u8]) -> Result<Tok<EvalFunc>, KErr> {
+    fn read_evalfunc(&self, slab:&mut ParseSlab, bs:&mut &[u8]) -> Result<Tok<EvalFunc>, KErr> {
         match self.read_func_start(bs,Some("eval"))? {
             Pass => return Ok(Pass),
             Bite(_) => {}  // We already know this is 'eval'.
@@ -496,7 +631,7 @@ impl Parser<'_> {
         Ok(Bite(EvalFunc{expr:eval_expr, kwargs:kwargs}))
     }
 
-    fn read_expressionorstring(&self, slab:&mut Slab, bs:&mut &[u8]) -> Result<ExpressionOrString, KErr> {
+    fn read_expressionorstring(&self, slab:&mut ParseSlab, bs:&mut &[u8]) -> Result<ExpressionOrString, KErr> {
         match self.read_string(bs)? {
             Pass => {}
             Bite(s) => return Ok(EStr(s)),
@@ -527,6 +662,7 @@ impl Parser<'_> {
 #[cfg(test)]
 mod internal_tests {
     use super::*;
+    use crate::slab::Slab;
 
     #[test]
     fn util() {
@@ -587,12 +723,12 @@ mod internal_tests {
 
         let p = Parser::new(None,None);
 
-        let mut slab : Slab;
+        let mut slab = Slab::new();
         
         {
             let bsarr = b"12.34";
             let bs = &mut &bsarr[..];
-            assert_eq!(p.read_value({slab=Slab::new(); &mut slab}, bs), Ok(EConstant(Constant(12.34))));
+            assert_eq!(p.read_value(&mut slab.ps, bs), Ok(EConstant(Constant(12.34))));
         }
     }
 }

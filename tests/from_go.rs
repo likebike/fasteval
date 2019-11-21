@@ -6,14 +6,14 @@ use std::collections::HashMap;
 use std::collections::BTreeSet;
 
 fn parse_raw<'a>(slab:&'a mut Slab, s:&str) -> Result<ExpressionI, KErr> {
-    Parser::new(None,None).parse(slab,s)
+    Parser::new(None,None).parse(&mut slab.ps,s)
 }
 fn parse<'a>(slab:&'a mut Slab, s:&str) -> ExpressionI { parse_raw(slab,s).unwrap() }
 
 fn ez_eval(s:&str) -> f64 {
     let mut slab = Slab::new();
     let mut ns = EvalNS::new(|_| None);
-    parse(&mut slab, s).from(&slab).eval(&slab, &mut ns).unwrap()
+    parse(&mut slab, s).from(&slab.ps).eval(&slab, &mut ns).unwrap()
 }
 
 fn capture_stderr(f:&dyn Fn()) -> String {
@@ -27,25 +27,25 @@ fn aaa_test_a() {
 
     parse({slab.clear(); &mut slab}, "3");
     assert_eq!(format!("{:?}",&slab),
-"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(3.0)), pairs: [] } }, vals:{} }");
+"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(3.0)), pairs: [] } }, vals:{}, instrs:{} }");
     parse({slab.clear(); &mut slab}, "3.14");
     assert_eq!(format!("{:?}",&slab),
-"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(3.14)), pairs: [] } }, vals:{} }");
+"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(3.14)), pairs: [] } }, vals:{}, instrs:{} }");
     parse({slab.clear(); &mut slab}, "3+5");
     assert_eq!(format!("{:?}",&slab),
-"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(3.0)), pairs: [ExprPair(EPlus, EConstant(Constant(5.0)))] } }, vals:{} }");
+"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(3.0)), pairs: [ExprPair(EPlus, EConstant(Constant(5.0)))] } }, vals:{}, instrs:{} }");
     parse({slab.clear(); &mut slab}, "3-5");
     assert_eq!(format!("{:?}",&slab),
-"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(3.0)), pairs: [ExprPair(EMinus, EConstant(Constant(5.0)))] } }, vals:{} }");
+"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(3.0)), pairs: [ExprPair(EMinus, EConstant(Constant(5.0)))] } }, vals:{}, instrs:{} }");
     parse({slab.clear(); &mut slab}, "3*5");
     assert_eq!(format!("{:?}",&slab),
-"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(3.0)), pairs: [ExprPair(EMul, EConstant(Constant(5.0)))] } }, vals:{} }");
+"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(3.0)), pairs: [ExprPair(EMul, EConstant(Constant(5.0)))] } }, vals:{}, instrs:{} }");
     parse({slab.clear(); &mut slab}, "3/5");
     assert_eq!(format!("{:?}",&slab),
-"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(3.0)), pairs: [ExprPair(EDiv, EConstant(Constant(5.0)))] } }, vals:{} }");
+"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(3.0)), pairs: [ExprPair(EDiv, EConstant(Constant(5.0)))] } }, vals:{}, instrs:{} }");
     parse({slab.clear(); &mut slab}, "3^5");
     assert_eq!(format!("{:?}",&slab),
-"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(3.0)), pairs: [ExprPair(EExp, EConstant(Constant(5.0)))] } }, vals:{} }");
+"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(3.0)), pairs: [ExprPair(EExp, EConstant(Constant(5.0)))] } }, vals:{}, instrs:{} }");
 }
 
 #[test]
@@ -54,22 +54,22 @@ fn aaa_test_b0() {
 
     parse({slab.clear(); &mut slab}, "3.14 + 4.99999999999999");
     assert_eq!(format!("{:?}",&slab),
-"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(3.14)), pairs: [ExprPair(EPlus, EConstant(Constant(4.99999999999999)))] } }, vals:{} }");
+"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(3.14)), pairs: [ExprPair(EPlus, EConstant(Constant(4.99999999999999)))] } }, vals:{}, instrs:{} }");
     parse({slab.clear(); &mut slab}, "3.14 + 4.99999999999999999999999999999999999999999999999999999");
     assert_eq!(format!("{:?}",&slab),
-"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(3.14)), pairs: [ExprPair(EPlus, EConstant(Constant(5.0)))] } }, vals:{} }");
+"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(3.14)), pairs: [ExprPair(EPlus, EConstant(Constant(5.0)))] } }, vals:{}, instrs:{} }");
     // Go can parse this, but not Rust:
     assert_eq!(parse_raw({slab.clear(); &mut slab}, "3.14 + 4.999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999"),
 Err(KErr::new("parse<f64> error")));
     parse({slab.clear(); &mut slab}, "3.14 + 0.9999");
     assert_eq!(format!("{:?}",&slab),
-"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(3.14)), pairs: [ExprPair(EPlus, EConstant(Constant(0.9999)))] } }, vals:{} }");
+"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(3.14)), pairs: [ExprPair(EPlus, EConstant(Constant(0.9999)))] } }, vals:{}, instrs:{} }");
     parse({slab.clear(); &mut slab}, "3.14 + .9999");
     assert_eq!(format!("{:?}",&slab),
-"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(3.14)), pairs: [ExprPair(EPlus, EConstant(Constant(0.9999)))] } }, vals:{} }");
+"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(3.14)), pairs: [ExprPair(EPlus, EConstant(Constant(0.9999)))] } }, vals:{}, instrs:{} }");
     parse({slab.clear(); &mut slab}, "3.14 + 0.");
     assert_eq!(format!("{:?}",&slab),
-"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(3.14)), pairs: [ExprPair(EPlus, EConstant(Constant(0.0)))] } }, vals:{} }");
+"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(3.14)), pairs: [ExprPair(EPlus, EConstant(Constant(0.0)))] } }, vals:{}, instrs:{} }");
 }
 
 #[test]
@@ -96,16 +96,16 @@ fn aaa_test_c0() {
 
     parse({slab.clear(); &mut slab}, "3+5-xyz");
     assert_eq!(format!("{:?}",&slab),
-"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(3.0)), pairs: [ExprPair(EPlus, EConstant(Constant(5.0))), ExprPair(EMinus, EVariable(Variable(`xyz`)))] } }, vals:{} }");
+"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(3.0)), pairs: [ExprPair(EPlus, EConstant(Constant(5.0))), ExprPair(EMinus, EVariable(Variable(`xyz`)))] } }, vals:{}, instrs:{} }");
     parse({slab.clear(); &mut slab}, "3+5-xyz_abc_def123");
     assert_eq!(format!("{:?}",&slab),
-"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(3.0)), pairs: [ExprPair(EPlus, EConstant(Constant(5.0))), ExprPair(EMinus, EVariable(Variable(`xyz_abc_def123`)))] } }, vals:{} }");
+"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(3.0)), pairs: [ExprPair(EPlus, EConstant(Constant(5.0))), ExprPair(EMinus, EVariable(Variable(`xyz_abc_def123`)))] } }, vals:{}, instrs:{} }");
     parse({slab.clear(); &mut slab}, "3+5-XYZ_abc_def123");
     assert_eq!(format!("{:?}",&slab),
-"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(3.0)), pairs: [ExprPair(EPlus, EConstant(Constant(5.0))), ExprPair(EMinus, EVariable(Variable(`XYZ_abc_def123`)))] } }, vals:{} }");
+"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(3.0)), pairs: [ExprPair(EPlus, EConstant(Constant(5.0))), ExprPair(EMinus, EVariable(Variable(`XYZ_abc_def123`)))] } }, vals:{}, instrs:{} }");
     parse({slab.clear(); &mut slab}, "3+5-XYZ_ab*c_def123");
     assert_eq!(format!("{:?}",&slab),
-"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(3.0)), pairs: [ExprPair(EPlus, EConstant(Constant(5.0))), ExprPair(EMinus, EVariable(Variable(`XYZ_ab`))), ExprPair(EMul, EVariable(Variable(`c_def123`)))] } }, vals:{} }");
+"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(3.0)), pairs: [ExprPair(EPlus, EConstant(Constant(5.0))), ExprPair(EMinus, EVariable(Variable(`XYZ_ab`))), ExprPair(EMul, EVariable(Variable(`c_def123`)))] } }, vals:{}, instrs:{} }");
 }
 
 #[test]
@@ -122,16 +122,16 @@ fn aaa_test_d0() {
 
     parse({slab.clear(); &mut slab}, "3+(-5)");
     assert_eq!(format!("{:?}",&slab),
-"Slab{ exprs:{ 0:Expression { first: EUnaryOp(ENeg(ValueI(0))), pairs: [] }, 1:Expression { first: EConstant(Constant(3.0)), pairs: [ExprPair(EPlus, EUnaryOp(EParens(ExpressionI(0))))] } }, vals:{ 0:EConstant(Constant(5.0)) } }");
+"Slab{ exprs:{ 0:Expression { first: EUnaryOp(ENeg(ValueI(0))), pairs: [] }, 1:Expression { first: EConstant(Constant(3.0)), pairs: [ExprPair(EPlus, EUnaryOp(EParens(ExpressionI(0))))] } }, vals:{ 0:EConstant(Constant(5.0)) }, instrs:{} }");
     parse({slab.clear(); &mut slab}, "3+-5");
     assert_eq!(format!("{:?}",&slab),
-"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(3.0)), pairs: [ExprPair(EPlus, EUnaryOp(ENeg(ValueI(0))))] } }, vals:{ 0:EConstant(Constant(5.0)) } }");
+"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(3.0)), pairs: [ExprPair(EPlus, EUnaryOp(ENeg(ValueI(0))))] } }, vals:{ 0:EConstant(Constant(5.0)) }, instrs:{} }");
     parse({slab.clear(); &mut slab}, "3++5");
     assert_eq!(format!("{:?}",&slab),
-"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(3.0)), pairs: [ExprPair(EPlus, EUnaryOp(EPos(ValueI(0))))] } }, vals:{ 0:EConstant(Constant(5.0)) } }");
+"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(3.0)), pairs: [ExprPair(EPlus, EUnaryOp(EPos(ValueI(0))))] } }, vals:{ 0:EConstant(Constant(5.0)) }, instrs:{} }");
     parse({slab.clear(); &mut slab}, " 3 + ( -x + y ) ");
     assert_eq!(format!("{:?}",&slab),
-"Slab{ exprs:{ 0:Expression { first: EUnaryOp(ENeg(ValueI(0))), pairs: [ExprPair(EPlus, EVariable(Variable(`y`)))] }, 1:Expression { first: EConstant(Constant(3.0)), pairs: [ExprPair(EPlus, EUnaryOp(EParens(ExpressionI(0))))] } }, vals:{ 0:EVariable(Variable(`x`)) } }");
+"Slab{ exprs:{ 0:Expression { first: EUnaryOp(ENeg(ValueI(0))), pairs: [ExprPair(EPlus, EVariable(Variable(`y`)))] }, 1:Expression { first: EConstant(Constant(3.0)), pairs: [ExprPair(EPlus, EUnaryOp(EParens(ExpressionI(0))))] } }, vals:{ 0:EVariable(Variable(`x`)) }, instrs:{} }");
 }
 
 #[test]
@@ -192,12 +192,12 @@ fn aaa_test_e() {
 fn aaa_test_f() {
     let mut slab = Slab::new();
 
-    assert_eq!(parse({slab.clear(); &mut slab}, "(x)^(3)").from(&slab).eval(&slab, &mut EvalNS::new(|n| { [("x",2.0)].iter().cloned().collect::<HashMap<&str,f64>>().get(n).cloned() })).unwrap(), 8.0);
-    assert_eq!(parse({slab.clear(); &mut slab}, "(x)^(y)").from(&slab).eval(&slab, &mut EvalNS::new(|n| { [("x",2.0),("y",3.0)].iter().cloned().collect::<HashMap<&str,f64>>().get(n).cloned() })).unwrap(), 8.0);
-    assert_eq!(parse({slab.clear(); &mut slab}, "(x)^(y)").from(&slab).var_names(&slab).unwrap().len(), 2);
-    assert_eq!(parse({slab.clear(); &mut slab}, "1+(x*y/2)^(z)").from(&slab).var_names(&slab).unwrap().len(), 3);
-    assert_eq!(format!("{:?}",parse({slab.clear(); &mut slab}, "1+(x*y/2)^(z)").from(&slab).var_names(&slab).unwrap().iter().collect::<BTreeSet<&String>>()), r#"{"x", "y", "z"}"#);
-    assert_eq!(format!("{:?}",parse({slab.clear(); &mut slab}, "1+(x/y/2)^(z)").from(&slab).var_names(&slab).unwrap().iter().collect::<BTreeSet<&String>>()), r#"{"x", "y", "z"}"#);  // Test a division-by-0 during VariableNames()
+    assert_eq!(parse({slab.clear(); &mut slab}, "(x)^(3)").from(&slab.ps).eval(&slab, &mut EvalNS::new(|n| { [("x",2.0)].iter().cloned().collect::<HashMap<&str,f64>>().get(n).cloned() })).unwrap(), 8.0);
+    assert_eq!(parse({slab.clear(); &mut slab}, "(x)^(y)").from(&slab.ps).eval(&slab, &mut EvalNS::new(|n| { [("x",2.0),("y",3.0)].iter().cloned().collect::<HashMap<&str,f64>>().get(n).cloned() })).unwrap(), 8.0);
+    assert_eq!(parse({slab.clear(); &mut slab}, "(x)^(y)").from(&slab.ps).var_names(&slab).unwrap().len(), 2);
+    assert_eq!(parse({slab.clear(); &mut slab}, "1+(x*y/2)^(z)").from(&slab.ps).var_names(&slab).unwrap().len(), 3);
+    assert_eq!(format!("{:?}",parse({slab.clear(); &mut slab}, "1+(x*y/2)^(z)").from(&slab.ps).var_names(&slab).unwrap().iter().collect::<BTreeSet<&String>>()), r#"{"x", "y", "z"}"#);
+    assert_eq!(format!("{:?}",parse({slab.clear(); &mut slab}, "1+(x/y/2)^(z)").from(&slab.ps).var_names(&slab).unwrap().iter().collect::<BTreeSet<&String>>()), r#"{"x", "y", "z"}"#);  // Test a division-by-0 during VariableNames()
     assert_eq!(format!("{}",ez_eval("1/0")), "inf");  // Test an explicit division-by-0.  Go says "+Inf".
 }
 
@@ -267,7 +267,7 @@ fn aaa_test_k() {
     assert_eq!(ez_eval("eval(one, one=1)"), 1.0);
     assert_eq!(ez_eval("eval(one+one, one=1)"), 2.0);
     assert_eq!(ez_eval("eval(one+one*one/one, one=1)"), 2.0);
-    assert_eq!(format!("{:?}",parse({slab.clear(); &mut slab}, "eval(one+two, one=1)").from(&slab).var_names(&slab).unwrap()), r#"{"two"}"#);
+    assert_eq!(format!("{:?}",parse({slab.clear(); &mut slab}, "eval(one+two, one=1)").from(&slab.ps).var_names(&slab).unwrap()), r#"{"two"}"#);
 
     assert_eq!(parse_raw({slab.clear(); &mut slab}, "eval(one, one=1, one=2)"), Err(KErr::new("already defined: one")));
 
