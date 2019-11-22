@@ -353,6 +353,30 @@ impl Evaler for Instruction {
     fn eval(&self, slab:&Slab, ns:&mut EvalNS) -> Result<f64,KErr> {
         match self {
             Instruction::IConst(c) => Ok(*c),
+            Instruction::IVar(v) => v.eval(slab,ns),
+
+            Instruction::INeg(i) => Ok(-slab.cs.get_instr(*i).eval(slab,ns)?),
+            Instruction::INot(i) => Ok(bool_to_f64(slab.cs.get_instr(*i).eval(slab,ns)?==0.0)),
+            Instruction::IInv(i) => Ok(1.0/slab.cs.get_instr(*i).eval(slab,ns)?),
+
+            Instruction::IAdd(is) => {
+                let mut sum = 0.0;
+                for i in is {
+                    sum += slab.cs.get_instr(*i).eval(slab,ns)?;
+                }
+                Ok(sum)
+            }
+            Instruction::IMul(is) => {
+                let mut prod = 1.0;
+                for i in is {
+                    prod *= slab.cs.get_instr(*i).eval(slab,ns)?;
+                }
+                Ok(prod)
+            }
+
+            Instruction::IMod{dividend, divisor} => Ok( slab.cs.get_instr(*dividend).eval(slab,ns)? %
+                                                        slab.cs.get_instr(*divisor).eval(slab,ns)? ),
+
             _ => todo!(),
         }
     }

@@ -1,5 +1,5 @@
-use al::{Parser, Compiler, Evaler, Slab, EvalNS, ExpressionI, InstructionI};
-use al::compiler::Instruction::{IConst};
+use al::{Parser, Compiler, Evaler, Slab, EvalNS, ExpressionI, InstructionI, Variable};
+use al::compiler::Instruction::{self, IConst, IVar, INeg, INot, IInv, IAdd, IMul, IMod};
 use kerr::KErr;
 
 #[test]
@@ -27,5 +27,98 @@ fn basics() {
 "Slab{ exprs:{ 0:Expression { first: EConstant(Constant(3.0)), pairs: [ExprPair(EMul, EConstant(Constant(3.0))), ExprPair(EMinus, EConstant(Constant(3.0))), ExprPair(EDiv, EConstant(Constant(3.0))), ExprPair(EPlus, EConstant(Constant(1.0)))] } }, vals:{}, instrs:{} }");
     assert_eq!(instr.eval(&slab, &mut ns), Ok(9.0));
     assert_eq!(instr.eval(&slab, &mut ns), Ok(9.0));
+}
+
+
+fn comp(expr_str:&str) -> (Slab, Instruction) {
+    let p = Parser::new(None,None);
+    let mut slab = Slab::new();
+    let instr = p.parse(&mut slab.ps, expr_str).unwrap().from(&slab.ps).compile(&slab.ps, &mut slab.cs);
+    (slab, instr)
+}
+
+fn comp_chk(expr_str:&str, expect_instr:Instruction, expect_fmt:&str, expect_eval:f64) {
+    let p = Parser::new(None,None);
+    let mut slab = Slab::new();
+    let expr = p.parse(&mut slab.ps, expr_str).unwrap().from(&slab.ps);
+    let instr = expr.compile(&slab.ps, &mut slab.cs);
+
+    assert_eq!(instr, expect_instr);
+    assert_eq!(format!("{:?}",slab.cs), expect_fmt);
+    let mut ns = EvalNS::new(|n| match n {
+        "x" => Some(1.0),
+        "y" => Some(2.0),
+        "z" => Some(3.0),
+        _ => None,
+    });
+    assert_eq!(instr.eval(&slab, &mut ns).unwrap(), expect_eval);
+
+    // Make sure Instruction eval matches normal eval:
+    assert_eq!(instr.eval(&slab, &mut ns).unwrap(), expr.eval(&slab, &mut ns).unwrap());
+}
+
+#[test]
+fn double_neg() {
+    assert_eq!(comp("1+1.5").1, IConst(2.5));
+    assert_eq!(comp("-1.5").1, IConst(-1.5));
+    assert_eq!(comp("--1.5").1, IConst(1.5));
+    assert_eq!(comp("1 + -1.5").1, IConst(-0.5));
+    assert_eq!(comp("1 + --1.5").1, IConst(2.5));
+    assert_eq!(comp("1 + ----1.5").1, IConst(2.5));
+    assert_eq!(comp("1 - ----1.5").1, IConst(-0.5));
+
+    assert_eq!(comp("x").1, IVar(Variable("x".to_string())));
+
+    comp_chk("1-1", IConst(0.0), "CompileSlab { instrs: [] }", 0.0);
+    comp_chk("1 + x", IAdd(vec![InstructionI(0), InstructionI(1)]), "CompileSlab { instrs: [IVar(Variable(`x`)), IConst(1.0)] }", 2.0);
+    comp_chk("x + 1", IAdd(vec![InstructionI(0), InstructionI(1)]), "CompileSlab { instrs: [IVar(Variable(`x`)), IConst(1.0)] }", 2.0);
+    comp_chk("0.5 + x + 0.5", IAdd(vec![InstructionI(0), InstructionI(1)]), "CompileSlab { instrs: [IVar(Variable(`x`)), IConst(1.0)] }", 2.0);
+    comp_chk("0.5 - x - 0.5", INeg(InstructionI(0)), "CompileSlab { instrs: [IVar(Variable(`x`))] }", -1.0);
+    comp_chk("0.5 - -x - 0.5", IVar(Variable("x".to_string())), "CompileSlab { instrs: [] }", 1.0);
+    comp_chk("0.5 - --x - 1.5", IAdd(vec![InstructionI(1), InstructionI(2)]), "CompileSlab { instrs: [IVar(Variable(`x`)), INeg(InstructionI(0)), IConst(-1.0)] }", -2.0);
+    comp_chk("0.5 - ---x - 1.5", IAdd(vec![InstructionI(0), InstructionI(1)]), "CompileSlab { instrs: [IVar(Variable(`x`)), IConst(-1.0)] }", 0.0);
+    comp_chk("0.5 - (---x) - 1.5", IAdd(vec![InstructionI(0), InstructionI(1)]), "CompileSlab { instrs: [IVar(Variable(`x`)), IConst(-1.0)] }", 0.0);
+    comp_chk("0.5 - -(--x) - 1.5", IAdd(vec![InstructionI(0), InstructionI(1)]), "CompileSlab { instrs: [IVar(Variable(`x`)), IConst(-1.0)] }", 0.0);
+    comp_chk("0.5 - --(-x) - 1.5", IAdd(vec![InstructionI(0), InstructionI(1)]), "CompileSlab { instrs: [IVar(Variable(`x`)), IConst(-1.0)] }", 0.0);
+    comp_chk("0.5 - --(-x - 1.5)", IAdd(vec![InstructionI(4), InstructionI(5)]), "CompileSlab { instrs: [IVar(Variable(`x`)), INeg(InstructionI(0)), IConst(-1.5), IAdd([InstructionI(1), InstructionI(2)]), INeg(InstructionI(3)), IConst(0.5)] }", 3.0);
+    comp_chk("0.5 - --((((-(x)) - 1.5)))", IAdd(vec![InstructionI(4), InstructionI(5)]), "CompileSlab { instrs: [IVar(Variable(`x`)), INeg(InstructionI(0)), IConst(-1.5), IAdd([InstructionI(1), InstructionI(2)]), INeg(InstructionI(3)), IConst(0.5)] }", 3.0);
+    comp_chk("0.5 - -(-(--((((-(x)) - 1.5)))))", IAdd(vec![InstructionI(4), InstructionI(5)]), "CompileSlab { instrs: [IVar(Variable(`x`)), INeg(InstructionI(0)), IConst(-1.5), IAdd([InstructionI(1), InstructionI(2)]), INeg(InstructionI(3)), IConst(0.5)] }", 3.0);
+}
+
+#[test]
+fn all_instrs() {
+    // IConst:
+    comp_chk("1", IConst(1.0), "CompileSlab { instrs: [] }", 1.0);
+    comp_chk("-1", IConst(-1.0), "CompileSlab { instrs: [] }", -1.0);
+
+    // IVar:
+    comp_chk("x", IVar(Variable("x".to_string())), "CompileSlab { instrs: [] }", 1.0);
+
+    // INeg:
+    comp_chk("-x", INeg(InstructionI(0)), "CompileSlab { instrs: [IVar(Variable(`x`))] }", -1.0);
+
+    // INot:
+    comp_chk("!x", INot(InstructionI(0)), "CompileSlab { instrs: [IVar(Variable(`x`))] }", 0.0);
+
+    // IInv:
+    comp_chk("1/x", IInv(InstructionI(0)), "CompileSlab { instrs: [IVar(Variable(`x`))] }", 1.0);
+    
+    // IAdd:
+    comp_chk("1 + x", IAdd(vec![InstructionI(0), InstructionI(1)]), "CompileSlab { instrs: [IVar(Variable(`x`)), IConst(1.0)] }", 2.0);
+    comp_chk("1 - x", IAdd(vec![InstructionI(1), InstructionI(2)]), "CompileSlab { instrs: [IVar(Variable(`x`)), INeg(InstructionI(0)), IConst(1.0)] }", 0.0);
+
+    // IMul:
+    comp_chk("2 * x", IMul(vec![InstructionI(0), InstructionI(1)]), "CompileSlab { instrs: [IVar(Variable(`x`)), IConst(2.0)] }", 2.0);
+    comp_chk("x * 2", IMul(vec![InstructionI(0), InstructionI(1)]), "CompileSlab { instrs: [IVar(Variable(`x`)), IConst(2.0)] }", 2.0);
+    comp_chk("x / 2", IMul(vec![InstructionI(0), InstructionI(1)]), "CompileSlab { instrs: [IVar(Variable(`x`)), IConst(0.5)] }", 0.5);
+
+    // IMod:
+    comp_chk("8 % 3", IConst(2.0), "CompileSlab { instrs: [] }", 2.0);
+    comp_chk("8 % z", IMod { dividend: InstructionI(0), divisor: InstructionI(1) }, "CompileSlab { instrs: [IConst(8.0), IVar(Variable(`z`))] }", 2.0);
+    comp_chk("-8 % 3", IConst(-2.0), "CompileSlab { instrs: [] }", -2.0);
+    comp_chk("8 % -3", IConst(2.0), "CompileSlab { instrs: [] }", 2.0);
+    comp_chk("-8 % z", IMod { dividend: InstructionI(0), divisor: InstructionI(1) }, "CompileSlab { instrs: [IConst(-8.0), IVar(Variable(`z`))] }", -2.0);
+    comp_chk("8 % -z", IMod { dividend: InstructionI(1), divisor: InstructionI(2) }, "CompileSlab { instrs: [IVar(Variable(`z`)), IConst(8.0), INeg(InstructionI(0))] }", 2.0);
+    
 }
 

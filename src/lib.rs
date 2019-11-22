@@ -21,7 +21,7 @@ pub mod display;
 pub mod ez;
 
 pub use self::slab::Slab;
-pub use self::parser::{Parser, Expression, ExpressionI, Value, ValueI};
+pub use self::parser::{Parser, Expression, ExpressionI, Value, ValueI, Variable};
 pub use self::compiler::{Compiler, Instruction, InstructionI};
 pub use self::evalns::EvalNS;
 pub use self::evaler::Evaler;

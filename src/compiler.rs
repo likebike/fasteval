@@ -23,7 +23,7 @@ pub enum Instruction {
     // A Sub(x) is converted to an Add(Neg(x)).
     IMul(Vec<InstructionI>),
     // A Div(n,d) is converted to a Mul(n,Inv(d)).
-    IMod{num:InstructionI, den:InstructionI},
+    IMod{dividend:InstructionI, divisor:InstructionI},
     IExp{base:InstructionI, pow:InstructionI},
 
     //---- Binary Comparison Ops:
@@ -113,12 +113,18 @@ impl<'s> ExprSlice<'s> {
 }
 
 fn neg_wrap(instr:Instruction, cslab:&mut CompileSlab) -> Instruction {
-    if let INeg(i) = instr { todo!(); }
-    INeg(cslab.push_instr(instr))
+    if let INeg(i) = instr {
+        cslab.take_instr(i)
+    } else {
+        INeg(cslab.push_instr(instr))
+    }
 }
 fn not_wrap(instr:Instruction, cslab:&mut CompileSlab) -> Instruction {
-    if let INot(i) = instr { todo!(); }
-    INot(cslab.push_instr(instr))
+    if let INot(i) = instr {
+        cslab.take_instr(i)
+    } else {
+        INot(cslab.push_instr(instr))
+    }
 }
 impl Compiler for ExprSlice<'_> {
     fn compile(&self, pslab:&ParseSlab, cslab:&mut CompileSlab) -> Instruction {
@@ -253,7 +259,19 @@ impl Compiler for ExprSlice<'_> {
                 }
                 IMul(instris)
             }
-            BinaryOp::EMod => todo!(),
+            BinaryOp::EMod => {
+                let mut xss = Vec::<ExprSlice>::with_capacity(2);
+                self.split(BinaryOp::EMod, &mut xss);
+                if xss.len()!=2 { unreachable!(); }
+                let divisor = xss.pop().unwrap().compile(pslab, cslab);
+                let dividend = xss.pop().unwrap().compile(pslab, cslab);
+                if let IConst(dr) = divisor {       // let_chains aren't working yet.
+                    if let IConst(dd) = dividend {  //
+                        return IConst(dd%dr);
+                    }
+                }
+                return IMod{dividend:cslab.push_instr(dividend), divisor:cslab.push_instr(divisor)};
+            }
             BinaryOp::EExp => todo!(),
         }
     }

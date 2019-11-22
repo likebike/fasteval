@@ -1,9 +1,10 @@
 use crate::parser::{ExpressionI, ValueI,
                     Expression,  Value};
-use crate::compiler::{Instruction, InstructionI};
+use crate::compiler::{Instruction::{self, IConst}, InstructionI};
 
 use kerr::KErr;
 use std::fmt;
+use std::mem;
 
 impl ExpressionI {
     #[inline]
@@ -18,10 +19,12 @@ impl ValueI {
     }
 }
 
+#[derive(Debug)]
 pub struct ParseSlab {
     exprs:Vec<Expression>,
     vals: Vec<Value>,
 }
+#[derive(Debug)]
 pub struct CompileSlab {
     instrs:Vec<Instruction>,
 }
@@ -55,15 +58,23 @@ impl ParseSlab {
 }
 impl CompileSlab {
     #[inline]
-    pub fn get_instr(&self, instr_i:InstructionI) -> &Instruction {
-        &self.instrs[instr_i.0]
+    pub fn get_instr(&self, i:InstructionI) -> &Instruction {
+        &self.instrs[i.0]
     }
     #[inline]
-    pub fn push_instr(&mut self, inst:Instruction) -> InstructionI {
+    pub fn push_instr(&mut self, instr:Instruction) -> InstructionI {
         if self.instrs.capacity()==0 { self.instrs.reserve(32); }
         let i = self.instrs.len();
-        self.instrs.push(inst);
+        self.instrs.push(instr);
         InstructionI(i)
+    }
+    #[inline]
+    pub fn take_instr(&mut self, i:InstructionI) -> Instruction {
+        if i.0==self.instrs.len()-1 {
+            self.instrs.pop().unwrap()
+        } else {
+            mem::replace(&mut self.instrs[i.0], IConst(-888743.888888))  // Conspicuous Value
+        }
     }
 }
 impl Slab {
