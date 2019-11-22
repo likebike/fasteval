@@ -376,6 +376,11 @@ impl Evaler for Instruction {
 
             Instruction::IMod{dividend, divisor} => Ok( slab.cs.get_instr(*dividend).eval(slab,ns)? %
                                                         slab.cs.get_instr(*divisor).eval(slab,ns)? ),
+            Instruction::IExp{base, power} => Ok( slab.cs.get_instr(*base).eval(slab,ns)?.powf( 
+                                                  slab.cs.get_instr(*power).eval(slab,ns)? ) ),
+
+            Instruction::ILT(left, right) => Ok( bool_to_f64(slab.cs.get_instr(*left).eval(slab,ns)?<
+                                                             slab.cs.get_instr(*right).eval(slab,ns)?) ),
 
             _ => todo!(),
         }

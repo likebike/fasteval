@@ -1,5 +1,5 @@
 use al::{Parser, Compiler, Evaler, Slab, EvalNS, ExpressionI, InstructionI, Variable};
-use al::compiler::Instruction::{self, IConst, IVar, INeg, INot, IInv, IAdd, IMul, IMod};
+use al::compiler::Instruction::{self, IConst, IVar, INeg, INot, IInv, IAdd, IMul, IMod, IExp, ILT};
 use kerr::KErr;
 
 #[test]
@@ -119,6 +119,18 @@ fn all_instrs() {
     comp_chk("8 % -3", IConst(2.0), "CompileSlab { instrs: [] }", 2.0);
     comp_chk("-8 % z", IMod { dividend: InstructionI(0), divisor: InstructionI(1) }, "CompileSlab { instrs: [IConst(-8.0), IVar(Variable(`z`))] }", -2.0);
     comp_chk("8 % -z", IMod { dividend: InstructionI(1), divisor: InstructionI(2) }, "CompileSlab { instrs: [IVar(Variable(`z`)), IConst(8.0), INeg(InstructionI(0))] }", 2.0);
+
+    // IExp:
+    comp_chk("2 ^ 3", IConst(8.0), "CompileSlab { instrs: [] }", 8.0);
+    comp_chk("2 ^ z", IExp { base: InstructionI(0), power: InstructionI(1) }, "CompileSlab { instrs: [IConst(2.0), IVar(Variable(`z`))] }", 8.0);
+    comp_chk("4 ^ 0.5", IConst(2.0), "CompileSlab { instrs: [] }", 2.0);
+    comp_chk("2 ^ 0.5", IConst(1.4142135623730951), "CompileSlab { instrs: [] }", 1.4142135623730951);
+    //comp_chk("-4 ^ 0.5", IConst(std::f64::NAN), "CompileSlab { instrs: [] }", std::f64::NAN);
+    comp_chk("y ^ 0.5", IExp { base: InstructionI(0), power: InstructionI(1) }, "CompileSlab { instrs: [IVar(Variable(`y`)), IConst(0.5)] }", 1.4142135623730951);
     
+    // ILT:
+    comp_chk("2 < 3", IConst(1.0), "CompileSlab { instrs: [] }", 1.0);
+    comp_chk("2 < z", ILT(InstructionI(0), InstructionI(1)), "CompileSlab { instrs: [IConst(2.0), IVar(Variable(`z`))] }", 1.0);
+        
 }
 

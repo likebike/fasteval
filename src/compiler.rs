@@ -24,7 +24,7 @@ pub enum Instruction {
     IMul(Vec<InstructionI>),
     // A Div(n,d) is converted to a Mul(n,Inv(d)).
     IMod{dividend:InstructionI, divisor:InstructionI},
-    IExp{base:InstructionI, pow:InstructionI},
+    IExp{base:InstructionI, power:InstructionI},
 
     //---- Binary Comparison Ops:
     ILT(InstructionI, InstructionI),
@@ -146,7 +146,19 @@ impl Compiler for ExprSlice<'_> {
             BinaryOp::EGTE => todo!(),
             BinaryOp::ELTE => todo!(),
             BinaryOp::EGT => todo!(),
-            BinaryOp::ELT => todo!(),
+            BinaryOp::ELT => {
+                let mut xss = Vec::<ExprSlice>::with_capacity(2);
+                self.split(BinaryOp::ELT, &mut xss);
+                if xss.len()!=2 { unreachable!(); }
+                let right = xss.pop().unwrap().compile(pslab, cslab);
+                let left = xss.pop().unwrap().compile(pslab, cslab);
+                if let IConst(r) = right {
+                    if let IConst(l) = left {
+                        return IConst(bool_to_f64(l<r));
+                    }
+                }
+                ILT(cslab.push_instr(left), cslab.push_instr(right))
+            }
             BinaryOp::EPlus => {
                 let mut xss = Vec::<ExprSlice>::with_capacity(8);
                 self.split(BinaryOp::EPlus, &mut xss);
@@ -270,9 +282,21 @@ impl Compiler for ExprSlice<'_> {
                         return IConst(dd%dr);
                     }
                 }
-                return IMod{dividend:cslab.push_instr(dividend), divisor:cslab.push_instr(divisor)};
+                IMod{dividend:cslab.push_instr(dividend), divisor:cslab.push_instr(divisor)}
             }
-            BinaryOp::EExp => todo!(),
+            BinaryOp::EExp => {
+                let mut xss = Vec::<ExprSlice>::with_capacity(2);
+                self.split(BinaryOp::EExp, &mut xss);
+                if xss.len()!=2 { unreachable!(); }
+                let power = xss.pop().unwrap().compile(pslab, cslab);
+                let base = xss.pop().unwrap().compile(pslab, cslab);
+                if let IConst(p) = power {     // let_chains aren't working yet.
+                    if let IConst(b) = base {  //
+                        return IConst(b.powf(p));
+                    }
+                }
+                IExp{base:cslab.push_instr(base), power:cslab.push_instr(power)}
+            }
         }
     }
 }
