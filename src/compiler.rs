@@ -1,5 +1,5 @@
 use crate::slab::{ParseSlab, CompileSlab};
-use crate::parser::{Expression, ExprPair, Value, Variable, UnaryOp, BinaryOp};
+use crate::parser::{Expression, ExprPair, Value, Variable, UnaryOp, BinaryOp::{self, EOR, EAND, ENE, EEQ, EGTE, ELTE, EGT, ELT, EPlus, EMinus, EMul, EDiv, EMod, EExp}};
 use crate::evaler::bool_to_f64;
 
 #[derive(Debug, PartialEq, Copy, Clone)]
@@ -19,9 +19,9 @@ pub enum Instruction {
     IInv(InstructionI),
 
     //---- Binary Math Ops:
-    IAdd(Vec<InstructionI>),
+    IAdd(InstructionI, InstructionI),
     // A Sub(x) is converted to an Add(Neg(x)).
-    IMul(Vec<InstructionI>),
+    IMul(InstructionI, InstructionI),
     // A Div(n,d) is converted to a Mul(n,Inv(d)).
     IMod{dividend:InstructionI, divisor:InstructionI},
     IExp{base:InstructionI, power:InstructionI},
@@ -35,8 +35,8 @@ pub enum Instruction {
     IGT(InstructionI, InstructionI),
 
     //---- Binary Logic Ops:
-    IOR(Vec<InstructionI>),
-    IAND(Vec<InstructionI>),
+    IOR(InstructionI, InstructionI),
+    IAND(InstructionI, InstructionI),
 
     //---- Callables:
     IFuncInt(InstructionI),
@@ -45,8 +45,8 @@ pub enum Instruction {
     IFuncAbs(InstructionI),
     IFuncLog{base:InstructionI, of:InstructionI},
     IFuncRound{modulus:InstructionI, of:InstructionI},
-    IFuncMin(Vec<InstructionI>),
-    IFuncMax(Vec<InstructionI>),
+    IFuncMin(InstructionI, InstructionI),
+    IFuncMax(InstructionI, InstructionI),
     IFuncSin(InstructionI),
     IFuncCos(InstructionI),
     IFuncTan(InstructionI),
@@ -110,6 +110,19 @@ impl<'s> ExprSlice<'s> {
             }
         }
     }
+    fn split_multi(&self, search:&[BinaryOp], xsdst:&mut Vec<ExprSlice<'s>>, opdst:&mut Vec<&'s BinaryOp>) {
+        xsdst.push(ExprSlice::new(&self.first));
+        let mut cur = xsdst.last_mut().unwrap();
+        for exprpair in self.pairs.iter() {
+            if search.contains(&exprpair.0) {
+                xsdst.push(ExprSlice::new(&exprpair.1));
+                opdst.push(&exprpair.0);
+                cur = xsdst.last_mut().unwrap();
+            } else {
+                cur.pairs.push(exprpair);
+            }
+        }
+    }
 }
 
 fn neg_wrap(instr:Instruction, cslab:&mut CompileSlab) -> Instruction {
@@ -126,8 +139,30 @@ fn not_wrap(instr:Instruction, cslab:&mut CompileSlab) -> Instruction {
         INot(cslab.push_instr(instr))
     }
 }
+fn inv_wrap(instr:Instruction, cslab:&mut CompileSlab) -> Instruction {
+    if let IInv(i) = instr {
+        cslab.take_instr(i)
+    } else {
+        IInv(cslab.push_instr(instr))
+    }
+}
 impl Compiler for ExprSlice<'_> {
     fn compile(&self, pslab:&ParseSlab, cslab:&mut CompileSlab) -> Instruction {
+        // Associative:  (2+3)+4 = 2+(3+4)
+        // Commutative:  1+2 = 2+1
+        //
+        //          Only         Only
+        // Neither  Associative  Commutative  Both
+        // -------  -----------  -----------  ----
+        // GTE      (none)       (none)       OR
+        // LTE                                AND
+        // GT                                 NE
+        // LT                                 EQ
+        // Minus (opt with neg & add)         Plus
+        // Div (opt with inv & mul)           Mul
+        // Mod
+        // Exp (opt exponent with mul)
+
         if self.pairs.len()==0 {
             return self.first.compile(pslab, cslab);
         }
@@ -138,54 +173,145 @@ impl Compiler for ExprSlice<'_> {
             if exprpair.0<lowest_op { lowest_op=exprpair.0 }
         }
 
-        match lowest_op {
-            BinaryOp::EOR => todo!(),
-            BinaryOp::EAND => todo!(),
-            BinaryOp::ENE => todo!(),
-            BinaryOp::EEQ => todo!(),
-            BinaryOp::EGTE => todo!(),
-            BinaryOp::ELTE => todo!(),
-            BinaryOp::EGT => todo!(),
-            BinaryOp::ELT => {
-                let mut xss = Vec::<ExprSlice>::with_capacity(2);
-                self.split(BinaryOp::ELT, &mut xss);
-                if xss.len()!=2 { unreachable!(); }
-                let right = xss.pop().unwrap().compile(pslab, cslab);
-                let left = xss.pop().unwrap().compile(pslab, cslab);
-                if let IConst(r) = right {
-                    if let IConst(l) = left {
-                        return IConst(bool_to_f64(l<r));
+        // All comparisons have equal precedence:
+        if lowest_op==ELT || lowest_op==EGT || lowest_op==ELTE || lowest_op==EGTE {
+            let mut ops = Vec::<&BinaryOp>::with_capacity(4);
+            let mut xss = Vec::<ExprSlice>::with_capacity(ops.len()+1);
+            self.split_multi(&[ELT, EGT, ELTE, EGTE], &mut xss, &mut ops);
+            let mut out = xss[0].compile(pslab, cslab);
+            for i in 0..ops.len() {
+                let op = ops[i];
+                let instr = xss[i+1].compile(pslab, cslab);
+                if let IConst(l) = out {
+                    if let IConst(r) = instr {
+                        out = match op {
+                            ELT => IConst(bool_to_f64(l<r)),
+                            EGT => IConst(bool_to_f64(l>r)),
+                            ELTE => IConst(bool_to_f64(l<=r)),
+                            EGTE => IConst(bool_to_f64(l>=r)),
+                            _ => unreachable!(),
+                        };
+                        continue;
                     }
                 }
-                ILT(cslab.push_instr(left), cslab.push_instr(right))
+                out = match op {
+                    ELT => ILT(cslab.push_instr(out), cslab.push_instr(instr)),
+                    EGT => IGT(cslab.push_instr(out), cslab.push_instr(instr)),
+                    ELTE => ILTE(cslab.push_instr(out), cslab.push_instr(instr)),
+                    EGTE => IGTE(cslab.push_instr(out), cslab.push_instr(instr)),
+                    _ => unreachable!(),
+                }
             }
-            BinaryOp::EPlus => {
-                let mut xss = Vec::<ExprSlice>::with_capacity(8);
-                self.split(BinaryOp::EPlus, &mut xss);
-                let mut instrs = Vec::<Instruction>::with_capacity(xss.len());
+            return out;
+        }
+
+        // EQ and NE have equal precedence:
+        if lowest_op==EEQ || lowest_op==ENE {
+            let mut ops = Vec::<&BinaryOp>::with_capacity(4);
+            let mut xss = Vec::<ExprSlice>::with_capacity(ops.len()+1);
+            self.split_multi(&[EEQ, ENE], &mut xss, &mut ops);
+            let mut out = xss[0].compile(pslab, cslab);
+            for i in 0..ops.len() {
+                let op = ops[i];
+                let instr = xss[i+1].compile(pslab, cslab);
+                if let IConst(l) = out {
+                    if let IConst(r) = instr {
+                        out = match op {
+                            EEQ => IConst(bool_to_f64(l==r)),
+                            ENE => IConst(bool_to_f64(l!=r)),
+                            _ => unreachable!(),
+                        };
+                        continue;
+                    }
+                }
+                out = match op {
+                    EEQ => IEQ(cslab.push_instr(out), cslab.push_instr(instr)),
+                    ENE => INE(cslab.push_instr(out), cslab.push_instr(instr)),
+                    _ => unreachable!(),
+                }
+            }
+            return out;
+        }
+
+        match lowest_op {
+            EOR => {
+                let mut xss = Vec::<ExprSlice>::with_capacity(4);
+                self.split(EOR, &mut xss);
+                let mut out = IConst(0.0); let mut out_set = false;
+                for xs in xss.iter() {
+                    let instr = xs.compile(pslab, cslab);
+                    if out_set {
+                        out = IOR(cslab.push_instr(out), cslab.push_instr(instr));
+                    } else {
+                        if let IConst(c) = instr {
+                            if c!=0.0 { return instr; }
+                            // out = instr;     // Skip this 0 value (mostly so I don't complicate my logic in 'if out_set').
+                            // out_set = true;
+                        } else {
+                            out = instr;
+                            out_set = true;
+                        }
+                    }
+                }
+                out
+            }
+            EAND => {
+                let mut xss = Vec::<ExprSlice>::with_capacity(4);
+                self.split(EAND, &mut xss);
+                let mut out = IConst(1.0); let mut out_set = false;
+                for xs in xss.iter() {
+                    let instr = xs.compile(pslab, cslab);
+                    if instr == IConst(0.0) { return instr; }
+                    if out_set {
+                        if let IConst(_) = out {
+                            out = instr;
+                        } else {
+                            out = IAND(cslab.push_instr(out), cslab.push_instr(instr));
+                        }
+                    } else {
+                        out = instr;
+                        out_set = true;
+                    }
+                }
+                out
+            }
+            ENE => unreachable!(),
+            EEQ => unreachable!(),
+            EGTE => unreachable!(),
+            ELTE => unreachable!(),
+            EGT => unreachable!(),
+            ELT => unreachable!(),
+            EPlus => {
+                let mut xss = Vec::<ExprSlice>::with_capacity(4);
+                self.split(EPlus, &mut xss);
+                let mut out = IConst(0.0); let mut out_set = false;
                 let mut const_sum = 0.0;
                 for xs in xss.iter() {
                     let instr = xs.compile(pslab, cslab);
                     if let IConst(c) = instr {
                         const_sum += c;
                     } else {
-                        instrs.push(instr);
+                        if out_set {
+                            out = IAdd(cslab.push_instr(out), cslab.push_instr(instr));
+                        } else {
+                            out = instr;
+                            out_set = true;
+                        }
                     }
                 }
-                if const_sum!=0.0 { instrs.push(IConst(const_sum)); }
-                
-                if instrs.len()==0 { return IConst(0.0); }
-                if instrs.len()==1 { return instrs.pop().unwrap(); }
-                let mut instris = Vec::<InstructionI>::with_capacity(instrs.len());
-                for instr in instrs.into_iter() {
-                    instris.push(cslab.push_instr(instr));
+                if const_sum!=0.0 {
+                    if out_set {
+                        out = IAdd(cslab.push_instr(out), cslab.push_instr(IConst(const_sum)));
+                    } else {
+                        out = IConst(const_sum);
+                    }
                 }
-                IAdd(instris)
+                out
             }
-            BinaryOp::EMinus => {
-                let mut xss = Vec::<ExprSlice>::with_capacity(8);
-                self.split(BinaryOp::EMinus, &mut xss);
-                let mut instrs = Vec::<Instruction>::with_capacity(xss.len());
+            EMinus => {
+                let mut xss = Vec::<ExprSlice>::with_capacity(4);
+                self.split(EMinus, &mut xss);
+                let mut out = IConst(0.0); let mut out_set = false;
                 let mut const_sum = 0.0;
                 let mut is_first = true;
                 for xs in xss.iter() {
@@ -198,50 +324,64 @@ impl Compiler for ExprSlice<'_> {
                         }
                     } else {
                         if is_first {
-                            instrs.push(instr);
+                            if out_set {
+                                out = IAdd(cslab.push_instr(out), cslab.push_instr(instr));
+                            } else {
+                                out = instr;
+                                out_set = true;
+                            }
                         } else {
-                            instrs.push(neg_wrap(instr,cslab));
+                            let instr = neg_wrap(instr,cslab);
+                            if out_set {
+                                out = IAdd(cslab.push_instr(out), cslab.push_instr(instr));
+                            } else {
+                                out = instr;
+                                out_set = true;
+                            }
                         }
                     }
                     is_first = false;
                 }
-                if const_sum!=0.0 { instrs.push(IConst(const_sum)); }
-
-                if instrs.len()==0 { return IConst(0.0); }
-                if instrs.len()==1 { return instrs.pop().unwrap(); }
-                let mut instris = Vec::<InstructionI>::with_capacity(instrs.len());
-                for instr in instrs.into_iter() {
-                    instris.push(cslab.push_instr(instr));
+                if const_sum!=0.0 {
+                    if out_set {
+                        out = IAdd(cslab.push_instr(out), cslab.push_instr(IConst(const_sum)));
+                    } else {
+                        out = IConst(const_sum);
+                    }
                 }
-                IAdd(instris)
+                out
             }
-            BinaryOp::EMul => {
-                let mut xss = Vec::<ExprSlice>::with_capacity(8);
-                self.split(BinaryOp::EMul, &mut xss);
-                let mut instrs = Vec::<Instruction>::with_capacity(xss.len());
+            EMul => {
+                let mut xss = Vec::<ExprSlice>::with_capacity(4);
+                self.split(EMul, &mut xss);
+                let mut out = IConst(1.0); let mut out_set = false;
                 let mut const_prod = 1.0;
                 for xs in xss.iter() {
                     let instr = xs.compile(pslab, cslab);
                     if let IConst(c) = instr {
                         const_prod *= c;
                     } else {
-                        instrs.push(instr);
+                        if out_set {
+                            out = IMul(cslab.push_instr(out), cslab.push_instr(instr));
+                        } else {
+                            out = instr;
+                            out_set = true;
+                        }
                     }
                 }
-                if const_prod!=1.0 { instrs.push(IConst(const_prod)); }
-
-                if instrs.len()==0 { return IConst(1.0); }
-                if instrs.len()==1 { return instrs.pop().unwrap(); }
-                let mut instris = Vec::<InstructionI>::with_capacity(instrs.len());
-                for instr in instrs.into_iter() {
-                    instris.push(cslab.push_instr(instr));
+                if const_prod!=1.0 {
+                    if out_set {
+                        out = IMul(cslab.push_instr(out), cslab.push_instr(IConst(const_prod)));
+                    } else {
+                        out = IConst(const_prod);
+                    }
                 }
-                IMul(instris)
+                out
             }
-            BinaryOp::EDiv => {
-                let mut xss = Vec::<ExprSlice>::with_capacity(8);
-                self.split(BinaryOp::EDiv, &mut xss);
-                let mut instrs = Vec::<Instruction>::with_capacity(xss.len());
+            EDiv => {
+                let mut xss = Vec::<ExprSlice>::with_capacity(4);
+                self.split(EDiv, &mut xss);
+                let mut out = IConst(1.0); let mut out_set = false;
                 let mut const_prod = 1.0;
                 let mut is_first = true;
                 for xs in xss.iter() {
@@ -254,26 +394,36 @@ impl Compiler for ExprSlice<'_> {
                         }
                     } else {
                         if is_first {
-                            instrs.push(instr);
+                            if out_set {
+                                out = IMul(cslab.push_instr(out), cslab.push_instr(instr));
+                            } else {
+                                out = instr;
+                                out_set = true;
+                            }
                         } else {
-                            instrs.push(IInv(cslab.push_instr(instr)));
+                            let instr = inv_wrap(instr,cslab);
+                            if out_set {
+                                out = IMul(cslab.push_instr(out), cslab.push_instr(instr));
+                            } else {
+                                out = instr;
+                                out_set = true;
+                            }
                         }
                     }
                     is_first = false;
                 }
-                if const_prod!=1.0 { instrs.push(IConst(const_prod)); }
-
-                if instrs.len()==0 { return IConst(1.0); }
-                if instrs.len()==1 { return instrs.pop().unwrap(); }
-                let mut instris = Vec::<InstructionI>::with_capacity(instrs.len());
-                for instr in instrs.into_iter() {
-                    instris.push(cslab.push_instr(instr));
+                if const_prod!=1.0 {
+                    if out_set {
+                        out = IMul(cslab.push_instr(out), cslab.push_instr(IConst(const_prod)));
+                    } else {
+                        out = IConst(const_prod);
+                    }
                 }
-                IMul(instris)
+                out
             }
-            BinaryOp::EMod => {
+            EMod => {
                 let mut xss = Vec::<ExprSlice>::with_capacity(2);
-                self.split(BinaryOp::EMod, &mut xss);
+                self.split(EMod, &mut xss);
                 if xss.len()!=2 { unreachable!(); }
                 let divisor = xss.pop().unwrap().compile(pslab, cslab);
                 let dividend = xss.pop().unwrap().compile(pslab, cslab);
@@ -284,9 +434,9 @@ impl Compiler for ExprSlice<'_> {
                 }
                 IMod{dividend:cslab.push_instr(dividend), divisor:cslab.push_instr(divisor)}
             }
-            BinaryOp::EExp => {
+            EExp => {
                 let mut xss = Vec::<ExprSlice>::with_capacity(2);
-                self.split(BinaryOp::EExp, &mut xss);
+                self.split(EExp, &mut xss);
                 if xss.len()!=2 { unreachable!(); }
                 let power = xss.pop().unwrap().compile(pslab, cslab);
                 let base = xss.pop().unwrap().compile(pslab, cslab);

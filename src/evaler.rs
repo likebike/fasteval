@@ -46,9 +46,9 @@ pub trait Evaler : fmt::Debug {
 impl Evaler for Expression {
     fn eval(&self, slab:&Slab, ns:&mut EvalNS) -> Result<f64,KErr> {
         // Order of operations: 1) ^  2) */  3) +-
-        // Exponentiation should be processed right-to-left.  Think of what 2^3^4 should mean:
-        //     2^(3^4)=2417851639229258349412352   <--- I choose this one.
-        //     (2^3)^4=4096
+        // Exponentiation should be processed left-to-right.  Think of what 2^3^4 should mean:
+        //     2^(3^4)=2417851639229258349412352
+        //     (2^3)^4=4096   <--- I choose this one.
         // Direction of processing doesn't matter for Addition and Multiplication:
         //     (((3+4)+5)+6)==(3+(4+(5+6))), (((3*4)*5)*6)==(3*(4*(5*6)))
         // ...But Subtraction and Division must be processed left-to-right:
@@ -110,42 +110,52 @@ impl Evaler for Expression {
             vals[i]=result; vals.remove(i+1);
             ops.remove(i);
         };
-        fn rtol(eval_op:&mut impl FnMut(&mut Vec<BinaryOp>,usize), ops:&mut Vec<BinaryOp>, op:BinaryOp) {
+        fn rtol(eval_op:&mut impl FnMut(&mut Vec<BinaryOp>,usize), ops:&mut Vec<BinaryOp>, search:BinaryOp) {
             // for-loop structure:
             let mut i = ops.len() as i64;
             loop { i-=1; if i<0 { break }
                 let i = i as usize;
 
-                if ops[i]==op { eval_op(ops,i); }
+                if ops[i]==search { eval_op(ops,i); }
             }
         };
-        fn ltor(eval_op:&mut impl FnMut(&mut Vec<BinaryOp>,usize), ops:&mut Vec<BinaryOp>, op:BinaryOp) {
+        fn ltor(eval_op:&mut impl FnMut(&mut Vec<BinaryOp>,usize), ops:&mut Vec<BinaryOp>, search:BinaryOp) {
             'outer: loop {
                 // for-loop structure:
                 let mut i : i64 = -1;
                 loop { i+=1; if i>=ops.len() as i64 { break 'outer; }
                     let i = i as usize;
 
-                    if ops[i]==op {
+                    if ops[i]==search {
                         eval_op(ops,i);
                         continue 'outer;  // Need to restart processing when modifying from the left.
                     }
                 }
             }
         };
+        fn ltor_multi(eval_op:&mut impl FnMut(&mut Vec<BinaryOp>,usize), ops:&mut Vec<BinaryOp>, search:&[BinaryOp]) {
+            'outer: loop {
+                // for-loop structure:
+                let mut i : i64 = -1;
+                loop { i+=1; if i>=ops.len() as i64 { break 'outer; }
+                    let i = i as usize;
 
-        rtol(&mut eval_op, &mut ops, EExp);
+                    if search.contains(&ops[i]) {
+                        eval_op(ops,i);
+                        continue 'outer;  // Need to restart processing when modifying from the left.
+                    }
+                }
+            }
+        }
+
+        ltor(&mut eval_op, &mut ops, EExp);
         ltor(&mut eval_op, &mut ops, EMod);
         ltor(&mut eval_op, &mut ops, EDiv);
         rtol(&mut eval_op, &mut ops, EMul);
         ltor(&mut eval_op, &mut ops, EMinus);
         rtol(&mut eval_op, &mut ops, EPlus);
-        ltor(&mut eval_op, &mut ops, ELT);
-        ltor(&mut eval_op, &mut ops, EGT);
-        ltor(&mut eval_op, &mut ops, ELTE);
-        ltor(&mut eval_op, &mut ops, EGTE);
-        ltor(&mut eval_op, &mut ops, EEQ);
-        ltor(&mut eval_op, &mut ops, ENE);
+        ltor_multi(&mut eval_op, &mut ops, &[ELT, EGT, ELTE, EGTE]);  // TODO: Implement Python-style a<b<c ternary comparison... might as well generalize to N comparisons.
+        ltor_multi(&mut eval_op, &mut ops, &[EEQ, ENE]);
         ltor(&mut eval_op, &mut ops, EAND);
         ltor(&mut eval_op, &mut ops, EOR);
 
@@ -359,28 +369,38 @@ impl Evaler for Instruction {
             Instruction::INot(i) => Ok(bool_to_f64(slab.cs.get_instr(*i).eval(slab,ns)?==0.0)),
             Instruction::IInv(i) => Ok(1.0/slab.cs.get_instr(*i).eval(slab,ns)?),
 
-            Instruction::IAdd(is) => {
-                let mut sum = 0.0;
-                for i in is {
-                    sum += slab.cs.get_instr(*i).eval(slab,ns)?;
-                }
-                Ok(sum)
-            }
-            Instruction::IMul(is) => {
-                let mut prod = 1.0;
-                for i in is {
-                    prod *= slab.cs.get_instr(*i).eval(slab,ns)?;
-                }
-                Ok(prod)
-            }
-
+            Instruction::IAdd(li,ri) => Ok( slab.cs.get_instr(*li).eval(slab,ns)? +
+                                            slab.cs.get_instr(*ri).eval(slab,ns)? ),
+            Instruction::IMul(li,ri) => Ok( slab.cs.get_instr(*li).eval(slab,ns)? *
+                                            slab.cs.get_instr(*ri).eval(slab,ns)? ),
             Instruction::IMod{dividend, divisor} => Ok( slab.cs.get_instr(*dividend).eval(slab,ns)? %
                                                         slab.cs.get_instr(*divisor).eval(slab,ns)? ),
             Instruction::IExp{base, power} => Ok( slab.cs.get_instr(*base).eval(slab,ns)?.powf( 
                                                   slab.cs.get_instr(*power).eval(slab,ns)? ) ),
 
-            Instruction::ILT(left, right) => Ok( bool_to_f64(slab.cs.get_instr(*left).eval(slab,ns)?<
+            Instruction::ILT(left, right) => Ok( bool_to_f64(slab.cs.get_instr(*left).eval(slab,ns)? <
                                                              slab.cs.get_instr(*right).eval(slab,ns)?) ),
+            Instruction::ILTE(left, right) => Ok( bool_to_f64(slab.cs.get_instr(*left).eval(slab,ns)? <=
+                                                              slab.cs.get_instr(*right).eval(slab,ns)?) ),
+            Instruction::IEQ(left, right) => Ok( bool_to_f64(slab.cs.get_instr(*left).eval(slab,ns)? ==
+                                                             slab.cs.get_instr(*right).eval(slab,ns)?) ),
+            Instruction::INE(left, right) => Ok( bool_to_f64(slab.cs.get_instr(*left).eval(slab,ns)? !=
+                                                             slab.cs.get_instr(*right).eval(slab,ns)?) ),
+
+            Instruction::IAND(lefti, righti) => {
+                let left = slab.cs.get_instr(*lefti).eval(slab,ns)?;
+                if left==0.0 { Ok(left) }
+                else {
+                    Ok(slab.cs.get_instr(*righti).eval(slab,ns)?)
+                }
+            }
+            Instruction::IOR(lefti, righti) => {
+                let left = slab.cs.get_instr(*lefti).eval(slab,ns)?;
+                if left!=0.0 { Ok(left) }
+                else {
+                    Ok(slab.cs.get_instr(*righti).eval(slab,ns)?)
+                }
+            }
 
             _ => todo!(),
         }
