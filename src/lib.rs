@@ -4,7 +4,7 @@
 //   [x] e() pi() ... or should i prefer variables?  Provide a default layer of variables?  Vars don't work well with TV symbols.
 //   [x] Profile, boost critical sections.
 //   [x] optimize the peek/read process -- be able to read N bytes if we peek successfully.
-//   [ ] optimize after parse
+//   [x] optimize after parse
 //   [ ] Readme
 //   [ ] Documentation
 //
