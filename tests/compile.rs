@@ -1,5 +1,6 @@
 use al::{Parser, Compiler, Evaler, Slab, EvalNS, ExpressionI, InstructionI, Variable};
-use al::compiler::Instruction::{self, IConst, IVar, INeg, INot, IInv, IAdd, IMul, IMod, IExp, ILT, ILTE, IEQ, INE, IAND, IOR, IFuncInt, IFuncCeil, IFuncFloor, IFuncAbs, IFuncLog, IFuncRound, IFuncMin, IFuncMax, IFuncSin, IFuncCos, IFuncTan, IFuncASin, IFuncACos, IFuncATan, IFuncSinH, IFuncCosH, IFuncTanH};
+use al::parser::{PrintFunc, ExpressionOrString::{EExpr, EStr}, EvalFunc, KWArg};
+use al::compiler::Instruction::{self, IConst, IVar, INeg, INot, IInv, IAdd, IMul, IMod, IExp, ILT, ILTE, IEQ, INE, IGTE, IGT, IAND, IOR, IFuncInt, IFuncCeil, IFuncFloor, IFuncAbs, IFuncLog, IFuncRound, IFuncMin, IFuncMax, IFuncSin, IFuncCos, IFuncTan, IFuncASin, IFuncACos, IFuncATan, IFuncSinH, IFuncCosH, IFuncTanH, IPrintFunc, IEvalFunc};
 use kerr::KErr;
 
 #[test]
@@ -169,6 +170,21 @@ fn all_instrs() {
     comp_chk("4 != 3", IConst(1.0), "CompileSlab { instrs: [] }", 1.0);
     comp_chk("4 != z", INE(InstructionI(0), InstructionI(1)), "CompileSlab { instrs: [IConst(4.0), IVar(Variable(`z`))] }", 1.0);
 
+    // IGTE:
+    comp_chk("2 >= 3", IConst(0.0), "CompileSlab { instrs: [] }", 0.0);
+    comp_chk("2 >= z", IGTE(InstructionI(0), InstructionI(1)), "CompileSlab { instrs: [IConst(2.0), IVar(Variable(`z`))] }", 0.0);
+    comp_chk("3 >= 3", IConst(1.0), "CompileSlab { instrs: [] }", 1.0);
+    comp_chk("3 >= z", IGTE(InstructionI(0), InstructionI(1)), "CompileSlab { instrs: [IConst(3.0), IVar(Variable(`z`))] }", 1.0);
+    comp_chk("4 >= 3", IConst(1.0), "CompileSlab { instrs: [] }", 1.0);
+    comp_chk("4 >= z", IGTE(InstructionI(0), InstructionI(1)), "CompileSlab { instrs: [IConst(4.0), IVar(Variable(`z`))] }", 1.0);
+    
+    // IGT:
+    comp_chk("3 > 2", IConst(1.0), "CompileSlab { instrs: [] }", 1.0);
+    comp_chk("z > 2", IGT(InstructionI(0), InstructionI(1)), "CompileSlab { instrs: [IVar(Variable(`z`)), IConst(2.0)] }", 1.0);
+    comp_chk("3 > 3", IConst(0.0), "CompileSlab { instrs: [] }", 0.0);
+    comp_chk("z > 3", IGT(InstructionI(0), InstructionI(1)), "CompileSlab { instrs: [IVar(Variable(`z`)), IConst(3.0)] }", 0.0);
+    comp_chk("3 > 2 > 1", IConst(0.0), "CompileSlab { instrs: [] }", 0.0);
+
     // IAND:
     comp_chk("2 and 3", IConst(3.0), "CompileSlab { instrs: [] }", 3.0);
     comp_chk("2 and 3 and 4", IConst(4.0), "CompileSlab { instrs: [] }", 4.0);
@@ -284,5 +300,14 @@ fn all_instrs() {
     // IFuncTanH
     comp_chk("tanh(0)", IConst(0.0), "CompileSlab { instrs: [] }", 0.0);
     comp_chk("tanh(w)", IFuncTanH(InstructionI(0)), "CompileSlab { instrs: [IVar(Variable(`w`))] }", 0.0);
+
+    // IPrintFunc
+    comp_chk(r#"print("test",1.23)"#, IPrintFunc(PrintFunc(vec![EStr("test".to_string()), EExpr(ExpressionI(0))])), "CompileSlab { instrs: [] }", 1.23);
+
+    // IEvalFunc
+    comp_chk("eval(1 + 2)", IEvalFunc(EvalFunc { expr: ExpressionI(0), kwargs: vec![] }), "CompileSlab { instrs: [] }", 3.0);
+    comp_chk("eval(x + 2)", IEvalFunc(EvalFunc { expr: ExpressionI(0), kwargs: vec![] }), "CompileSlab { instrs: [] }", 3.0);
+    comp_chk("eval(x + 2, x=5)", IEvalFunc(EvalFunc { expr: ExpressionI(0), kwargs: vec![KWArg { name: Variable("x".to_string()), expr: ExpressionI(1) }] }), "CompileSlab { instrs: [] }", 7.0);
+    
 }
 

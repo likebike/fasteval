@@ -151,6 +151,34 @@ pub struct KWArg {
 
 
 
+impl Clone for PrintFunc {
+    fn clone(&self) -> Self {
+        let mut vec = Vec::<ExpressionOrString>::with_capacity(self.0.len());
+        for xors in self.0.iter() {
+            vec.push(match xors {
+                EExpr(i) => EExpr(*i),
+                EStr(s) => EStr(s.clone()),
+            });
+        }
+        PrintFunc(vec)
+    }
+}
+
+impl Clone for EvalFunc {
+    fn clone(&self) -> Self {
+        let expr = self.expr;
+        let mut kwargs = Vec::<KWArg>::with_capacity(self.kwargs.len());
+        for kw in self.kwargs.iter() {
+            let name = Variable(kw.name.0.clone());
+            let expr = kw.expr;
+            kwargs.push(KWArg{name, expr});
+        }
+        EvalFunc{expr, kwargs}
+    }
+}
+
+
+
 enum Tok<T> {
     Pass,
     Bite(T),

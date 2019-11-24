@@ -387,6 +387,10 @@ impl Evaler for Instruction {
                                                              slab.cs.get_instr(*right).eval(slab,ns)?) ),
             Instruction::INE(left, right) => Ok( bool_to_f64(slab.cs.get_instr(*left).eval(slab,ns)? !=
                                                              slab.cs.get_instr(*right).eval(slab,ns)?) ),
+            Instruction::IGTE(left, right) => Ok( bool_to_f64(slab.cs.get_instr(*left).eval(slab,ns)? >=
+                                                              slab.cs.get_instr(*right).eval(slab,ns)?) ),
+            Instruction::IGT(left, right) => Ok( bool_to_f64(slab.cs.get_instr(*left).eval(slab,ns)? >
+                                                             slab.cs.get_instr(*right).eval(slab,ns)?) ),
 
             Instruction::IAND(lefti, righti) => {
                 let left = slab.cs.get_instr(*lefti).eval(slab,ns)?;
@@ -446,7 +450,8 @@ impl Evaler for Instruction {
             Instruction::IFuncCosH(i) => Ok( slab.cs.get_instr(*i).eval(slab,ns)?.cosh() ),
             Instruction::IFuncTanH(i) => Ok( slab.cs.get_instr(*i).eval(slab,ns)?.tanh() ),
 
-            _ => todo!(),
+            Instruction::IPrintFunc(pf) => pf.eval(slab,ns),
+            Instruction::IEvalFunc(ef) => ef.eval(slab,ns),
         }
     }
 }

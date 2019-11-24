@@ -1,5 +1,5 @@
 use crate::slab::{ParseSlab, CompileSlab};
-use crate::parser::{Expression, ExprPair, Value, Variable, UnaryOp::{self, EPos, ENeg, ENot, EParens}, BinaryOp::{self, EOR, EAND, ENE, EEQ, EGTE, ELTE, EGT, ELT, EPlus, EMinus, EMul, EDiv, EMod, EExp}, Callable::{self, EFunc, EPrintFunc, EEvalFunc}, Func::{EFuncInt, EFuncCeil, EFuncFloor, EFuncAbs, EFuncLog, EFuncRound, EFuncMin, EFuncMax, EFuncE, EFuncPi, EFuncSin, EFuncCos, EFuncTan, EFuncASin, EFuncACos, EFuncATan, EFuncSinH, EFuncCosH, EFuncTanH}};
+use crate::parser::{Expression, ExprPair, Value, Variable, UnaryOp::{self, EPos, ENeg, ENot, EParens}, BinaryOp::{self, EOR, EAND, ENE, EEQ, EGTE, ELTE, EGT, ELT, EPlus, EMinus, EMul, EDiv, EMod, EExp}, Callable::{self, EFunc, EPrintFunc, EEvalFunc}, Func::{EFuncInt, EFuncCeil, EFuncFloor, EFuncAbs, EFuncLog, EFuncRound, EFuncMin, EFuncMax, EFuncE, EFuncPi, EFuncSin, EFuncCos, EFuncTan, EFuncASin, EFuncACos, EFuncATan, EFuncSinH, EFuncCosH, EFuncTanH}, PrintFunc, EvalFunc};
 use crate::evaler::bool_to_f64;
 
 #[derive(Debug, PartialEq, Copy, Clone)]
@@ -57,22 +57,12 @@ pub enum Instruction {
     IFuncCosH(InstructionI),
     IFuncTanH(InstructionI),
 
-    IPrintFunc(Vec<InstructionOrString>),
-    IEvalFunc{expr:InstructionI, kwargs:Vec<KWArg>},
+    IPrintFunc(PrintFunc),  // Not optimized (it would be pointless because of i/o bottleneck).
+    IEvalFunc(EvalFunc),    // Eval *could* be optimized, but I'll wait until I need to.
 }
 use Instruction::{IConst, IVar, INeg, INot, IInv, IAdd, IMul, IMod, IExp, ILT, ILTE, IEQ, INE, IGTE, IGT, IOR, IAND, IFuncInt, IFuncCeil, IFuncFloor, IFuncAbs, IFuncLog, IFuncRound, IFuncMin, IFuncMax, IFuncSin, IFuncCos, IFuncTan, IFuncASin, IFuncACos, IFuncATan, IFuncSinH, IFuncCosH, IFuncTanH, IPrintFunc, IEvalFunc};
 
-#[derive(Debug, PartialEq)]
-pub enum InstructionOrString {
-    EInstr(InstructionI),
-    EStr(String),
-}
 
-#[derive(Debug, PartialEq)]
-pub struct KWArg {
-    pub name: Variable,
-    pub instr: InstructionI,
-}
 
 
 
@@ -155,7 +145,7 @@ fn inv_wrap(instr:Instruction, cslab:&mut CompileSlab) -> Instruction {
         IInv(cslab.push_instr(instr))
     }
 }
-fn compile_mul(instrs:Vec<Instruction>, pslab:&ParseSlab, cslab:&mut CompileSlab) -> Instruction {
+fn compile_mul(instrs:Vec<Instruction>, cslab:&mut CompileSlab) -> Instruction {
     let mut out = IConst(1.0); let mut out_set = false;
     let mut const_prod = 1.0;
     for instr in instrs {
@@ -396,7 +386,7 @@ impl Compiler for ExprSlice<'_> {
                 self.split(EMul, &mut xss);
                 let mut instrs = Vec::<Instruction>::with_capacity(xss.len());
                 for xs in xss { instrs.push(xs.compile(pslab,cslab)); }
-                compile_mul(instrs,pslab,cslab)
+                compile_mul(instrs,cslab)
             }
             EDiv => {
                 let mut xss = Vec::<ExprSlice>::with_capacity(4);
@@ -410,7 +400,7 @@ impl Compiler for ExprSlice<'_> {
                         instrs.push(inv_wrap(instr,cslab));
                     }
                 }
-                compile_mul(instrs,pslab,cslab)
+                compile_mul(instrs,cslab)
             }
 //            EDiv => {
 //                let mut xss = Vec::<ExprSlice>::with_capacity(4);
@@ -489,7 +479,7 @@ impl Compiler for ExprSlice<'_> {
                         pow_instrs.push(instr);
                     }
                 }
-                let power = compile_mul(pow_instrs,pslab,cslab);
+                let power = compile_mul(pow_instrs,cslab);
                 if let IConst(b) = base {
                     if let IConst(p) = power {
                         return IConst(b.powf(p));
@@ -764,10 +754,9 @@ impl Compiler for Callable {
                         IFuncTanH(cslab.push_instr(instr))
                     }
                 }
-
-                _ => todo!(),
             }
-            _ => todo!(),
+            EPrintFunc(pf) => IPrintFunc(pf.clone()),
+            EEvalFunc(ef) => IEvalFunc(ef.clone()),
         }
     }
 }
