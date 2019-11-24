@@ -700,6 +700,71 @@ impl Compiler for Callable {
                         IFuncSin(cslab.push_instr(instr))
                     }
                 }
+                EFuncCos(i) => {
+                    let instr = pslab.get_expr(*i).compile(pslab,cslab);
+                    if let IConst(c) = instr {
+                        IConst(c.cos())
+                    } else {
+                        IFuncCos(cslab.push_instr(instr))
+                    }
+                }
+                EFuncTan(i) => {
+                    let instr = pslab.get_expr(*i).compile(pslab,cslab);
+                    if let IConst(c) = instr {
+                        IConst(c.tan())
+                    } else {
+                        IFuncTan(cslab.push_instr(instr))
+                    }
+                }
+                EFuncASin(i) => {
+                    let instr = pslab.get_expr(*i).compile(pslab,cslab);
+                    if let IConst(c) = instr {
+                        IConst(c.asin())
+                    } else {
+                        IFuncASin(cslab.push_instr(instr))
+                    }
+                }
+                EFuncACos(i) => {
+                    let instr = pslab.get_expr(*i).compile(pslab,cslab);
+                    if let IConst(c) = instr {
+                        IConst(c.acos())
+                    } else {
+                        IFuncACos(cslab.push_instr(instr))
+                    }
+                }
+                EFuncATan(i) => {
+                    let instr = pslab.get_expr(*i).compile(pslab,cslab);
+                    if let IConst(c) = instr {
+                        IConst(c.atan())
+                    } else {
+                        IFuncATan(cslab.push_instr(instr))
+                    }
+                }
+                EFuncSinH(i) => {
+                    let instr = pslab.get_expr(*i).compile(pslab,cslab);
+                    if let IConst(c) = instr {
+                        IConst(c.sinh())
+                    } else {
+                        IFuncSinH(cslab.push_instr(instr))
+                    }
+                }
+                EFuncCosH(i) => {
+                    let instr = pslab.get_expr(*i).compile(pslab,cslab);
+                    if let IConst(c) = instr {
+                        IConst(c.cosh())
+                    } else {
+                        IFuncCosH(cslab.push_instr(instr))
+                    }
+                }
+                EFuncTanH(i) => {
+                    let instr = pslab.get_expr(*i).compile(pslab,cslab);
+                    if let IConst(c) = instr {
+                        IConst(c.tanh())
+                    } else {
+                        IFuncTanH(cslab.push_instr(instr))
+                    }
+                }
+
                 _ => todo!(),
             }
             _ => todo!(),

@@ -437,6 +437,14 @@ impl Evaler for Instruction {
             }
 
             Instruction::IFuncSin(i) => Ok( slab.cs.get_instr(*i).eval(slab,ns)?.sin() ),
+            Instruction::IFuncCos(i) => Ok( slab.cs.get_instr(*i).eval(slab,ns)?.cos() ),
+            Instruction::IFuncTan(i) => Ok( slab.cs.get_instr(*i).eval(slab,ns)?.tan() ),
+            Instruction::IFuncASin(i) => Ok( slab.cs.get_instr(*i).eval(slab,ns)?.asin() ),
+            Instruction::IFuncACos(i) => Ok( slab.cs.get_instr(*i).eval(slab,ns)?.acos() ),
+            Instruction::IFuncATan(i) => Ok( slab.cs.get_instr(*i).eval(slab,ns)?.atan() ),
+            Instruction::IFuncSinH(i) => Ok( slab.cs.get_instr(*i).eval(slab,ns)?.sinh() ),
+            Instruction::IFuncCosH(i) => Ok( slab.cs.get_instr(*i).eval(slab,ns)?.cosh() ),
+            Instruction::IFuncTanH(i) => Ok( slab.cs.get_instr(*i).eval(slab,ns)?.tanh() ),
 
             _ => todo!(),
         }

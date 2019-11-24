@@ -1,5 +1,5 @@
 use al::{Parser, Compiler, Evaler, Slab, EvalNS, ExpressionI, InstructionI, Variable};
-use al::compiler::Instruction::{self, IConst, IVar, INeg, INot, IInv, IAdd, IMul, IMod, IExp, ILT, ILTE, IEQ, INE, IAND, IOR, IFuncInt, IFuncCeil, IFuncFloor, IFuncAbs, IFuncLog, IFuncRound, IFuncMin, IFuncMax, IFuncSin};
+use al::compiler::Instruction::{self, IConst, IVar, INeg, INot, IInv, IAdd, IMul, IMod, IExp, ILT, ILTE, IEQ, INE, IAND, IOR, IFuncInt, IFuncCeil, IFuncFloor, IFuncAbs, IFuncLog, IFuncRound, IFuncMin, IFuncMax, IFuncSin, IFuncCos, IFuncTan, IFuncASin, IFuncACos, IFuncATan, IFuncSinH, IFuncCosH, IFuncTanH};
 use kerr::KErr;
 
 #[test]
@@ -249,5 +249,40 @@ fn all_instrs() {
     comp_chk("sin(pi()/2)", IConst(1.0), "CompileSlab { instrs: [] }", 1.0);
     comp_chk("sin(w)", IFuncSin(InstructionI(0)), "CompileSlab { instrs: [IVar(Variable(`w`))] }", 0.0);
     comp_chk("sin(pi()/y)", IFuncSin(InstructionI(3)), "CompileSlab { instrs: [IVar(Variable(`y`)), IInv(InstructionI(0)), IConst(3.141592653589793), IMul(InstructionI(1), InstructionI(2))] }", 1.0);
+
+    // IFuncCos
+    comp_chk("cos(0)", IConst(1.0), "CompileSlab { instrs: [] }", 1.0);
+    comp_chk("cos(pi())", IConst(-1.0), "CompileSlab { instrs: [] }", -1.0);
+    comp_chk("round(0.000001, cos(pi()/2))", IConst(0.0), "CompileSlab { instrs: [] }", 0.0);
+    comp_chk("cos(w)", IFuncCos(InstructionI(0)), "CompileSlab { instrs: [IVar(Variable(`w`))] }", 1.0);
+    comp_chk("round(0.000001, cos(pi()/y))", IFuncRound { modulus: InstructionI(4), of: InstructionI(5) }, "CompileSlab { instrs: [IVar(Variable(`y`)), IInv(InstructionI(0)), IConst(3.141592653589793), IMul(InstructionI(1), InstructionI(2)), IConst(0.000001), IFuncCos(InstructionI(3))] }", 0.0);
+
+    // IFuncTan
+    comp_chk("tan(0)", IConst(0.0), "CompileSlab { instrs: [] }", 0.0);
+    comp_chk("tan(w)", IFuncTan(InstructionI(0)), "CompileSlab { instrs: [IVar(Variable(`w`))] }", 0.0);
+    
+    // IFuncASin
+    comp_chk("asin(0)", IConst(0.0), "CompileSlab { instrs: [] }", 0.0);
+    comp_chk("asin(w)", IFuncASin(InstructionI(0)), "CompileSlab { instrs: [IVar(Variable(`w`))] }", 0.0);
+
+    // IFuncACos
+    comp_chk("acos(0)", IConst(1.5707963267948966), "CompileSlab { instrs: [] }", 1.5707963267948966);
+    comp_chk("acos(w)", IFuncACos(InstructionI(0)), "CompileSlab { instrs: [IVar(Variable(`w`))] }", 1.5707963267948966);
+
+    // IFuncATan
+    comp_chk("atan(0)", IConst(0.0), "CompileSlab { instrs: [] }", 0.0);
+    comp_chk("atan(w)", IFuncATan(InstructionI(0)), "CompileSlab { instrs: [IVar(Variable(`w`))] }", 0.0);
+
+    // IFuncSinH
+    comp_chk("sinh(0)", IConst(0.0), "CompileSlab { instrs: [] }", 0.0);
+    comp_chk("sinh(w)", IFuncSinH(InstructionI(0)), "CompileSlab { instrs: [IVar(Variable(`w`))] }", 0.0);
+
+    // IFuncCosH
+    comp_chk("cosh(0)", IConst(1.0), "CompileSlab { instrs: [] }", 1.0);
+    comp_chk("cosh(w)", IFuncCosH(InstructionI(0)), "CompileSlab { instrs: [IVar(Variable(`w`))] }", 1.0);
+
+    // IFuncTanH
+    comp_chk("tanh(0)", IConst(0.0), "CompileSlab { instrs: [] }", 0.0);
+    comp_chk("tanh(w)", IFuncTanH(InstructionI(0)), "CompileSlab { instrs: [IVar(Variable(`w`))] }", 0.0);
 }
 
