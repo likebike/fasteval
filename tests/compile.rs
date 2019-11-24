@@ -1,5 +1,5 @@
 use al::{Parser, Compiler, Evaler, Slab, EvalNS, ExpressionI, InstructionI, Variable};
-use al::compiler::Instruction::{self, IConst, IVar, INeg, INot, IInv, IAdd, IMul, IMod, IExp, ILT, ILTE, IEQ, INE, IAND, IOR};
+use al::compiler::Instruction::{self, IConst, IVar, INeg, INot, IInv, IAdd, IMul, IMod, IExp, ILT, ILTE, IEQ, INE, IAND, IOR, IFuncInt, IFuncCeil, IFuncFloor, IFuncAbs, IFuncLog, IFuncRound};
 use kerr::KErr;
 
 #[test]
@@ -50,6 +50,7 @@ fn comp_chk(expr_str:&str, expect_instr:Instruction, expect_fmt:&str, expect_eva
             "w" => Some(0.0),
             "x" => Some(1.0),
             "y" => Some(2.0),
+            "y7" => Some(2.7),
             "z" => Some(3.0),
             _ => None,
         }
@@ -122,6 +123,8 @@ fn all_instrs() {
     comp_chk("8 % -3", IConst(2.0), "CompileSlab { instrs: [] }", 2.0);
     comp_chk("-8 % z", IMod { dividend: InstructionI(0), divisor: InstructionI(1) }, "CompileSlab { instrs: [IConst(-8.0), IVar(Variable(`z`))] }", -2.0);
     comp_chk("8 % -z", IMod { dividend: InstructionI(1), divisor: InstructionI(2) }, "CompileSlab { instrs: [IVar(Variable(`z`)), IConst(8.0), INeg(InstructionI(0))] }", 2.0);
+    comp_chk("8 % 3 % 2", IConst(0.0), "CompileSlab { instrs: [] }", 0.0);
+    comp_chk("8 % z % 2", IMod { dividend: InstructionI(2), divisor: InstructionI(3) }, "CompileSlab { instrs: [IConst(8.0), IVar(Variable(`z`)), IMod { dividend: InstructionI(0), divisor: InstructionI(1) }, IConst(2.0)] }", 0.0);
 
     // IExp:
     comp_chk("2 ^ 3", IConst(8.0), "CompileSlab { instrs: [] }", 8.0);
@@ -130,6 +133,9 @@ fn all_instrs() {
     comp_chk("2 ^ 0.5", IConst(1.4142135623730951), "CompileSlab { instrs: [] }", 1.4142135623730951);
     //comp_chk("-4 ^ 0.5", IConst(std::f64::NAN), "CompileSlab { instrs: [] }", std::f64::NAN);
     comp_chk("y ^ 0.5", IExp { base: InstructionI(0), power: InstructionI(1) }, "CompileSlab { instrs: [IVar(Variable(`y`)), IConst(0.5)] }", 1.4142135623730951);
+    comp_chk("2 ^ 3 ^ 2", IConst(64.0), "CompileSlab { instrs: [] }", 64.0);
+    comp_chk("2 ^ z ^ 2", IExp { base: InstructionI(2), power: InstructionI(3) }, "CompileSlab { instrs: [IVar(Variable(`z`)), IConst(2.0), IConst(2.0), IMul(InstructionI(0), InstructionI(1))] }", 64.0);
+    comp_chk("2 ^ z ^ 1 ^ 2 ^ 1", IExp { base: InstructionI(2), power: InstructionI(3) }, "CompileSlab { instrs: [IVar(Variable(`z`)), IConst(2.0), IConst(2.0), IMul(InstructionI(0), InstructionI(1))] }", 64.0);
     
     // ILT:
     comp_chk("2 < 3", IConst(1.0), "CompileSlab { instrs: [] }", 1.0);
@@ -183,5 +189,44 @@ fn all_instrs() {
     comp_chk("0 or x", IVar(Variable("x".to_string())), "CompileSlab { instrs: [] }", 1.0);
     comp_chk("w or x", IOR(InstructionI(0), InstructionI(1)), "CompileSlab { instrs: [IVar(Variable(`w`)), IVar(Variable(`x`))] }", 1.0);
     comp_chk("x or w", IOR(InstructionI(0), InstructionI(1)), "CompileSlab { instrs: [IVar(Variable(`x`)), IVar(Variable(`w`))] }", 1.0);
+
+    // IFuncInt
+    comp_chk("int(2.7)", IConst(2.0), "CompileSlab { instrs: [] }", 2.0);
+    comp_chk("int(y7)", IFuncInt(InstructionI(0)), "CompileSlab { instrs: [IVar(Variable(`y7`))] }", 2.0);
+    comp_chk("int(-2.7)", IConst(-2.0), "CompileSlab { instrs: [] }", -2.0);
+    comp_chk("int(-y7)", IFuncInt(InstructionI(1)), "CompileSlab { instrs: [IVar(Variable(`y7`)), INeg(InstructionI(0))] }", -2.0);
+
+    // IFuncCeil
+    comp_chk("ceil(2.7)", IConst(3.0), "CompileSlab { instrs: [] }", 3.0);
+    comp_chk("ceil(y7)", IFuncCeil(InstructionI(0)), "CompileSlab { instrs: [IVar(Variable(`y7`))] }", 3.0);
+    comp_chk("ceil(-2.7)", IConst(-2.0), "CompileSlab { instrs: [] }", -2.0);
+    comp_chk("ceil(-y7)", IFuncCeil(InstructionI(1)), "CompileSlab { instrs: [IVar(Variable(`y7`)), INeg(InstructionI(0))] }", -2.0);
+    
+    // IFuncFloor
+    comp_chk("floor(2.7)", IConst(2.0), "CompileSlab { instrs: [] }", 2.0);
+    comp_chk("floor(y7)", IFuncFloor(InstructionI(0)), "CompileSlab { instrs: [IVar(Variable(`y7`))] }", 2.0);
+    comp_chk("floor(-2.7)", IConst(-3.0), "CompileSlab { instrs: [] }", -3.0);
+    comp_chk("floor(-y7)", IFuncFloor(InstructionI(1)), "CompileSlab { instrs: [IVar(Variable(`y7`)), INeg(InstructionI(0))] }", -3.0);
+
+    // IFuncAbs
+    comp_chk("abs(2.7)", IConst(2.7), "CompileSlab { instrs: [] }", 2.7);
+    comp_chk("abs(y7)", IFuncAbs(InstructionI(0)), "CompileSlab { instrs: [IVar(Variable(`y7`))] }", 2.7);
+    comp_chk("abs(-2.7)", IConst(2.7), "CompileSlab { instrs: [] }", 2.7);
+    comp_chk("abs(-y7)", IFuncAbs(InstructionI(1)), "CompileSlab { instrs: [IVar(Variable(`y7`)), INeg(InstructionI(0))] }", 2.7);
+
+    // IFuncLog
+    comp_chk("log(1)", IConst(0.0), "CompileSlab { instrs: [] }", 0.0);
+    comp_chk("log(10)", IConst(1.0), "CompileSlab { instrs: [] }", 1.0);
+    comp_chk("log(2, 10)", IConst(3.321928094887362), "CompileSlab { instrs: [] }", 3.321928094887362);
+    comp_chk("log(e(), 10)", IConst(2.302585092994046), "CompileSlab { instrs: [] }", 2.302585092994046);
+    comp_chk("log(x)", IFuncLog { base: InstructionI(0), of: InstructionI(1) }, "CompileSlab { instrs: [IConst(10.0), IVar(Variable(`x`))] }", 0.0);
+    comp_chk("log(y,x)", IFuncLog { base: InstructionI(0), of: InstructionI(1) }, "CompileSlab { instrs: [IVar(Variable(`y`)), IVar(Variable(`x`))] }", 0.0);
+
+    // IFuncRound
+    comp_chk("round(2.7)", IConst(3.0), "CompileSlab { instrs: [] }", 3.0);
+    comp_chk("round(-2.7)", IConst(-3.0), "CompileSlab { instrs: [] }", -3.0);
+    comp_chk("round(y7)", IFuncRound { modulus: InstructionI(0), of: InstructionI(1) }, "CompileSlab { instrs: [IConst(1.0), IVar(Variable(`y7`))] }", 3.0);
+    
+
 }
 

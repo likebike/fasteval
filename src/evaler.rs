@@ -11,7 +11,7 @@ use crate::parser::{Expression,
                     PrintFunc,
                     EvalFunc,
                     ExpressionOrString::{EExpr, EStr}};
-use crate::compiler::Instruction;
+use crate::compiler::{log, Instruction};
 
 use kerr::KErr;
 
@@ -246,7 +246,8 @@ impl Evaler for Func {
                     Some(b_expr_i) => ns.eval(slab, slab.ps.get_expr(*b_expr_i))?,
                     None => 10.0,
                 };
-                Ok(ns.eval(slab, slab.ps.get_expr(*expr_i))?.log(base))
+                let n = ns.eval(slab, slab.ps.get_expr(*expr_i))?;
+                Ok(log(base,n))
             }
             EFuncRound{modulus:modulus_opt, expr:expr_i} => {
                 let modulus = match modulus_opt {
@@ -400,6 +401,21 @@ impl Evaler for Instruction {
                 else {
                     Ok(slab.cs.get_instr(*righti).eval(slab,ns)?)
                 }
+            }
+
+            Instruction::IFuncInt(i) => Ok( slab.cs.get_instr(*i).eval(slab,ns)?.trunc() ),
+            Instruction::IFuncCeil(i) => Ok( slab.cs.get_instr(*i).eval(slab,ns)?.ceil() ),
+            Instruction::IFuncFloor(i) => Ok( slab.cs.get_instr(*i).eval(slab,ns)?.floor() ),
+            Instruction::IFuncAbs(i) => Ok( slab.cs.get_instr(*i).eval(slab,ns)?.abs() ),
+            Instruction::IFuncLog{base:basei, of:ofi} => {
+                let base = slab.cs.get_instr(*basei).eval(slab,ns)?;
+                let of = slab.cs.get_instr(*ofi).eval(slab,ns)?;
+                Ok(log(base,of))
+            }
+            Instruction::IFuncRound{modulus:modi, of:ofi} => {
+                let modulus = slab.cs.get_instr(*modi).eval(slab,ns)?;
+                let of = slab.cs.get_instr(*ofi).eval(slab,ns)?;
+                Ok( (of/modulus).round() * modulus )
             }
 
             _ => todo!(),
