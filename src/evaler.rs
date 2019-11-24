@@ -417,6 +417,26 @@ impl Evaler for Instruction {
                 let of = slab.cs.get_instr(*ofi).eval(slab,ns)?;
                 Ok( (of/modulus).round() * modulus )
             }
+            Instruction::IFuncMin(li,ri) => {
+                let left = slab.cs.get_instr(*li).eval(slab,ns)?;
+                let right = slab.cs.get_instr(*ri).eval(slab,ns)?;
+                if left<right {
+                    Ok(left)
+                } else {
+                    Ok(right)
+                }
+            }
+            Instruction::IFuncMax(li,ri) => {
+                let left = slab.cs.get_instr(*li).eval(slab,ns)?;
+                let right = slab.cs.get_instr(*ri).eval(slab,ns)?;
+                if left>right {
+                    Ok(left)
+                } else {
+                    Ok(right)
+                }
+            }
+
+            Instruction::IFuncSin(i) => Ok( slab.cs.get_instr(*i).eval(slab,ns)?.sin() ),
 
             _ => todo!(),
         }

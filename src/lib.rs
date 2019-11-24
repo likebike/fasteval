@@ -11,6 +11,7 @@
 //   [ ] sprintf
 
 #![feature(test)]
+//#![feature(backtrace)]
 
 pub mod slab;
 pub mod parser;

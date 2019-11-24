@@ -127,7 +127,9 @@ impl<'s> ExprSlice<'s> {
 
 #[inline]
 fn neg_wrap(instr:Instruction, cslab:&mut CompileSlab) -> Instruction {
-    if let INeg(i) = instr {
+    if let IConst(c) = instr {
+        IConst(-c)
+    } else if let INeg(i) = instr {
         cslab.take_instr(i)
     } else {
         INeg(cslab.push_instr(instr))
@@ -135,7 +137,9 @@ fn neg_wrap(instr:Instruction, cslab:&mut CompileSlab) -> Instruction {
 }
 #[inline]
 fn not_wrap(instr:Instruction, cslab:&mut CompileSlab) -> Instruction {
-    if let INot(i) = instr {
+    if let IConst(c) = instr {
+        IConst(bool_to_f64(c==0.0))
+    } else if let INot(i) = instr {
         cslab.take_instr(i)
     } else {
         INot(cslab.push_instr(instr))
@@ -143,17 +147,18 @@ fn not_wrap(instr:Instruction, cslab:&mut CompileSlab) -> Instruction {
 }
 #[inline]
 fn inv_wrap(instr:Instruction, cslab:&mut CompileSlab) -> Instruction {
-    if let IInv(i) = instr {
+    if let IConst(c) = instr {
+        IConst(1.0/c)
+    } else if let IInv(i) = instr {
         cslab.take_instr(i)
     } else {
         IInv(cslab.push_instr(instr))
     }
 }
-fn compile_mul(xss:Vec<ExprSlice>, pslab:&ParseSlab, cslab:&mut CompileSlab) -> Instruction {
+fn compile_mul(instrs:Vec<Instruction>, pslab:&ParseSlab, cslab:&mut CompileSlab) -> Instruction {
     let mut out = IConst(1.0); let mut out_set = false;
     let mut const_prod = 1.0;
-    for xs in xss.iter() {
-        let instr = xs.compile(pslab,cslab);
+    for instr in instrs {
         if let IConst(c) = instr {
             const_prod *= c;
         } else {
@@ -389,51 +394,67 @@ impl Compiler for ExprSlice<'_> {
             EMul => {
                 let mut xss = Vec::<ExprSlice>::with_capacity(4);
                 self.split(EMul, &mut xss);
-                compile_mul(xss,pslab,cslab)
+                let mut instrs = Vec::<Instruction>::with_capacity(xss.len());
+                for xs in xss { instrs.push(xs.compile(pslab,cslab)); }
+                compile_mul(instrs,pslab,cslab)
             }
             EDiv => {
                 let mut xss = Vec::<ExprSlice>::with_capacity(4);
                 self.split(EDiv, &mut xss);
-                let mut out = IConst(1.0); let mut out_set = false;
-                let mut const_prod = 1.0;
-                let mut is_first = true;
-                for xs in xss.iter() {
+                let mut instrs = Vec::<Instruction>::with_capacity(xss.len());
+                for (i,xs) in xss.into_iter().enumerate() {
                     let instr = xs.compile(pslab,cslab);
-                    if let IConst(c) = instr {
-                        if is_first {
-                            const_prod *= c;
-                        } else {
-                            const_prod /= c;
-                        }
+                    if i==0 {
+                        instrs.push(instr);
                     } else {
-                        if is_first {
-                            if out_set {
-                                out = IMul(cslab.push_instr(out), cslab.push_instr(instr));
-                            } else {
-                                out = instr;
-                                out_set = true;
-                            }
-                        } else {
-                            let instr = inv_wrap(instr,cslab);
-                            if out_set {
-                                out = IMul(cslab.push_instr(out), cslab.push_instr(instr));
-                            } else {
-                                out = instr;
-                                out_set = true;
-                            }
-                        }
-                    }
-                    is_first = false;
-                }
-                if const_prod!=1.0 {
-                    if out_set {
-                        out = IMul(cslab.push_instr(out), cslab.push_instr(IConst(const_prod)));
-                    } else {
-                        out = IConst(const_prod);
+                        instrs.push(inv_wrap(instr,cslab));
                     }
                 }
-                out
+                compile_mul(instrs,pslab,cslab)
             }
+//            EDiv => {
+//                let mut xss = Vec::<ExprSlice>::with_capacity(4);
+//                self.split(EDiv, &mut xss);
+//                let mut out = IConst(1.0); let mut out_set = false;
+//                let mut const_prod = 1.0;
+//                let mut is_first = true;
+//                for xs in xss.iter() {
+//                    let instr = xs.compile(pslab,cslab);
+//                    if let IConst(c) = instr {
+//                        if is_first {
+//                            const_prod *= c;
+//                        } else {
+//                            const_prod /= c;
+//                        }
+//                    } else {
+//                        if is_first {
+//                            if out_set {
+//                                out = IMul(cslab.push_instr(out), cslab.push_instr(instr));
+//                            } else {
+//                                out = instr;
+//                                out_set = true;
+//                            }
+//                        } else {
+//                            let instr = inv_wrap(instr,cslab);
+//                            if out_set {
+//                                out = IMul(cslab.push_instr(out), cslab.push_instr(instr));
+//                            } else {
+//                                out = instr;
+//                                out_set = true;
+//                            }
+//                        }
+//                    }
+//                    is_first = false;
+//                }
+//                if const_prod!=1.0 {
+//                    if out_set {
+//                        out = IMul(cslab.push_instr(out), cslab.push_instr(IConst(const_prod)));
+//                    } else {
+//                        out = IConst(const_prod);
+//                    }
+//                }
+//                out
+//            }
             EMod => {
                 let mut xss = Vec::<ExprSlice>::with_capacity(2);
                 self.split(EMod, &mut xss);
@@ -458,8 +479,17 @@ impl Compiler for ExprSlice<'_> {
             EExp => {
                 let mut xss = Vec::<ExprSlice>::with_capacity(2);
                 self.split(EExp, &mut xss);
-                let base = xss.remove(0).compile(pslab,cslab);
-                let power = compile_mul(xss,pslab,cslab);
+                let mut pow_instrs = Vec::<Instruction>::with_capacity(xss.len()-1);
+                let mut base = IConst(0.0);
+                for (i,xs) in xss.into_iter().enumerate() {
+                    let instr = xs.compile(pslab,cslab);
+                    if i==0 {
+                        base = instr;
+                    } else {
+                        pow_instrs.push(instr);
+                    }
+                }
+                let power = compile_mul(pow_instrs,pslab,cslab);
                 if let IConst(b) = base {
                     if let IConst(p) = power {
                         return IConst(b.powf(p));
@@ -576,10 +606,100 @@ impl Compiler for Callable {
                     }
                     IFuncRound{modulus:cslab.push_instr(modulus), of:cslab.push_instr(instr)}
                 }
+                EFuncMin{first:fi, rest:is} => {
+                    let first = pslab.get_expr(*fi).compile(pslab,cslab);
+                    let mut rest = Vec::<Instruction>::with_capacity(is.len());
+                    for i in is { rest.push(pslab.get_expr(*i).compile(pslab,cslab)); }
+                    let mut out = IConst(0.0); let mut out_set = false;
+                    let mut const_min = 0.0; let mut const_min_set = false;
+                    if let IConst(f) = first {
+                        const_min = f;
+                        const_min_set = true;
+                    } else {
+                        out = first;
+                        out_set = true;
+                    }
+                    for instr in rest {
+                        if let IConst(f) = instr {
+                            if const_min_set {
+                                if f<const_min { const_min=f; }
+                            } else {
+                                const_min = f;
+                                const_min_set = true;
+                            }
+                        } else {
+                            if out_set {
+                                out = IFuncMin(cslab.push_instr(out), cslab.push_instr(instr));
+                            } else {
+                                out = instr;
+                                out_set = true;
+                            }
+                        }
+                    }
+                    if const_min_set {
+                        if out_set {
+                            out = IFuncMin(cslab.push_instr(out), cslab.push_instr(IConst(const_min)));
+                        } else {
+                            out = IConst(const_min);
+                            out_set = true;
+                        }
+                    }
+                    assert!(out_set);
+                    out
+                }
+                EFuncMax{first:fi, rest:is} => {
+                    let first = pslab.get_expr(*fi).compile(pslab,cslab);
+                    let mut rest = Vec::<Instruction>::with_capacity(is.len());
+                    for i in is { rest.push(pslab.get_expr(*i).compile(pslab,cslab)); }
+                    let mut out = IConst(0.0); let mut out_set = false;
+                    let mut const_max = 0.0; let mut const_max_set = false;
+                    if let IConst(f) = first {
+                        const_max = f;
+                        const_max_set = true;
+                    } else {
+                        out = first;
+                        out_set = true;
+                    }
+                    for instr in rest {
+                        if let IConst(f) = instr {
+                            if const_max_set {
+                                if f>const_max { const_max=f; }
+                            } else {
+                                const_max = f;
+                                const_max_set = true;
+                            }
+                        } else {
+                            if out_set {
+                                out = IFuncMax(cslab.push_instr(out), cslab.push_instr(instr));
+                            } else {
+                                out = instr;
+                                out_set = true;
+                            }
+                        }
+                    }
+                    if const_max_set {
+                        if out_set {
+                            out = IFuncMax(cslab.push_instr(out), cslab.push_instr(IConst(const_max)));
+                        } else {
+                            out = IConst(const_max);
+                            out_set = true;
+                        }
+                    }
+                    assert!(out_set);
+                    out
+                }
 
                 EFuncE => IConst(std::f64::consts::E),
                 EFuncPi => IConst(std::f64::consts::PI),
 
+                EFuncSin(i) => {
+                    let instr = pslab.get_expr(*i).compile(pslab,cslab);
+                    if let IConst(c) = instr {
+                        IConst(c.sin())
+                    } else {
+                        IFuncSin(cslab.push_instr(instr))
+                    }
+                }
                 _ => todo!(),
             }
             _ => todo!(),

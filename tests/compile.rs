@@ -1,5 +1,5 @@
 use al::{Parser, Compiler, Evaler, Slab, EvalNS, ExpressionI, InstructionI, Variable};
-use al::compiler::Instruction::{self, IConst, IVar, INeg, INot, IInv, IAdd, IMul, IMod, IExp, ILT, ILTE, IEQ, INE, IAND, IOR, IFuncInt, IFuncCeil, IFuncFloor, IFuncAbs, IFuncLog, IFuncRound};
+use al::compiler::Instruction::{self, IConst, IVar, INeg, INot, IInv, IAdd, IMul, IMod, IExp, ILT, ILTE, IEQ, INE, IAND, IOR, IFuncInt, IFuncCeil, IFuncFloor, IFuncAbs, IFuncLog, IFuncRound, IFuncMin, IFuncMax, IFuncSin};
 use kerr::KErr;
 
 #[test]
@@ -227,6 +227,27 @@ fn all_instrs() {
     comp_chk("round(-2.7)", IConst(-3.0), "CompileSlab { instrs: [] }", -3.0);
     comp_chk("round(y7)", IFuncRound { modulus: InstructionI(0), of: InstructionI(1) }, "CompileSlab { instrs: [IConst(1.0), IVar(Variable(`y7`))] }", 3.0);
     
+    // IFuncMin
+    comp_chk("min(2.7)", IConst(2.7), "CompileSlab { instrs: [] }", 2.7);
+    comp_chk("min(2.7, 3.7)", IConst(2.7), "CompileSlab { instrs: [] }", 2.7);
+    comp_chk("min(4.7, 3.7, 2.7)", IConst(2.7), "CompileSlab { instrs: [] }", 2.7);
+    comp_chk("min(y7)", IVar(Variable("y7".to_string())), "CompileSlab { instrs: [] }", 2.7);
+    comp_chk("min(4.7, y7, 3.7)", IFuncMin(InstructionI(0), InstructionI(1)), "CompileSlab { instrs: [IVar(Variable(`y7`)), IConst(3.7)] }", 2.7);
+    comp_chk("min(3.7, y7, 4.7)", IFuncMin(InstructionI(0), InstructionI(1)), "CompileSlab { instrs: [IVar(Variable(`y7`)), IConst(3.7)] }", 2.7);
+    
+    // IFuncMax
+    comp_chk("max(2.7)", IConst(2.7), "CompileSlab { instrs: [] }", 2.7);
+    comp_chk("max(2.7, 1.7)", IConst(2.7), "CompileSlab { instrs: [] }", 2.7);
+    comp_chk("max(0.7, 1.7, 2.7)", IConst(2.7), "CompileSlab { instrs: [] }", 2.7);
+    comp_chk("max(y7)", IVar(Variable("y7".to_string())), "CompileSlab { instrs: [] }", 2.7);
+    comp_chk("max(0.7, y7, 1.7)", IFuncMax(InstructionI(0), InstructionI(1)), "CompileSlab { instrs: [IVar(Variable(`y7`)), IConst(1.7)] }", 2.7);
+    comp_chk("max(1.7, y7, 0.7)", IFuncMax(InstructionI(0), InstructionI(1)), "CompileSlab { instrs: [IVar(Variable(`y7`)), IConst(1.7)] }", 2.7);
 
+    // IFuncSin
+    comp_chk("sin(0)", IConst(0.0), "CompileSlab { instrs: [] }", 0.0);
+    comp_chk("round(0.000001, sin(pi()))", IConst(0.0), "CompileSlab { instrs: [] }", 0.0);
+    comp_chk("sin(pi()/2)", IConst(1.0), "CompileSlab { instrs: [] }", 1.0);
+    comp_chk("sin(w)", IFuncSin(InstructionI(0)), "CompileSlab { instrs: [IVar(Variable(`w`))] }", 0.0);
+    comp_chk("sin(pi()/y)", IFuncSin(InstructionI(3)), "CompileSlab { instrs: [IVar(Variable(`y`)), IInv(InstructionI(0)), IConst(3.141592653589793), IMul(InstructionI(1), InstructionI(2))] }", 1.0);
 }
 
