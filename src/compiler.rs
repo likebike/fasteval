@@ -47,6 +47,7 @@ pub enum Instruction {
     IFuncRound{modulus:InstructionI, of:InstructionI},
     IFuncMin(InstructionI, InstructionI),
     IFuncMax(InstructionI, InstructionI),
+
     IFuncSin(InstructionI),
     IFuncCos(InstructionI),
     IFuncTan(InstructionI),

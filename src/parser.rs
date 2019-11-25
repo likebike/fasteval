@@ -111,10 +111,10 @@ pub enum Func {
     EFuncRound{modulus:Option<ExpressionI>, expr:ExpressionI},
     EFuncMin{first:ExpressionI, rest:Vec<ExpressionI>},  // cap=8
     EFuncMax{first:ExpressionI, rest:Vec<ExpressionI>},  // cap=8
-    //
+
     EFuncE,
     EFuncPi,
-    //
+
     EFuncSin(ExpressionI),
     EFuncCos(ExpressionI),
     EFuncTan(ExpressionI),

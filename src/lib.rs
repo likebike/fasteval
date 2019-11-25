@@ -13,6 +13,35 @@
 #![feature(test)]
 //#![feature(backtrace)]
 
+
+#[macro_export]
+macro_rules! eval_instr {
+    ($evaler:expr, $slab_ref:expr, $ns_mut:expr) => {
+        {
+            let evaler = $evaler;
+            if let IConst(c) = evaler {
+                c
+            } else {
+                evaler.eval($slab_ref, $ns_mut)?
+            }
+        }
+    }
+}
+
+#[macro_export]
+macro_rules! eval_instr_ref {
+    ($evaler:expr, $slab_ref:expr, $ns_mut:expr) => {
+        {
+            let evaler = $evaler;
+            if let IConst(c) = evaler {
+                *c
+            } else {
+                evaler.eval($slab_ref, $ns_mut)?
+            }
+        }
+    }
+}
+
 pub mod slab;
 pub mod parser;
 pub mod compiler;
@@ -23,7 +52,7 @@ pub mod ez;
 
 pub use self::slab::Slab;
 pub use self::parser::{Parser, Expression, ExpressionI, Value, ValueI, Variable};
-pub use self::compiler::{Compiler, Instruction, InstructionI};
+pub use self::compiler::{Compiler, Instruction::{self, IConst}, InstructionI};
 pub use self::evalns::EvalNS;
 pub use self::evaler::Evaler;
 pub use self::ez::ez_eval;

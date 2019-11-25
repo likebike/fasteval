@@ -10,3 +10,6 @@ edition = "2018"
 [dependencies]
 kerr = "0.1"
 
+[profile.bench]
+debug = true
+

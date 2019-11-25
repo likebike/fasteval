@@ -11,7 +11,7 @@ use crate::parser::{Expression,
                     PrintFunc,
                     EvalFunc,
                     ExpressionOrString::{EExpr, EStr}};
-use crate::compiler::{log, Instruction};
+use crate::compiler::{log, Instruction::{self, IConst}};
 
 use kerr::KErr;
 
@@ -361,69 +361,70 @@ impl Evaler for EvalFunc {
 }
 
 impl Evaler for Instruction {
+    #[inline]
     fn eval(&self, slab:&Slab, ns:&mut EvalNS) -> Result<f64,KErr> {
         match self {
             Instruction::IConst(c) => Ok(*c),
             Instruction::IVar(v) => v.eval(slab,ns),
 
-            Instruction::INeg(i) => Ok(-slab.cs.get_instr(*i).eval(slab,ns)?),
-            Instruction::INot(i) => Ok(bool_to_f64(slab.cs.get_instr(*i).eval(slab,ns)?==0.0)),
-            Instruction::IInv(i) => Ok(1.0/slab.cs.get_instr(*i).eval(slab,ns)?),
+            Instruction::INeg(i) => Ok(-eval_instr_ref!(slab.cs.get_instr(*i), slab, ns)),
+            Instruction::INot(i) => Ok(bool_to_f64(eval_instr_ref!(slab.cs.get_instr(*i), slab, ns)==0.0)),
+            Instruction::IInv(i) => Ok(1.0/eval_instr_ref!(slab.cs.get_instr(*i), slab, ns)),
 
-            Instruction::IAdd(li,ri) => Ok( slab.cs.get_instr(*li).eval(slab,ns)? +
-                                            slab.cs.get_instr(*ri).eval(slab,ns)? ),
-            Instruction::IMul(li,ri) => Ok( slab.cs.get_instr(*li).eval(slab,ns)? *
-                                            slab.cs.get_instr(*ri).eval(slab,ns)? ),
-            Instruction::IMod{dividend, divisor} => Ok( slab.cs.get_instr(*dividend).eval(slab,ns)? %
-                                                        slab.cs.get_instr(*divisor).eval(slab,ns)? ),
-            Instruction::IExp{base, power} => Ok( slab.cs.get_instr(*base).eval(slab,ns)?.powf( 
-                                                  slab.cs.get_instr(*power).eval(slab,ns)? ) ),
+            Instruction::IAdd(li,ri) => Ok( eval_instr_ref!(slab.cs.get_instr(*li), slab, ns) +
+                                            eval_instr_ref!(slab.cs.get_instr(*ri), slab, ns) ),
+            Instruction::IMul(li,ri) => Ok( eval_instr_ref!(slab.cs.get_instr(*li), slab, ns) *
+                                            eval_instr_ref!(slab.cs.get_instr(*ri), slab, ns) ),
+            Instruction::IMod{dividend, divisor} => Ok( eval_instr_ref!(slab.cs.get_instr(*dividend), slab, ns) %
+                                                        eval_instr_ref!(slab.cs.get_instr(*divisor), slab, ns) ),
+            Instruction::IExp{base, power} => Ok( eval_instr_ref!(slab.cs.get_instr(*base), slab, ns).powf( 
+                                                  eval_instr_ref!(slab.cs.get_instr(*power), slab, ns) ) ),
 
-            Instruction::ILT(left, right) => Ok( bool_to_f64(slab.cs.get_instr(*left).eval(slab,ns)? <
-                                                             slab.cs.get_instr(*right).eval(slab,ns)?) ),
-            Instruction::ILTE(left, right) => Ok( bool_to_f64(slab.cs.get_instr(*left).eval(slab,ns)? <=
-                                                              slab.cs.get_instr(*right).eval(slab,ns)?) ),
-            Instruction::IEQ(left, right) => Ok( bool_to_f64(slab.cs.get_instr(*left).eval(slab,ns)? ==
-                                                             slab.cs.get_instr(*right).eval(slab,ns)?) ),
-            Instruction::INE(left, right) => Ok( bool_to_f64(slab.cs.get_instr(*left).eval(slab,ns)? !=
-                                                             slab.cs.get_instr(*right).eval(slab,ns)?) ),
-            Instruction::IGTE(left, right) => Ok( bool_to_f64(slab.cs.get_instr(*left).eval(slab,ns)? >=
-                                                              slab.cs.get_instr(*right).eval(slab,ns)?) ),
-            Instruction::IGT(left, right) => Ok( bool_to_f64(slab.cs.get_instr(*left).eval(slab,ns)? >
-                                                             slab.cs.get_instr(*right).eval(slab,ns)?) ),
+            Instruction::ILT(left, right) => Ok( bool_to_f64(eval_instr_ref!(slab.cs.get_instr(*left), slab, ns) <
+                                                             eval_instr_ref!(slab.cs.get_instr(*right), slab, ns)) ),
+            Instruction::ILTE(left, right) => Ok( bool_to_f64(eval_instr_ref!(slab.cs.get_instr(*left), slab, ns) <=
+                                                              eval_instr_ref!(slab.cs.get_instr(*right), slab, ns)) ),
+            Instruction::IEQ(left, right) => Ok( bool_to_f64(eval_instr_ref!(slab.cs.get_instr(*left), slab, ns) ==
+                                                             eval_instr_ref!(slab.cs.get_instr(*right), slab, ns)) ),
+            Instruction::INE(left, right) => Ok( bool_to_f64(eval_instr_ref!(slab.cs.get_instr(*left), slab, ns) !=
+                                                             eval_instr_ref!(slab.cs.get_instr(*right), slab, ns)) ),
+            Instruction::IGTE(left, right) => Ok( bool_to_f64(eval_instr_ref!(slab.cs.get_instr(*left), slab, ns) >=
+                                                              eval_instr_ref!(slab.cs.get_instr(*right), slab, ns)) ),
+            Instruction::IGT(left, right) => Ok( bool_to_f64(eval_instr_ref!(slab.cs.get_instr(*left), slab, ns) >
+                                                             eval_instr_ref!(slab.cs.get_instr(*right), slab, ns)) ),
 
             Instruction::IAND(lefti, righti) => {
-                let left = slab.cs.get_instr(*lefti).eval(slab,ns)?;
+                let left = eval_instr_ref!(slab.cs.get_instr(*lefti), slab, ns);
                 if left==0.0 { Ok(left) }
                 else {
-                    Ok(slab.cs.get_instr(*righti).eval(slab,ns)?)
+                    Ok(eval_instr_ref!(slab.cs.get_instr(*righti), slab, ns))
                 }
             }
             Instruction::IOR(lefti, righti) => {
-                let left = slab.cs.get_instr(*lefti).eval(slab,ns)?;
+                let left = eval_instr_ref!(slab.cs.get_instr(*lefti), slab, ns);
                 if left!=0.0 { Ok(left) }
                 else {
-                    Ok(slab.cs.get_instr(*righti).eval(slab,ns)?)
+                    Ok(eval_instr_ref!(slab.cs.get_instr(*righti), slab, ns))
                 }
             }
 
-            Instruction::IFuncInt(i) => Ok( slab.cs.get_instr(*i).eval(slab,ns)?.trunc() ),
-            Instruction::IFuncCeil(i) => Ok( slab.cs.get_instr(*i).eval(slab,ns)?.ceil() ),
-            Instruction::IFuncFloor(i) => Ok( slab.cs.get_instr(*i).eval(slab,ns)?.floor() ),
-            Instruction::IFuncAbs(i) => Ok( slab.cs.get_instr(*i).eval(slab,ns)?.abs() ),
+            Instruction::IFuncInt(i) => Ok( eval_instr_ref!(slab.cs.get_instr(*i), slab, ns).trunc() ),
+            Instruction::IFuncCeil(i) => Ok( eval_instr_ref!(slab.cs.get_instr(*i), slab, ns).ceil() ),
+            Instruction::IFuncFloor(i) => Ok( eval_instr_ref!(slab.cs.get_instr(*i), slab, ns).floor() ),
+            Instruction::IFuncAbs(i) => Ok( eval_instr_ref!(slab.cs.get_instr(*i), slab, ns).abs() ),
             Instruction::IFuncLog{base:basei, of:ofi} => {
-                let base = slab.cs.get_instr(*basei).eval(slab,ns)?;
-                let of = slab.cs.get_instr(*ofi).eval(slab,ns)?;
+                let base = eval_instr_ref!(slab.cs.get_instr(*basei), slab, ns);
+                let of = eval_instr_ref!(slab.cs.get_instr(*ofi), slab, ns);
                 Ok(log(base,of))
             }
             Instruction::IFuncRound{modulus:modi, of:ofi} => {
-                let modulus = slab.cs.get_instr(*modi).eval(slab,ns)?;
-                let of = slab.cs.get_instr(*ofi).eval(slab,ns)?;
+                let modulus = eval_instr_ref!(slab.cs.get_instr(*modi), slab, ns);
+                let of = eval_instr_ref!(slab.cs.get_instr(*ofi), slab, ns);
                 Ok( (of/modulus).round() * modulus )
             }
             Instruction::IFuncMin(li,ri) => {
-                let left = slab.cs.get_instr(*li).eval(slab,ns)?;
-                let right = slab.cs.get_instr(*ri).eval(slab,ns)?;
+                let left = eval_instr_ref!(slab.cs.get_instr(*li), slab, ns);
+                let right = eval_instr_ref!(slab.cs.get_instr(*ri), slab, ns);
                 if left<right {
                     Ok(left)
                 } else {
@@ -431,8 +432,8 @@ impl Evaler for Instruction {
                 }
             }
             Instruction::IFuncMax(li,ri) => {
-                let left = slab.cs.get_instr(*li).eval(slab,ns)?;
-                let right = slab.cs.get_instr(*ri).eval(slab,ns)?;
+                let left = eval_instr_ref!(slab.cs.get_instr(*li), slab, ns);
+                let right = eval_instr_ref!(slab.cs.get_instr(*ri), slab, ns);
                 if left>right {
                     Ok(left)
                 } else {
@@ -440,15 +441,15 @@ impl Evaler for Instruction {
                 }
             }
 
-            Instruction::IFuncSin(i) => Ok( slab.cs.get_instr(*i).eval(slab,ns)?.sin() ),
-            Instruction::IFuncCos(i) => Ok( slab.cs.get_instr(*i).eval(slab,ns)?.cos() ),
-            Instruction::IFuncTan(i) => Ok( slab.cs.get_instr(*i).eval(slab,ns)?.tan() ),
-            Instruction::IFuncASin(i) => Ok( slab.cs.get_instr(*i).eval(slab,ns)?.asin() ),
-            Instruction::IFuncACos(i) => Ok( slab.cs.get_instr(*i).eval(slab,ns)?.acos() ),
-            Instruction::IFuncATan(i) => Ok( slab.cs.get_instr(*i).eval(slab,ns)?.atan() ),
-            Instruction::IFuncSinH(i) => Ok( slab.cs.get_instr(*i).eval(slab,ns)?.sinh() ),
-            Instruction::IFuncCosH(i) => Ok( slab.cs.get_instr(*i).eval(slab,ns)?.cosh() ),
-            Instruction::IFuncTanH(i) => Ok( slab.cs.get_instr(*i).eval(slab,ns)?.tanh() ),
+            Instruction::IFuncSin(i) => Ok( eval_instr_ref!(slab.cs.get_instr(*i), slab, ns).sin() ),
+            Instruction::IFuncCos(i) => Ok( eval_instr_ref!(slab.cs.get_instr(*i), slab, ns).cos() ),
+            Instruction::IFuncTan(i) => Ok( eval_instr_ref!(slab.cs.get_instr(*i), slab, ns).tan() ),
+            Instruction::IFuncASin(i) => Ok( eval_instr_ref!(slab.cs.get_instr(*i), slab, ns).asin() ),
+            Instruction::IFuncACos(i) => Ok( eval_instr_ref!(slab.cs.get_instr(*i), slab, ns).acos() ),
+            Instruction::IFuncATan(i) => Ok( eval_instr_ref!(slab.cs.get_instr(*i), slab, ns).atan() ),
+            Instruction::IFuncSinH(i) => Ok( eval_instr_ref!(slab.cs.get_instr(*i), slab, ns).sinh() ),
+            Instruction::IFuncCosH(i) => Ok( eval_instr_ref!(slab.cs.get_instr(*i), slab, ns).cosh() ),
+            Instruction::IFuncTanH(i) => Ok( eval_instr_ref!(slab.cs.get_instr(*i), slab, ns).tanh() ),
 
             Instruction::IPrintFunc(pf) => pf.eval(slab,ns),
             Instruction::IEvalFunc(ef) => ef.eval(slab,ns),

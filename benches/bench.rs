@@ -41,13 +41,13 @@ fn parse_eval(b:&mut Bencher) {
 
 // Let's see how much the benchmark system is affected by its self:
 #[bench]
-fn parse_eval_100x(b:&mut Bencher) {
+fn parse_eval_1000x(b:&mut Bencher) {
     let p = Parser::new(None,None);
     let mut slab = Slab::new();
     let mut ns = EvalNS::new(|_| None);
 
     b.iter(|| {
-        for _ in 0..100 {
+        for _ in 0..1000 {
             black_box(p.parse({slab.clear(); &mut slab.ps}, "(3 * (3 + 3) / 3)").unwrap().from(&slab.ps).eval(&slab, &mut ns).unwrap());
         }
     });
@@ -66,14 +66,14 @@ fn preparse_eval(b:&mut Bencher) {
 }
 
 #[bench]
-fn preparse_eval_100x(b:&mut Bencher) {
+fn preparse_eval_1000x(b:&mut Bencher) {
     let p = Parser::new(None,None);
     let mut slab = Slab::new();
     let mut ns = EvalNS::new(|_| None);
     let expr_ref = p.parse(&mut slab.ps, "(3 * (3 + 3) / 3)").unwrap().from(&slab.ps);
 
     b.iter(|| {
-        for _ in 0..100 {
+        for _ in 0..1000 {
             black_box(expr_ref.eval(&slab, &mut ns).unwrap());
         }
     });
@@ -99,12 +99,16 @@ fn preparse_precompile_eval(b:&mut Bencher) {
     let instr = expr_ref.compile(&slab.ps, &mut slab.cs);
 
     b.iter(|| {
-        black_box(instr.eval(&slab, &mut ns).unwrap());
+        black_box(if let al::IConst(c) = instr {
+                      c
+                  } else {
+                      instr.eval(&slab, &mut ns).unwrap()
+                  });
     });
 }
 
 #[bench]
-fn preparse_precompile_eval_100x(b:&mut Bencher) {
+fn preparse_precompile_eval_1000x(b:&mut Bencher) {
     let p = Parser::new(None,None);
     let mut slab = Slab::new();
     let mut ns = EvalNS::new(|_| None);
@@ -112,16 +116,42 @@ fn preparse_precompile_eval_100x(b:&mut Bencher) {
     let instr = expr_ref.compile(&slab.ps, &mut slab.cs);
 
     b.iter(|| {
-        for _ in 0..100 {
-            black_box(instr.eval(&slab, &mut ns).unwrap());
+        for _ in 0..1000 {
+            black_box(if let al::IConst(c) = instr {
+                          c
+                      } else {
+                          instr.eval(&slab, &mut ns).unwrap()
+                      });
         }
     });
 }
 
 #[bench]
-fn native_100x(b:&mut Bencher) {
+#[allow(non_snake_case)]
+fn preparse_precompile_eval_100B(_:&mut Bencher) {
+    let p = Parser::new(None,None);
+    let mut slab = Slab::new();
+    let mut ns = EvalNS::new(|_| None);
+    let expr_ref = p.parse(&mut slab.ps, "(3 * (3 + 3) / 3)").unwrap().from(&slab.ps);
+    let instr = expr_ref.compile(&slab.ps, &mut slab.cs);
+
+    let start = std::time::Instant::now();
+    for _ in 0..100 {
+        for _ in 0..1_000_000_000 {
+            black_box(if let al::IConst(c) = instr {
+                          c
+                      } else {
+                          instr.eval(&slab, &mut ns).unwrap()
+                      });
+        }
+    }
+    eprintln!("bench time: {}", start.elapsed().as_secs_f64());
+}
+
+#[bench]
+fn native_1000x(b:&mut Bencher) {
     b.iter(|| {
-        for _ in 0..100 {
+        for _ in 0..1000 {
             black_box(3.0 * (3.0 + 3.0) / 3.0);
         }
     });
