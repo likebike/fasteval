@@ -107,6 +107,7 @@ pub enum Func {
     EFuncCeil(ExpressionI),
     EFuncFloor(ExpressionI),
     EFuncAbs(ExpressionI),
+    EFuncSign(ExpressionI),
     EFuncLog{     base:Option<ExpressionI>, expr:ExpressionI},
     EFuncRound{modulus:Option<ExpressionI>, expr:ExpressionI},
     EFuncMin{first:ExpressionI, rest:Vec<ExpressionI>},  // cap=8
@@ -125,7 +126,7 @@ pub enum Func {
     EFuncCosH(ExpressionI),
     EFuncTanH(ExpressionI),
 }
-use Func::{EFuncInt, EFuncCeil, EFuncFloor, EFuncAbs, EFuncLog, EFuncRound, EFuncMin, EFuncMax, EFuncE, EFuncPi, EFuncSin, EFuncCos, EFuncTan, EFuncASin, EFuncACos, EFuncATan, EFuncSinH, EFuncCosH, EFuncTanH};
+use Func::{EFuncInt, EFuncCeil, EFuncFloor, EFuncAbs, EFuncSign, EFuncLog, EFuncRound, EFuncMin, EFuncMax, EFuncE, EFuncPi, EFuncSin, EFuncCos, EFuncTan, EFuncASin, EFuncACos, EFuncATan, EFuncSinH, EFuncCosH, EFuncTanH};
 
 #[derive(Debug, PartialEq)]
 pub struct PrintFunc(pub Vec<ExpressionOrString>);  // cap=8
@@ -501,6 +502,10 @@ impl Parser<'_> {
             }
             "abs" => {
                 if args.len()==1 { Ok(Bite(EFuncAbs(args.pop().unwrap())))
+                } else { Err(KErr::new("expected one arg")) }
+            }
+            "sign" => {
+                if args.len()==1 { Ok(Bite(EFuncSign(args.pop().unwrap())))
                 } else { Err(KErr::new("expected one arg")) }
             }
             "log" => {

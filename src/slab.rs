@@ -79,7 +79,7 @@ impl CompileSlab {
 }
 impl Slab {
     #[inline]
-    pub fn new() -> Self { Self::with_capacity(32) }
+    pub fn new() -> Self { Self::with_capacity(64) }
     #[inline]
     pub fn with_capacity(cap:usize) -> Self {
         Self{

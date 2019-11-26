@@ -1,6 +1,6 @@
 use al::{Parser, Compiler, Evaler, Slab, EvalNS, ExpressionI, InstructionI, Variable};
 use al::parser::{PrintFunc, ExpressionOrString::{EExpr, EStr}, EvalFunc, KWArg};
-use al::compiler::Instruction::{self, IConst, IVar, INeg, INot, IInv, IAdd, IMul, IMod, IExp, ILT, ILTE, IEQ, INE, IGTE, IGT, IAND, IOR, IFuncInt, IFuncCeil, IFuncFloor, IFuncAbs, IFuncLog, IFuncRound, IFuncMin, IFuncMax, IFuncSin, IFuncCos, IFuncTan, IFuncASin, IFuncACos, IFuncATan, IFuncSinH, IFuncCosH, IFuncTanH, IPrintFunc, IEvalFunc};
+use al::compiler::Instruction::{self, IConst, IVar, INeg, INot, IInv, IAdd, IMul, IMod, IExp, ILT, ILTE, IEQ, INE, IGTE, IGT, IAND, IOR, IFuncInt, IFuncCeil, IFuncFloor, IFuncAbs, IFuncSign, IFuncLog, IFuncRound, IFuncMin, IFuncMax, IFuncSin, IFuncCos, IFuncTan, IFuncASin, IFuncACos, IFuncATan, IFuncSinH, IFuncCosH, IFuncTanH, IPrintFunc, IEvalFunc};
 use kerr::KErr;
 
 #[test]
@@ -230,6 +230,12 @@ fn all_instrs() {
     comp_chk("abs(-2.7)", IConst(2.7), "CompileSlab { instrs: [] }", 2.7);
     comp_chk("abs(-y7)", IFuncAbs(InstructionI(1)), "CompileSlab { instrs: [IVar(Variable(`y7`)), INeg(InstructionI(0))] }", 2.7);
 
+    // IFuncSign
+    comp_chk("sign(2.7)", IConst(1.0), "CompileSlab { instrs: [] }", 1.0);
+    comp_chk("sign(y7)", IFuncSign(InstructionI(0)), "CompileSlab { instrs: [IVar(Variable(`y7`))] }", 1.0);
+    comp_chk("sign(-2.7)", IConst(-1.0), "CompileSlab { instrs: [] }", -1.0);
+    comp_chk("sign(-y7)", IFuncSign(InstructionI(1)), "CompileSlab { instrs: [IVar(Variable(`y7`)), INeg(InstructionI(0))] }", -1.0);
+
     // IFuncLog
     comp_chk("log(1)", IConst(0.0), "CompileSlab { instrs: [] }", 0.0);
     comp_chk("log(10)", IConst(1.0), "CompileSlab { instrs: [] }", 1.0);
@@ -309,5 +315,10 @@ fn all_instrs() {
     comp_chk("eval(x + 2)", IEvalFunc(EvalFunc { expr: ExpressionI(0), kwargs: vec![] }), "CompileSlab { instrs: [] }", 3.0);
     comp_chk("eval(x + 2, x=5)", IEvalFunc(EvalFunc { expr: ExpressionI(0), kwargs: vec![KWArg { name: Variable("x".to_string()), expr: ExpressionI(1) }] }), "CompileSlab { instrs: [] }", 7.0);
     
+}
+
+#[test]
+fn corners() {
+
 }
 

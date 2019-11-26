@@ -7,7 +7,7 @@ use crate::parser::{Expression,
                     UnaryOp::{self, EPos, ENeg, ENot, EParens},
                     BinaryOp::{self, EPlus, EMinus, EMul, EDiv, EMod, EExp, ELT, ELTE, EEQ, ENE, EGTE, EGT, EOR, EAND},
                     Callable::{self, EFunc, EPrintFunc, EEvalFunc},
-                    Func::{self, EFuncInt, EFuncCeil, EFuncFloor, EFuncAbs, EFuncLog, EFuncRound, EFuncMin, EFuncMax, EFuncE, EFuncPi, EFuncSin, EFuncCos, EFuncTan, EFuncASin, EFuncACos, EFuncATan, EFuncSinH, EFuncCosH, EFuncTanH},
+                    Func::{self, EFuncInt, EFuncCeil, EFuncFloor, EFuncAbs, EFuncSign, EFuncLog, EFuncRound, EFuncMin, EFuncMax, EFuncE, EFuncPi, EFuncSin, EFuncCos, EFuncTan, EFuncASin, EFuncACos, EFuncATan, EFuncSinH, EFuncCosH, EFuncTanH},
                     PrintFunc,
                     EvalFunc,
                     ExpressionOrString::{EExpr, EStr}};
@@ -241,6 +241,7 @@ impl Evaler for Func {
             EFuncCeil(expr_i) => { Ok(ns.eval(slab, slab.ps.get_expr(*expr_i))?.ceil()) }
             EFuncFloor(expr_i) => { Ok(ns.eval(slab, slab.ps.get_expr(*expr_i))?.floor()) }
             EFuncAbs(expr_i) => { Ok(ns.eval(slab, slab.ps.get_expr(*expr_i))?.abs()) }
+            EFuncSign(expr_i) => { Ok(ns.eval(slab, slab.ps.get_expr(*expr_i))?.signum()) }
             EFuncLog{base:base_opt, expr:expr_i} => {
                 let base = match base_opt {
                     Some(b_expr_i) => ns.eval(slab, slab.ps.get_expr(*b_expr_i))?,
@@ -412,6 +413,7 @@ impl Evaler for Instruction {
             Instruction::IFuncCeil(i) => Ok( eval_instr_ref!(slab.cs.get_instr(*i), slab, ns).ceil() ),
             Instruction::IFuncFloor(i) => Ok( eval_instr_ref!(slab.cs.get_instr(*i), slab, ns).floor() ),
             Instruction::IFuncAbs(i) => Ok( eval_instr_ref!(slab.cs.get_instr(*i), slab, ns).abs() ),
+            Instruction::IFuncSign(i) => Ok( eval_instr_ref!(slab.cs.get_instr(*i), slab, ns).signum() ),
             Instruction::IFuncLog{base:basei, of:ofi} => {
                 let base = eval_instr_ref!(slab.cs.get_instr(*basei), slab, ns);
                 let of = eval_instr_ref!(slab.cs.get_instr(*ofi), slab, ns);

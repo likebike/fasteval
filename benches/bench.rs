@@ -55,6 +55,28 @@
 //     test preparse_precompile_eval       ... bench:      61 ns/iter (+/- 6)
 //     test preparse_precompile_eval_1000x ... bench:  61,859 ns/iter (+/- 15,816)
 //
+//     "(-z + (z^2 - 4*x*y)^0.5) / (2*x)"
+//     test ez                             ... N/A
+//     test native_1000x                   ... bench:     5,290 ns/iter (+/- 440)
+//     test parse_compile_eval             ... bench:     3,930 ns/iter (+/- 205)
+//     test parse_eval                     ... bench:     2,727 ns/iter (+/- 377)
+//     test parse_eval_1000x               ... bench: 2,745,433 ns/iter (+/- 426,812)
+//     test preparse_eval                  ... bench:       848 ns/iter (+/- 122)
+//     test preparse_eval_1000x            ... bench:   848,995 ns/iter (+/- 130,568)
+//     test preparse_precompile_eval       ... bench:       286 ns/iter (+/- 75)
+//     test preparse_precompile_eval_1000x ... bench:   326,558 ns/iter (+/- 43,766)
+//
+//     "((((87))) - 73) + (97 + (((15 / 55 * ((31)) + 35))) + (15 - (9)) - (39 / 26) / 20 / 91 + 27 / (33 * 26 + 28 - (7) / 10 + 66 * 6) + 60 / 35 - ((29) - (69) / 44 / (92)) / (89) + 2 + 87 / 47 * ((2)) * 83 / 98 * 42 / (((67)) * ((97))) / (34 / 89 + 77) - 29 + 70 * (20)) + ((((((92))) + 23 * (98) / (95) + (((99) * (41))) + (5 + 41) + 10) - (36) / (6 + 80 * 52 + (90))))"
+//     test ez                             ... bench:      16,328 ns/iter (+/- 1,380)
+//     test native_1000x                   ... bench:       5,274 ns/iter (+/- 225)
+//     test parse_compile_eval             ... bench:      20,235 ns/iter (+/- 2,311)
+//     test parse_eval                     ... bench:      15,764 ns/iter (+/- 1,295)
+//     test parse_eval_1000x               ... bench:  16,419,636 ns/iter (+/- 3,297,441)
+//     test preparse_eval                  ... bench:       4,844 ns/iter (+/- 808)
+//     test preparse_eval_1000x            ... bench:   4,993,433 ns/iter (+/- 882,328)
+//     test preparse_precompile_eval       ... bench:           0 ns/iter (+/- 0)
+//     test preparse_precompile_eval_1000x ... bench:         765 ns/iter (+/- 70)
+//
 //
 // caldyn:
 //     "(3 * (3 + 3) / 3)", No Context
@@ -84,14 +106,86 @@
 //     "sin(x)", Callback Context
 //     test ez                             ... bench:         573 ns/iter (+/- 54)
 //     test preparse_precompile_eval_1000x ... bench:      97,861 ns/iter (+/- 6,063)
+//
+//     "(-z + (z^2 - 4*x*y)^0.5) / (2*x)" --> -z => 0 - z
+//     test ez                             ... bench:       4,440 ns/iter (+/- 618)
+//     test preparse_precompile_eval_1000x ... bench:     525,066 ns/iter (+/- 64,388)
+//
+//     "((((87))) - 73) + (97 + (((15 / 55 * ((31)) + 35))) + (15 - (9)) - (39 / 26) / 20 / 91 + 27 / (33 * 26 + 28 - (7) / 10 + 66 * 6) + 60 / 35 - ((29) - (69) / 44 / (92)) / (89) + 2 + 87 / 47 * ((2)) * 83 / 98 * 42 / (((67)) * ((97))) / (34 / 89 + 77) - 29 + 70 * (20)) + ((((((92))) + 23 * (98) / (95) + (((99) * (41))) + (5 + 41) + 10) - (36) / (6 + 80 * 52 + (90))))"
+//     test ez                             ... bench:      24,598 ns/iter (+/- 4,140)
+//     test preparse_precompile_eval_1000x ... bench:       4,418 ns/iter (+/- 429)
+//
+//
+// tinyexpr:
+//     "(3 * (3 + 3) / 3)"
+//     test bench_interp ... bench:       1,171 ns/iter (+/- 120)
+//
+//     "3 * 3 - 3 / 3"
+//     test bench_interp ... bench:         895 ns/iter (+/- 50)
+//
+//     "2 ^ 3 ^ 4" = 4096
+//     test bench_interp ... bench:         676 ns/iter (+/- 153)
+//
+//     "((((87))) - 73) + (97 + (((15 / 55 * ((31)) + 35))) + (15 - (9)) - (39 / 26) / 20 / 91 + 27 / (33 * 26 + 28 - (7) / 10 + 66 * 6) + 60 / 35 - ((29) - (69) / 44 / (92)) / (89) + 2 + 87 / 47 * ((2)) * 83 / 98 * 42 / (((67)) * ((97))) / (34 / 89 + 77) - 29 + 70 * (20)) + ((((((92))) + 23 * (98) / (95) + (((99) * (41))) + (5 + 41) + 10) - (36) / (6 + 80 * 52 + (90))))"
+//     test bench_interp ... bench:      38,422 ns/iter (+/- 6,510)
+//
+//
+// bc:
+//     user@asus:~$ echo 'for (i=0; i<1000000; i++) { (3 * (3 + 3) / 3) }' | time bc >/dev/null
+//     1.71user 0.32system 0:02.04elapsed
+//
+//     user@asus:~$ echo 'for (i=0; i<1000000; i++) { 3*3-3/3 }' | time bc >/dev/null
+//     1.43user 0.22system 0:01.66elapsed
+//
+//     user@asus:~$ echo 'for (i=0; i<1000000; i++) { 2 ^ 3 ^ 4 }' | time bc >/dev/null = 2417851639229258349412352
+//     2.33user 0.21system 0:02.55elapsed
+//
+//     user@asus:~$ echo 'x=1; for (i=0; i<1000000; i++) { x * 2 }' | time bc >/dev/null
+//     0.74user 0.27system 0:01.01elapsed
+//
+//     user@asus:~$ echo 'x=1; for (i=0; i<1000000; i++) { s(x) }' | time bc -l >/dev/null
+//     40.82user 0.40system 0:41.24elapsed
+//
+//     user@asus:~$ echo 'x=1; y=2; z=3; for (i=0; i<1000000; i++) { (-z + sqrt(z^2 - 4*x*y)) / (2*x) }' | time bc >/dev/null
+//     1.93user 0.27system 0:02.20elapsed
+//
+//     user@asus:~$ echo 'for (i=0; i<1000000; i++) { ((((87))) - 73) + (97 + (((15 / 55 * ((31)) + 35))) + (15 - (9)) - (39 / 26) / 20 / 91 + 27 / (33 * 26 + 28 - (7) / 10 + 66 * 6) + 60 / 35 - ((29) - (69) / 44 / (92)) / (89) + 2 + 87 / 47 * ((2)) * 83 / 98 * 42 / (((67)) * ((97))) / (34 / 89 + 77) - 29 + 70 * (20)) + ((((((92))) + 23 * (98) / (95) + (((99) * (41))) + (5 + 41) + 10) - (36) / (6 + 80 * 52 + (90)))) }' | time bc >/dev/null
+//     10.95user 0.30system 0:11.26elapsed
+//
+//
+// calc:
+//     "(3 * (3 + 3) / 3)"
+//     test eval_1000x ... bench:   1,675,179 ns/iter (+/- 295,930)
+//
+//     "3 * 3 - 3 / 3"
+//     test eval_1000x ... bench:   1,445,273 ns/iter (+/- 210,599)
+//
+//     "2 ** 3 ** 4" = 2417851639229258349412352
+//     test eval_1000x ... bench:   2,275,338 ns/iter (+/- 351,933)
+//
+//     "x * 2"
+//     test eval_1000x ... bench:     792,132 ns/iter (+/- 145,850)
+//
+//     "sin(x)"
+//     N/A
+//
+//     "(-z + (z^2 - 4*x*y)^0.5) / (2*x)"
+//     test eval_1000x ... bench:  26,565,727 ns/iter (+/- 3,870,655)
+//
+//     "((((87))) - 73) + (97 + (((15 / 55 * ((31)) + 35))) + (15 - (9)) - (39 / 26) / 20 / 91 + 27 / (33 * 26 + 28 - (7) / 10 + 66 * 6) + 60 / 35 - ((29) - (69) / 44 / (92)) / (89) + 2 + 87 / 47 * ((2)) * 83 / 98 * 42 / (((67)) * ((97))) / (34 / 89 + 77) - 29 + 70 * (20)) + ((((((92))) + 23 * (98) / (95) + (((99) * (41))) + (5 + 41) + 10) - (36) / (6 + 80 * 52 + (90))))"
+//     test eval_1000x ... bench:  44,810,253 ns/iter (+/- 5,380,532)
 
 
 
 
 
 
-
-
+  
+  
+  
+  
+  
+  
 #![feature(test)]
 extern crate test;  // 'extern crate' seems to be required for this scenario: https://github.com/rust-lang/rust/issues/57288
 use test::{Bencher, black_box};
@@ -112,7 +206,9 @@ fn evalcb(name:&str) -> Option<f64> {
 //static EXPR : &'static str = "3 * 3 - 3 / 3";
 //static EXPR : &'static str = "2 ^ 3 ^ 4";
 //static EXPR : &'static str = "x * 2";
-static EXPR : &'static str = "sin(x)";
+//static EXPR : &'static str = "sin(x)";
+//static EXPR : &'static str = "(-z + (z^2 - 4*x*y)^0.5) / (2*x)";
+static EXPR : &'static str = "((((87))) - 73) + (97 + (((15 / 55 * ((31)) + 35))) + (15 - (9)) - (39 / 26) / 20 / 91 + 27 / (33 * 26 + 28 - (7) / 10 + 66 * 6) + 60 / 35 - ((29) - (69) / 44 / (92)) / (89) + 2 + 87 / 47 * ((2)) * 83 / 98 * 42 / (((67)) * ((97))) / (34 / 89 + 77) - 29 + 70 * (20)) + ((((((92))) + 23 * (98) / (95) + (((99) * (41))) + (5 + 41) + 10) - (36) / (6 + 80 * 52 + (90))))";
 
 #[bench]
 fn ez(b:&mut Bencher) {
@@ -242,15 +338,17 @@ fn preparse_precompile_eval_1000x(b:&mut Bencher) {
 // }
 
 #[bench]
-fn native_1000x(b:&mut Bencher) {
+fn native_1000x(bencher:&mut Bencher) {
     fn x() -> f64 { black_box(1.0) }
-    b.iter(|| {
+    let (a,b,c) = (1.0f64, 3.0f64, 2.0f64);
+    bencher.iter(|| {
         for _ in 0..1000 {
             //black_box(3.0 * (3.0 + 3.0) / 3.0);
             //black_box(3.0 * 3.0 - 3.0 / 3.0);
             //black_box(2.0f64.powf(3.0).powf(4.0));
             //black_box(x() * 2.0);
-            black_box(x().sin());
+            //black_box(x().sin());
+            black_box( (-b + (b.powf(2.0) - 4.0*a*c).powf(0.5)) / (2.0*a) );
         }
     });
 }

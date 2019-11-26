@@ -5,6 +5,7 @@
 //   [x] Profile, boost critical sections.
 //   [x] optimize the peek/read process -- be able to read N bytes if we peek successfully.
 //   [x] optimize after parse
+//   [ ] Copy smart tests from other libs.
 //   [ ] Readme
 //   [ ] Documentation
 //

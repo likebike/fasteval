@@ -1,5 +1,5 @@
 use crate::slab::{ParseSlab, CompileSlab};
-use crate::parser::{Expression, ExprPair, Value, Variable, UnaryOp::{self, EPos, ENeg, ENot, EParens}, BinaryOp::{self, EOR, EAND, ENE, EEQ, EGTE, ELTE, EGT, ELT, EPlus, EMinus, EMul, EDiv, EMod, EExp}, Callable::{self, EFunc, EPrintFunc, EEvalFunc}, Func::{EFuncInt, EFuncCeil, EFuncFloor, EFuncAbs, EFuncLog, EFuncRound, EFuncMin, EFuncMax, EFuncE, EFuncPi, EFuncSin, EFuncCos, EFuncTan, EFuncASin, EFuncACos, EFuncATan, EFuncSinH, EFuncCosH, EFuncTanH}, PrintFunc, EvalFunc};
+use crate::parser::{Expression, ExprPair, Value, Variable, UnaryOp::{self, EPos, ENeg, ENot, EParens}, BinaryOp::{self, EOR, EAND, ENE, EEQ, EGTE, ELTE, EGT, ELT, EPlus, EMinus, EMul, EDiv, EMod, EExp}, Callable::{self, EFunc, EPrintFunc, EEvalFunc}, Func::{EFuncInt, EFuncCeil, EFuncFloor, EFuncAbs, EFuncSign, EFuncLog, EFuncRound, EFuncMin, EFuncMax, EFuncE, EFuncPi, EFuncSin, EFuncCos, EFuncTan, EFuncASin, EFuncACos, EFuncATan, EFuncSinH, EFuncCosH, EFuncTanH}, PrintFunc, EvalFunc};
 use crate::evaler::bool_to_f64;
 
 #[derive(Debug, PartialEq, Copy, Clone)]
@@ -43,6 +43,7 @@ pub enum Instruction {
     IFuncCeil(InstructionI),
     IFuncFloor(InstructionI),
     IFuncAbs(InstructionI),
+    IFuncSign(InstructionI),
     IFuncLog{base:InstructionI, of:InstructionI},
     IFuncRound{modulus:InstructionI, of:InstructionI},
     IFuncMin(InstructionI, InstructionI),
@@ -61,7 +62,7 @@ pub enum Instruction {
     IPrintFunc(PrintFunc),  // Not optimized (it would be pointless because of i/o bottleneck).
     IEvalFunc(EvalFunc),    // Eval *could* be optimized, but I'll wait until I need to.
 }
-use Instruction::{IConst, IVar, INeg, INot, IInv, IAdd, IMul, IMod, IExp, ILT, ILTE, IEQ, INE, IGTE, IGT, IOR, IAND, IFuncInt, IFuncCeil, IFuncFloor, IFuncAbs, IFuncLog, IFuncRound, IFuncMin, IFuncMax, IFuncSin, IFuncCos, IFuncTan, IFuncASin, IFuncACos, IFuncATan, IFuncSinH, IFuncCosH, IFuncTanH, IPrintFunc, IEvalFunc};
+use Instruction::{IConst, IVar, INeg, INot, IInv, IAdd, IMul, IMod, IExp, ILT, ILTE, IEQ, INE, IGTE, IGT, IOR, IAND, IFuncInt, IFuncCeil, IFuncFloor, IFuncAbs, IFuncSign, IFuncLog, IFuncRound, IFuncMin, IFuncMax, IFuncSin, IFuncCos, IFuncTan, IFuncASin, IFuncACos, IFuncATan, IFuncSinH, IFuncCosH, IFuncTanH, IPrintFunc, IEvalFunc};
 
 
 
@@ -569,6 +570,14 @@ impl Compiler for Callable {
                         IConst(c.abs())
                     } else {
                         IFuncAbs(cslab.push_instr(instr))
+                    }
+                }
+                EFuncSign(i) => {
+                    let instr = pslab.get_expr(*i).compile(pslab,cslab);
+                    if let IConst(c) = instr {
+                        IConst(c.signum())
+                    } else {
+                        IFuncSign(cslab.push_instr(instr))
                     }
                 }
                 EFuncLog{base:baseopt, expr:i} => {

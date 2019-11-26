@@ -256,3 +256,13 @@ fn aaa_evalns_basics() {
     assert_eq!(ns.is_normal(), true);
 }
 
+#[test]
+fn corners() {
+    let p = Parser::new(None,None);
+    let mut slab = Slab::new();
+    let mut ns = EvalNS::new(|_| None);
+    assert_eq!(
+        format!("{:?}", p.parse({slab.clear(); &mut slab.ps}, "(-1) ^ 0.5").unwrap().from(&slab.ps).eval(&slab, &mut ns)),
+        "Ok(NaN)");
+}
+
