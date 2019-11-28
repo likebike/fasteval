@@ -125,8 +125,11 @@ pub enum Func {
     EFuncSinH(ExpressionI),
     EFuncCosH(ExpressionI),
     EFuncTanH(ExpressionI),
+    EFuncASinH(ExpressionI),
+    EFuncACosH(ExpressionI),
+    EFuncATanH(ExpressionI),
 }
-use Func::{EFuncInt, EFuncCeil, EFuncFloor, EFuncAbs, EFuncSign, EFuncLog, EFuncRound, EFuncMin, EFuncMax, EFuncE, EFuncPi, EFuncSin, EFuncCos, EFuncTan, EFuncASin, EFuncACos, EFuncATan, EFuncSinH, EFuncCosH, EFuncTanH};
+use Func::{EFuncInt, EFuncCeil, EFuncFloor, EFuncAbs, EFuncSign, EFuncLog, EFuncRound, EFuncMin, EFuncMax, EFuncE, EFuncPi, EFuncSin, EFuncCos, EFuncTan, EFuncASin, EFuncACos, EFuncATan, EFuncSinH, EFuncCosH, EFuncTanH, EFuncASinH, EFuncACosH, EFuncATanH};
 
 #[derive(Debug, PartialEq)]
 pub struct PrintFunc(pub Vec<ExpressionOrString>);  // cap=8
@@ -223,55 +226,66 @@ fn space(bs:&mut &[u8]) {
 
 
 pub struct Parser<'a> {
-    is_const_byte:&'a dyn Fn(u8,usize)->bool,
-    is_var_byte  :&'a dyn Fn(u8,usize)->bool,  // Until proven otherwise, assume that function names follow the same rules as vars.
+    is_var_byte:&'a dyn Fn(u8,usize)->bool,
+    buf        :String,
 }
 
 impl Parser<'_> {
-    pub fn new<'b>(is_const_byte:Option<&'b dyn Fn(u8,usize)->bool>,
-               is_var_byte:Option<&'b dyn Fn(u8,usize)->bool>) -> Parser<'b> {
+    pub fn new<'b>() -> Parser<'b> {
         Parser{
-            is_const_byte:is_const_byte.unwrap_or(&Parser::default_is_const_byte),
-            is_var_byte:is_var_byte.unwrap_or(&Parser::default_is_var_byte),
+            is_var_byte:&Parser::default_is_var_byte,
+            buf:String::with_capacity(64),
         }
     }
-    fn default_is_const_byte(b:u8, i:usize) -> bool {
+
+    #[inline]
+    fn is_const_byte(b:u8, i:usize) -> bool {
         if b'0'<=b && b<=b'9' || b==b'.' { return true }
         if i>0 && ( b==b'k' || b==b'K' || b==b'M' || b==b'G' || b==b'T' ) { return true }
         return false
     }
-    fn default_is_var_byte(b:u8, i:usize) -> bool {
-        (b'A'<=b && b<=b'Z') || (b'a'<=b && b<=b'z') || b==b'_' || (i>0 && b'0'<=b && b<=b'9')
-    }
-
     #[inline]
-    fn call_is_const_byte(&self, bo:Option<u8>, i:usize) -> bool {
+    fn is_const_byte_opt(bo:Option<u8>, i:usize) -> bool {
         match bo {
-            Some(b) => (self.is_const_byte)(b,i),
+            Some(b) => Self::is_const_byte(b,i),
             None => false,
         }
     }
+
     #[inline]
-    fn call_is_var_byte(&self, bo:Option<u8>, i:usize) -> bool {
+    fn is_func_byte(b:u8, i:usize) -> bool {
+        (b'A'<=b && b<=b'Z') || (b'a'<=b && b<=b'z') || b==b'_' || (i>0 && b'0'<=b && b<=b'9')
+    }
+    #[allow(dead_code)]
+    #[inline]
+    fn is_func_byte_opt(bo:Option<u8>, i:usize) -> bool {
+        match bo {
+            Some(b) => Self::is_func_byte(b,i),
+            None => false,
+        }
+    }
+
+    #[inline]
+    fn default_is_var_byte(b:u8, i:usize) -> bool {
+        (b'A'<=b && b<=b'Z') || (b'a'<=b && b<=b'z') || b==b'_' || (i>0 && ( b'0'<=b && b<=b'9' ))  // I was considering adding square brackets to the list of var chars so that index operations could be simulated, but I decided not to do that here because that feature will rarely be needed, and the user can always add it with a custom is_var_byte callback.
+    }
+    #[inline]
+    fn is_var_byte_opt(&self, bo:Option<u8>, i:usize) -> bool {
         match bo {
             Some(b) => (self.is_var_byte)(b,i),
             None => false,
         }
     }
-    // Re-use var logic until proven otherwise:
-    #[inline]
-    fn call_is_func_byte(&self, bo:Option<u8>, i:usize) -> bool {
-        self.call_is_var_byte(bo,i)
-    }
+
 
     // I cannot return Result<&Expression> because it would prolong the mut:
-    pub fn parse(&self, slab:&mut ParseSlab, s:&str) -> Result<ExpressionI, KErr> {
+    pub fn parse(&mut self, slab:&mut ParseSlab, s:&str) -> Result<ExpressionI, KErr> {
         if s.len()>4096 { return Err(KErr::new("expression string is too long")); }  // Restrict length for safety
         let mut bs = s.as_bytes();
         self.read_expression(slab, &mut bs, true)
     }
 
-    fn read_expression(&self, slab:&mut ParseSlab, bs:&mut &[u8], expect_eof:bool) -> Result<ExpressionI, KErr> {
+    fn read_expression(&mut self, slab:&mut ParseSlab, bs:&mut &[u8], expect_eof:bool) -> Result<ExpressionI, KErr> {
         let first = self.read_value(slab,bs).map_err(|e| e.pre("read_value"))?;
         let mut pairs = Vec::<ExprPair>::with_capacity(8);
         loop {
@@ -288,7 +302,7 @@ impl Parser<'_> {
         Ok(slab.push_expr(Expression{first, pairs})?)
     }
 
-    fn read_value(&self, slab:&mut ParseSlab, bs:&mut &[u8]) -> Result<Value, KErr> {
+    fn read_value(&mut self, slab:&mut ParseSlab, bs:&mut &[u8]) -> Result<Value, KErr> {
         match self.read_const(bs)? {
             Pass => {}
             Bite(c) => return Ok(EConstant(c)),
@@ -308,46 +322,46 @@ impl Parser<'_> {
         Err(KErr::new("invalid value"))
     }
 
-    fn read_const(&self, bs:&mut &[u8]) -> Result<Tok<Constant>, KErr> {
+    fn read_const(&mut self, bs:&mut &[u8]) -> Result<Tok<Constant>, KErr> {
         space(bs);
 
-        let mut buf = String::with_capacity(64);
-        while self.call_is_const_byte(peek(bs,0),buf.len()) {
-            buf.push(read(bs)? as char);
+        self.buf.clear();
+        while Self::is_const_byte_opt(peek(bs,0),self.buf.len()) {
+            self.buf.push(read(bs)? as char);
         }
 
-        let buflen = buf.len();
+        let buflen = self.buf.len();
         if buflen==0 { return Ok(Pass); }
 
         let mut multiple = 1.0;
-        match buf.as_bytes()[buflen-1] {
-            b'k' | b'K' => {      multiple=1_000.0; buf.pop(); }
-            b'M' => {         multiple=1_000_000.0; buf.pop(); }
-            b'G' => {     multiple=1_000_000_000.0; buf.pop(); }
-            b'T' => { multiple=1_000_000_000_000.0; buf.pop(); }
+        match self.buf.as_bytes()[buflen-1] {
+            b'k' | b'K' => {      multiple=1_000.0; self.buf.pop(); }
+            b'M' => {         multiple=1_000_000.0; self.buf.pop(); }
+            b'G' => {     multiple=1_000_000_000.0; self.buf.pop(); }
+            b'T' => { multiple=1_000_000_000_000.0; self.buf.pop(); }
             _ => {}
         }
 
-        let val = buf.parse::<f64>().map_err(|_| {
-            KErr::new("parse<f64> error").pre(&buf)
+        let val = self.buf.parse::<f64>().map_err(|_| {
+            KErr::new("parse<f64> error").pre(&self.buf)
         })?;
         Ok(Bite(Constant(val*multiple)))
     }
 
-    fn read_var(&self, bs:&mut &[u8]) -> Result<Tok<Variable>, KErr> {
+    fn read_var(&mut self, bs:&mut &[u8]) -> Result<Tok<Variable>, KErr> {
         space(bs);
 
-        let mut buf = String::with_capacity(16);
-        while self.call_is_var_byte(peek(bs,0),buf.len()) {
-            buf.push(read(bs)? as char);
+        self.buf.clear();
+        while self.is_var_byte_opt(peek(bs,0),self.buf.len()) {
+            self.buf.push(read(bs)? as char);
         }
 
-        if buf.len()==0 { return Ok(Pass); }  // This is NOT a Pass after a read() -- len=0 so no read occurred.
+        if self.buf.len()==0 { return Ok(Pass); }  // This is NOT a Pass after a read() -- len=0 so no read occurred.
 
-        Ok(Bite(Variable(buf)))
+        Ok(Bite(Variable(self.buf.clone())))
     }
 
-    fn read_unaryop(&self, slab:&mut ParseSlab, bs:&mut &[u8]) -> Result<Tok<UnaryOp>, KErr> {
+    fn read_unaryop(&mut self, slab:&mut ParseSlab, bs:&mut &[u8]) -> Result<Tok<UnaryOp>, KErr> {
         space(bs);
         match peek(bs,0) {
             None => Err(KErr::new("EOF")),
@@ -409,7 +423,7 @@ impl Parser<'_> {
         }
     }
 
-    fn read_callable(&self, slab:&mut ParseSlab, bs:&mut &[u8]) -> Result<Tok<Callable>, KErr> {
+    fn read_callable(&mut self, slab:&mut ParseSlab, bs:&mut &[u8]) -> Result<Tok<Callable>, KErr> {
         match self.read_printfunc(slab,bs)? {
             Pass => {}
             Bite(f) => return Ok(Bite(EPrintFunc(f))),
@@ -425,38 +439,44 @@ impl Parser<'_> {
         Ok(Pass)
     }
 
-    fn read_func_start(&self, bs:&mut &[u8], expected_name:Option<&str>) -> Result<Tok<String>, KErr> {
+    fn read_func_start(&mut self, bs:&mut &[u8], expected_name:Option<&str>) -> Result<Tok<String>, KErr> {
         space(bs);
 
-        let mut name = String::with_capacity(16);  // TODO: Avoid allocation here.
+        self.buf.clear();
         loop {
-            match peek(bs,name.len()) {
+            match peek(bs,self.buf.len()) {
                 None => break,
                 Some(b) => {
-                    if self.call_is_func_byte(Some(b),name.len()) { name.push(b.to_ascii_lowercase() as char); }
+                    if Self::is_func_byte(b,self.buf.len()) { self.buf.push(b.to_ascii_lowercase() as char); }
                     else { break; }
                 }
             }
         }
-        if name.len()==0 { return Ok(Pass) }
+        if self.buf.len()==0 { return Ok(Pass) }
         if let Some(xn) = expected_name {
-            if name!=xn { return Ok(Pass) }
+            if self.buf!=xn { return Ok(Pass) }
         }
 
         let mut post_name_spaces=0;
-        while let Some(b) = peek(bs,name.len()+post_name_spaces) {
+        while let Some(b) = peek(bs,self.buf.len()+post_name_spaces) {
             if !is_space(b) { break; }
             post_name_spaces+=1;
         }
-        if peek(bs,name.len()+post_name_spaces) != Some(b'(') { return Ok(Pass) }
+        if peek(bs,self.buf.len()+post_name_spaces) != Some(b'(') { return Ok(Pass) }
 
         // Begin 'Bite':
-        for _ in 0..name.len()+post_name_spaces { read(bs)?; }
+        for _ in 0..self.buf.len()+post_name_spaces { read(bs)?; }
         if read(bs)? != b'(' { return Err(KErr::new("expected '('")) }
 
-        Ok(Bite(name))
+        Ok(Bite(self.buf.clone()))
     }
-    fn read_func(&self, slab:&mut ParseSlab, bs:&mut &[u8]) -> Result<Tok<Func>, KErr> {
+    fn read_func(&mut self, slab:&mut ParseSlab, bs:&mut &[u8]) -> Result<Tok<Func>, KErr> {
+        // For custom functions, I have two options:
+        //     1) Evaluate arguments ahead of time and pass f64's.  Super simple.
+        //     2) Pass ExpressionI's so that the function could perform conditional evaluation.  Surprisingly powerful... but do we need it???
+        //     3) Like #2, but instead of passing ExpressionI's, pass callbacks that will load and cache the Expression (to reduce usage complexity).
+        // I'll know the right answer when I find a real-life need for custom functions.
+
         let fname : String;
         match self.read_func_start(bs,None)? {
             Pass => return Ok(Pass),
@@ -580,12 +600,24 @@ impl Parser<'_> {
                 if args.len()==1 { Ok(Bite(EFuncTanH(args.pop().unwrap())))
                 } else { Err(KErr::new("expected one arg")) }
             }
+            "asinh" => {
+                if args.len()==1 { Ok(Bite(EFuncASinH(args.pop().unwrap())))
+                } else { Err(KErr::new("expected one arg")) }
+            }
+            "acosh" => {
+                if args.len()==1 { Ok(Bite(EFuncACosH(args.pop().unwrap())))
+                } else { Err(KErr::new("expected one arg")) }
+            }
+            "atanh" => {
+                if args.len()==1 { Ok(Bite(EFuncATanH(args.pop().unwrap())))
+                } else { Err(KErr::new("expected one arg")) }
+            }
 
             _ => Err(KErr::new(&format!("undefined function: {}",fname))),
         }
     }
 
-    fn read_printfunc(&self, slab:&mut ParseSlab, bs:&mut &[u8]) -> Result<Tok<PrintFunc>, KErr> {
+    fn read_printfunc(&mut self, slab:&mut ParseSlab, bs:&mut &[u8]) -> Result<Tok<PrintFunc>, KErr> {
         match self.read_func_start(bs,Some("print"))? {
             Pass => return Ok(Pass),
             Bite(_) => {}  // We already know this is 'print'.
@@ -615,7 +647,7 @@ impl Parser<'_> {
         Ok(Bite(PrintFunc(args)))
     }
 
-    fn read_evalfunc(&self, slab:&mut ParseSlab, bs:&mut &[u8]) -> Result<Tok<EvalFunc>, KErr> {
+    fn read_evalfunc(&mut self, slab:&mut ParseSlab, bs:&mut &[u8]) -> Result<Tok<EvalFunc>, KErr> {
         match self.read_func_start(bs,Some("eval"))? {
             Pass => return Ok(Pass),
             Bite(_) => {}  // We already know this is 'eval'.
@@ -664,7 +696,7 @@ impl Parser<'_> {
         Ok(Bite(EvalFunc{expr:eval_expr, kwargs:kwargs}))
     }
 
-    fn read_expressionorstring(&self, slab:&mut ParseSlab, bs:&mut &[u8]) -> Result<ExpressionOrString, KErr> {
+    fn read_expressionorstring(&mut self, slab:&mut ParseSlab, bs:&mut &[u8]) -> Result<ExpressionOrString, KErr> {
         match self.read_string(bs)? {
             Pass => {}
             Bite(s) => return Ok(EStr(s)),
@@ -672,7 +704,7 @@ impl Parser<'_> {
         Ok(EExpr(self.read_expression(slab,bs,false)?))
     }
 
-    fn read_string(&self, bs:&mut &[u8]) -> Result<Tok<String>,KErr> {
+    fn read_string(&mut self, bs:&mut &[u8]) -> Result<Tok<String>,KErr> {
         space(bs);
 
         match peek(bs,0) {
@@ -681,14 +713,14 @@ impl Parser<'_> {
             Some(_) => { return Ok(Pass) }
         }
 
-        let mut buf = String::with_capacity(64);
+        self.buf.clear();
         loop {
             let b = read(bs)?;
             if b==b'"' { break; }
-            buf.push(b as char);
+            self.buf.push(b as char);
         }
 
-        Ok(Bite(buf))
+        Ok(Bite(self.buf.clone()))
     }
 }
 
@@ -747,14 +779,9 @@ mod internal_tests {
 
     #[test]
     fn priv_tests() {
-        let p = Parser::new(None,None);
-        assert!(p.call_is_var_byte(Some(b'a'),0));
-        assert!(!p.call_is_const_byte(Some(b'a'),0));
-
-        let p = Parser::new(Some(&|_:u8, _:usize| true), None);
-        assert!(p.call_is_const_byte(Some(b'a'),0));
-
-        let p = Parser::new(None,None);
+        let mut p = Parser::new();
+        assert!(p.is_var_byte_opt(Some(b'a'),0));
+        assert!(!Parser::is_const_byte_opt(Some(b'a'),0));
 
         let mut slab = Slab::new();
         

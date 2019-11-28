@@ -2,7 +2,7 @@ use al::{Slab, Parser};
 
 #[test]
 fn basics() {
-    let p = Parser::new(None,None);
+    let mut p = Parser::new();
     let mut slab = Slab::new();
     p.parse({slab.clear(); &mut slab.ps}, "12.34 + 43.21 + 11.11").unwrap();
     assert_eq!(format!("{:?}",&slab),

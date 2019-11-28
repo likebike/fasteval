@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use std::collections::BTreeSet;
 
 fn parse_raw<'a>(slab:&'a mut Slab, s:&str) -> Result<ExpressionI, KErr> {
-    Parser::new(None,None).parse(&mut slab.ps,s)
+    Parser::new().parse(&mut slab.ps,s)
 }
 fn parse<'a>(slab:&'a mut Slab, s:&str) -> ExpressionI { parse_raw(slab,s).unwrap() }
 
@@ -149,8 +149,7 @@ fn aaa_test_e() {
     assert_eq!(ez_eval("3-4-5-6"), -12.0);
     assert_eq!(ez_eval("3*4*5*6"), 360.0);
     assert_eq!(ez_eval("3/4/5/6"), 0.024999999999999998);   // Fragile!
-    //assert_eq!(ez_eval("2^3^4"), 2417851639229258349412352.0);  // I changed this behavior in Rust.
-    assert_eq!(ez_eval("2^3^4"), 4096.0);                         //
+    assert_eq!(ez_eval("2^3^4"), 2417851639229258349412352.0);
     assert_eq!(ez_eval("3*3-3/3"), 8.0);
     assert_eq!(ez_eval("(1+1)^3"), 8.0);
     assert_eq!(ez_eval("(1+(-1)^4)^3"), 8.0);

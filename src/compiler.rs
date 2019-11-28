@@ -1,5 +1,5 @@
 use crate::slab::{ParseSlab, CompileSlab};
-use crate::parser::{Expression, ExprPair, Value, Variable, UnaryOp::{self, EPos, ENeg, ENot, EParens}, BinaryOp::{self, EOR, EAND, ENE, EEQ, EGTE, ELTE, EGT, ELT, EPlus, EMinus, EMul, EDiv, EMod, EExp}, Callable::{self, EFunc, EPrintFunc, EEvalFunc}, Func::{EFuncInt, EFuncCeil, EFuncFloor, EFuncAbs, EFuncSign, EFuncLog, EFuncRound, EFuncMin, EFuncMax, EFuncE, EFuncPi, EFuncSin, EFuncCos, EFuncTan, EFuncASin, EFuncACos, EFuncATan, EFuncSinH, EFuncCosH, EFuncTanH}, PrintFunc, EvalFunc};
+use crate::parser::{Expression, ExprPair, Value, Variable, UnaryOp::{self, EPos, ENeg, ENot, EParens}, BinaryOp::{self, EOR, EAND, ENE, EEQ, EGTE, ELTE, EGT, ELT, EPlus, EMinus, EMul, EDiv, EMod, EExp}, Callable::{self, EFunc, EPrintFunc, EEvalFunc}, Func::{EFuncInt, EFuncCeil, EFuncFloor, EFuncAbs, EFuncSign, EFuncLog, EFuncRound, EFuncMin, EFuncMax, EFuncE, EFuncPi, EFuncSin, EFuncCos, EFuncTan, EFuncASin, EFuncACos, EFuncATan, EFuncSinH, EFuncCosH, EFuncTanH, EFuncASinH, EFuncACosH, EFuncATanH}, PrintFunc, EvalFunc};
 use crate::evaler::bool_to_f64;
 
 #[derive(Debug, PartialEq, Copy, Clone)]
@@ -58,11 +58,14 @@ pub enum Instruction {
     IFuncSinH(InstructionI),
     IFuncCosH(InstructionI),
     IFuncTanH(InstructionI),
+    IFuncASinH(InstructionI),
+    IFuncACosH(InstructionI),
+    IFuncATanH(InstructionI),
 
     IPrintFunc(PrintFunc),  // Not optimized (it would be pointless because of i/o bottleneck).
     IEvalFunc(EvalFunc),    // Eval *could* be optimized, but I'll wait until I need to.
 }
-use Instruction::{IConst, IVar, INeg, INot, IInv, IAdd, IMul, IMod, IExp, ILT, ILTE, IEQ, INE, IGTE, IGT, IOR, IAND, IFuncInt, IFuncCeil, IFuncFloor, IFuncAbs, IFuncSign, IFuncLog, IFuncRound, IFuncMin, IFuncMax, IFuncSin, IFuncCos, IFuncTan, IFuncASin, IFuncACos, IFuncATan, IFuncSinH, IFuncCosH, IFuncTanH, IPrintFunc, IEvalFunc};
+use Instruction::{IConst, IVar, INeg, INot, IInv, IAdd, IMul, IMod, IExp, ILT, ILTE, IEQ, INE, IGTE, IGT, IOR, IAND, IFuncInt, IFuncCeil, IFuncFloor, IFuncAbs, IFuncSign, IFuncLog, IFuncRound, IFuncMin, IFuncMax, IFuncSin, IFuncCos, IFuncTan, IFuncASin, IFuncACos, IFuncATan, IFuncSinH, IFuncCosH, IFuncTanH, IFuncASinH, IFuncACosH, IFuncATanH, IPrintFunc, IEvalFunc};
 
 
 
@@ -193,7 +196,7 @@ impl Compiler for ExprSlice<'_> {
         // Minus (opt with neg & add)         Plus
         // Div (opt with inv & mul)           Mul
         // Mod
-        // Exp (opt exponent with mul)
+        // Exp
 
         if self.pairs.len()==0 {
             return self.first.compile(pslab,cslab);
@@ -468,27 +471,48 @@ impl Compiler for ExprSlice<'_> {
                 }
                 out
             }
-            EExp => {
+            EExp => {  // Right-to-Left Associativity
                 let mut xss = Vec::<ExprSlice>::with_capacity(2);
                 self.split(EExp, &mut xss);
-                let mut pow_instrs = Vec::<Instruction>::with_capacity(xss.len()-1);
-                let mut base = IConst(0.0);
-                for (i,xs) in xss.into_iter().enumerate() {
-                    let instr = xs.compile(pslab,cslab);
-                    if i==0 {
-                        base = instr;
+                let mut out = IConst(0.0); let mut out_set = false;
+                while xss.len()>0 {
+                    let instr = xss.pop().unwrap().compile(pslab,cslab);
+                    if out_set {
+                        if let IConst(power) = out {
+                            if let IConst(base) = instr {
+                                out = IConst(base.powf(power));
+                                continue;
+                            }
+                        }
+                        out = IExp{base:cslab.push_instr(instr), power:cslab.push_instr(out)};
                     } else {
-                        pow_instrs.push(instr);
+                        out = instr;
+                        out_set = true;
                     }
                 }
-                let power = compile_mul(pow_instrs,cslab);
-                if let IConst(b) = base {
-                    if let IConst(p) = power {
-                        return IConst(b.powf(p));
-                    }
-                }
-                IExp{base:cslab.push_instr(base), power:cslab.push_instr(power)}
+                out
             }
+//            EExp => {  // Left-to-Right Associativity
+//                let mut xss = Vec::<ExprSlice>::with_capacity(2);
+//                self.split(EExp, &mut xss);
+//                let mut pow_instrs = Vec::<Instruction>::with_capacity(xss.len()-1);
+//                let mut base = IConst(0.0);
+//                for (i,xs) in xss.into_iter().enumerate() {
+//                    let instr = xs.compile(pslab,cslab);
+//                    if i==0 {
+//                        base = instr;
+//                    } else {
+//                        pow_instrs.push(instr);
+//                    }
+//                }
+//                let power = compile_mul(pow_instrs,cslab);
+//                if let IConst(b) = base {
+//                    if let IConst(p) = power {
+//                        return IConst(b.powf(p));
+//                    }
+//                }
+//                IExp{base:cslab.push_instr(base), power:cslab.push_instr(power)}
+//            }
         }
     }
 }
@@ -762,6 +786,30 @@ impl Compiler for Callable {
                         IConst(c.tanh())
                     } else {
                         IFuncTanH(cslab.push_instr(instr))
+                    }
+                }
+                EFuncASinH(i) => {
+                    let instr = pslab.get_expr(*i).compile(pslab,cslab);
+                    if let IConst(c) = instr {
+                        IConst(c.asinh())
+                    } else {
+                        IFuncASinH(cslab.push_instr(instr))
+                    }
+                }
+                EFuncACosH(i) => {
+                    let instr = pslab.get_expr(*i).compile(pslab,cslab);
+                    if let IConst(c) = instr {
+                        IConst(c.acosh())
+                    } else {
+                        IFuncACosH(cslab.push_instr(instr))
+                    }
+                }
+                EFuncATanH(i) => {
+                    let instr = pslab.get_expr(*i).compile(pslab,cslab);
+                    if let IConst(c) = instr {
+                        IConst(c.atanh())
+                    } else {
+                        IFuncATanH(cslab.push_instr(instr))
                     }
                 }
             }

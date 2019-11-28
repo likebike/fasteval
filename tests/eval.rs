@@ -8,7 +8,7 @@ use std::collections::HashSet;
 
 #[test]
 fn eval() {
-    let p = Parser::new(None,None);
+    let mut p = Parser::new();
     let mut slab = Slab::new();
     let mut ns = EvalNS::new(|n| match n {
         "x" => Some(1.0),
@@ -52,7 +52,7 @@ fn aaa_aaa_sizes() {
 
 #[test]
 fn aaa_aab_single() {
-    let p = Parser::new(None,None);
+    let mut p = Parser::new();
     let mut slab = Slab::new();
     let mut ns = EvalNS::new(|_| None);
     assert_eq!(p.parse(&mut slab.ps, "123.456").unwrap().from(&slab.ps).eval(&slab, &mut ns).unwrap(), 123.456f64);
@@ -60,7 +60,7 @@ fn aaa_aab_single() {
 
 #[test]
 fn aaa_basics() {
-    let p = Parser::new(None,None);
+    let mut p = Parser::new();
     let mut slab = Slab::new();
 
     assert_eq!(
@@ -258,7 +258,7 @@ fn aaa_evalns_basics() {
 
 #[test]
 fn corners() {
-    let p = Parser::new(None,None);
+    let mut p = Parser::new();
     let mut slab = Slab::new();
     let mut ns = EvalNS::new(|_| None);
     assert_eq!(

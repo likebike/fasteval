@@ -7,7 +7,7 @@ use crate::parser::{Expression,
                     UnaryOp::{self, EPos, ENeg, ENot, EParens},
                     BinaryOp::{self, EPlus, EMinus, EMul, EDiv, EMod, EExp, ELT, ELTE, EEQ, ENE, EGTE, EGT, EOR, EAND},
                     Callable::{self, EFunc, EPrintFunc, EEvalFunc},
-                    Func::{self, EFuncInt, EFuncCeil, EFuncFloor, EFuncAbs, EFuncSign, EFuncLog, EFuncRound, EFuncMin, EFuncMax, EFuncE, EFuncPi, EFuncSin, EFuncCos, EFuncTan, EFuncASin, EFuncACos, EFuncATan, EFuncSinH, EFuncCosH, EFuncTanH},
+                    Func::{self, EFuncInt, EFuncCeil, EFuncFloor, EFuncAbs, EFuncSign, EFuncLog, EFuncRound, EFuncMin, EFuncMax, EFuncE, EFuncPi, EFuncSin, EFuncCos, EFuncTan, EFuncASin, EFuncACos, EFuncATan, EFuncSinH, EFuncCosH, EFuncTanH, EFuncASinH, EFuncACosH, EFuncATanH},
                     PrintFunc,
                     EvalFunc,
                     ExpressionOrString::{EExpr, EStr}};
@@ -46,9 +46,9 @@ pub trait Evaler : fmt::Debug {
 impl Evaler for Expression {
     fn eval(&self, slab:&Slab, ns:&mut EvalNS) -> Result<f64,KErr> {
         // Order of operations: 1) ^  2) */  3) +-
-        // Exponentiation should be processed left-to-right.  Think of what 2^3^4 should mean:
-        //     2^(3^4)=2417851639229258349412352
-        //     (2^3)^4=4096   <--- I choose this one.
+        // Exponentiation should be processed right-to-left.  Think of what 2^3^4 should mean:
+        //     2^(3^4)=2417851639229258349412352   <--- I choose this one.  https://codeplea.com/exponentiation-associativity-options
+        //     (2^3)^4=4096
         // Direction of processing doesn't matter for Addition and Multiplication:
         //     (((3+4)+5)+6)==(3+(4+(5+6))), (((3*4)*5)*6)==(3*(4*(5*6)))
         // ...But Subtraction and Division must be processed left-to-right:
@@ -148,7 +148,7 @@ impl Evaler for Expression {
             }
         }
 
-        ltor(&mut eval_op, &mut ops, EExp);
+        rtol(&mut eval_op, &mut ops, EExp);  // https://codeplea.com/exponentiation-associativity-options
         ltor(&mut eval_op, &mut ops, EMod);
         ltor(&mut eval_op, &mut ops, EDiv);
         rtol(&mut eval_op, &mut ops, EMul);
@@ -284,6 +284,9 @@ impl Evaler for Func {
             EFuncSinH(expr_i) => { Ok(ns.eval(slab, slab.ps.get_expr(*expr_i))?.sinh()) },
             EFuncCosH(expr_i) => { Ok(ns.eval(slab, slab.ps.get_expr(*expr_i))?.cosh()) },
             EFuncTanH(expr_i) => { Ok(ns.eval(slab, slab.ps.get_expr(*expr_i))?.tanh()) },
+            EFuncASinH(expr_i) => { Ok(ns.eval(slab, slab.ps.get_expr(*expr_i))?.asinh()) },
+            EFuncACosH(expr_i) => { Ok(ns.eval(slab, slab.ps.get_expr(*expr_i))?.acosh()) },
+            EFuncATanH(expr_i) => { Ok(ns.eval(slab, slab.ps.get_expr(*expr_i))?.atanh()) },
         }
     }
 }
@@ -452,6 +455,9 @@ impl Evaler for Instruction {
             Instruction::IFuncSinH(i) => Ok( eval_instr_ref!(slab.cs.get_instr(*i), slab, ns).sinh() ),
             Instruction::IFuncCosH(i) => Ok( eval_instr_ref!(slab.cs.get_instr(*i), slab, ns).cosh() ),
             Instruction::IFuncTanH(i) => Ok( eval_instr_ref!(slab.cs.get_instr(*i), slab, ns).tanh() ),
+            Instruction::IFuncASinH(i) => Ok( eval_instr_ref!(slab.cs.get_instr(*i), slab, ns).asinh() ),
+            Instruction::IFuncACosH(i) => Ok( eval_instr_ref!(slab.cs.get_instr(*i), slab, ns).acosh() ),
+            Instruction::IFuncATanH(i) => Ok( eval_instr_ref!(slab.cs.get_instr(*i), slab, ns).atanh() ),
 
             Instruction::IPrintFunc(pf) => pf.eval(slab,ns),
             Instruction::IEvalFunc(ef) => ef.eval(slab,ns),

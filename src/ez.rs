@@ -6,7 +6,7 @@ use crate::evaler::Evaler;
 use kerr::KErr;
 
 pub fn ez_eval(expr_str:&str) -> Result<f64,KErr> {
-    let parser = Parser::new(None,None);
+    let mut parser = Parser::new();
     let mut slab = Slab::new();           // A big block of memory, so we don't need to perform many tiny (and slow!) allocations.
     let mut ns = EvalNS::new(|_| None);   // An evaluation namespace, with a default closure that doesn't define any variables.
 

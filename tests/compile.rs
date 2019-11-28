@@ -1,11 +1,11 @@
 use al::{Parser, Compiler, Evaler, Slab, EvalNS, ExpressionI, InstructionI, Variable};
 use al::parser::{PrintFunc, ExpressionOrString::{EExpr, EStr}, EvalFunc, KWArg};
-use al::compiler::Instruction::{self, IConst, IVar, INeg, INot, IInv, IAdd, IMul, IMod, IExp, ILT, ILTE, IEQ, INE, IGTE, IGT, IAND, IOR, IFuncInt, IFuncCeil, IFuncFloor, IFuncAbs, IFuncSign, IFuncLog, IFuncRound, IFuncMin, IFuncMax, IFuncSin, IFuncCos, IFuncTan, IFuncASin, IFuncACos, IFuncATan, IFuncSinH, IFuncCosH, IFuncTanH, IPrintFunc, IEvalFunc};
+use al::compiler::Instruction::{self, IConst, IVar, INeg, INot, IInv, IAdd, IMul, IMod, IExp, ILT, ILTE, IEQ, INE, IGTE, IGT, IAND, IOR, IFuncInt, IFuncCeil, IFuncFloor, IFuncAbs, IFuncSign, IFuncLog, IFuncRound, IFuncMin, IFuncMax, IFuncSin, IFuncCos, IFuncTan, IFuncASin, IFuncACos, IFuncATan, IFuncSinH, IFuncCosH, IFuncTanH, IFuncASinH, IFuncACosH, IFuncATanH, IPrintFunc, IEvalFunc};
 use kerr::KErr;
 
 #[test]
 fn slab_overflow() {
-    let p = Parser::new(None,None);
+    let mut p = Parser::new();
     let mut slab = Slab::with_capacity(2);
     assert_eq!(p.parse({slab.clear(); &mut slab.ps}, "1 + 2 + -3 + ( +4 )"), Ok(ExpressionI(1)));
     assert_eq!(format!("{:?}", slab),
@@ -16,7 +16,7 @@ fn slab_overflow() {
 
 #[test]
 fn basics() {
-    let p = Parser::new(None,None);
+    let mut p = Parser::new();
     let mut slab = Slab::new();
     let mut ns = EvalNS::new(|_| None);
 
@@ -32,14 +32,14 @@ fn basics() {
 
 
 fn comp(expr_str:&str) -> (Slab, Instruction) {
-    let p = Parser::new(None,None);
+    let mut p = Parser::new();
     let mut slab = Slab::new();
     let instr = p.parse(&mut slab.ps, expr_str).unwrap().from(&slab.ps).compile(&slab.ps, &mut slab.cs);
     (slab, instr)
 }
 
 fn comp_chk(expr_str:&str, expect_instr:Instruction, expect_fmt:&str, expect_eval:f64) {
-    let p = Parser::new(None,None);
+    let mut p = Parser::new();
     let mut slab = Slab::new();
     let expr = p.parse(&mut slab.ps, expr_str).unwrap().from(&slab.ps);
     let instr = expr.compile(&slab.ps, &mut slab.cs);
@@ -134,9 +134,9 @@ fn all_instrs() {
     comp_chk("2 ^ 0.5", IConst(1.4142135623730951), "CompileSlab { instrs: [] }", 1.4142135623730951);
     //comp_chk("-4 ^ 0.5", IConst(std::f64::NAN), "CompileSlab { instrs: [] }", std::f64::NAN);
     comp_chk("y ^ 0.5", IExp { base: InstructionI(0), power: InstructionI(1) }, "CompileSlab { instrs: [IVar(Variable(`y`)), IConst(0.5)] }", 1.4142135623730951);
-    comp_chk("2 ^ 3 ^ 2", IConst(64.0), "CompileSlab { instrs: [] }", 64.0);
-    comp_chk("2 ^ z ^ 2", IExp { base: InstructionI(2), power: InstructionI(3) }, "CompileSlab { instrs: [IVar(Variable(`z`)), IConst(2.0), IConst(2.0), IMul(InstructionI(0), InstructionI(1))] }", 64.0);
-    comp_chk("2 ^ z ^ 1 ^ 2 ^ 1", IExp { base: InstructionI(2), power: InstructionI(3) }, "CompileSlab { instrs: [IVar(Variable(`z`)), IConst(2.0), IConst(2.0), IMul(InstructionI(0), InstructionI(1))] }", 64.0);
+    comp_chk("2 ^ 3 ^ 2", IConst(512.0), "CompileSlab { instrs: [] }", 512.0);
+    comp_chk("2 ^ z ^ 2", IExp { base: InstructionI(2), power: InstructionI(3) }, "CompileSlab { instrs: [IVar(Variable(`z`)), IConst(2.0), IConst(2.0), IExp { base: InstructionI(0), power: InstructionI(1) }] }", 512.0);
+    comp_chk("2 ^ z ^ 1 ^ 2 ^ 1", IExp { base: InstructionI(2), power: InstructionI(3) }, "CompileSlab { instrs: [IVar(Variable(`z`)), IConst(1.0), IConst(2.0), IExp { base: InstructionI(0), power: InstructionI(1) }] }", 8.0);
     
     // ILT:
     comp_chk("2 < 3", IConst(1.0), "CompileSlab { instrs: [] }", 1.0);
@@ -306,6 +306,18 @@ fn all_instrs() {
     // IFuncTanH
     comp_chk("tanh(0)", IConst(0.0), "CompileSlab { instrs: [] }", 0.0);
     comp_chk("tanh(w)", IFuncTanH(InstructionI(0)), "CompileSlab { instrs: [IVar(Variable(`w`))] }", 0.0);
+
+    // IFuncASinH
+    comp_chk("asinh(0)", IConst(0.0), "CompileSlab { instrs: [] }", 0.0);
+    comp_chk("asinh(w)", IFuncASinH(InstructionI(0)), "CompileSlab { instrs: [IVar(Variable(`w`))] }", 0.0);
+
+    // IFuncACosH
+    comp_chk("acosh(1)", IConst(0.0), "CompileSlab { instrs: [] }", 0.0);
+    comp_chk("acosh(x)", IFuncACosH(InstructionI(0)), "CompileSlab { instrs: [IVar(Variable(`x`))] }", 0.0);
+
+    // IFuncATanH
+    comp_chk("atanh(0)", IConst(0.0), "CompileSlab { instrs: [] }", 0.0);
+    comp_chk("atanh(w)", IFuncATanH(InstructionI(0)), "CompileSlab { instrs: [IVar(Variable(`w`))] }", 0.0);
 
     // IPrintFunc
     comp_chk(r#"print("test",1.23)"#, IPrintFunc(PrintFunc(vec![EStr("test".to_string()), EExpr(ExpressionI(0))])), "CompileSlab { instrs: [] }", 1.23);
