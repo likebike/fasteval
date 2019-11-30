@@ -1,4 +1,5 @@
 use crate::slab::ParseSlab;
+use crate::bufstack::BufStack;
 use kerr::KErr;
 
 
@@ -61,16 +62,16 @@ use Value::{EConstant, EVariable, EUnaryOp, ECallable};
 pub struct Constant(pub f64);
 
 #[derive(PartialEq)]
-pub struct Variable(pub String);  // cap=16
+pub struct Variable(pub String);
 
 #[derive(Debug, PartialEq)]
 pub enum UnaryOp {
     EPos(ValueI),
     ENeg(ValueI),
     ENot(ValueI),
-    EParens(ExpressionI),
+    EParentheses(ExpressionI),
 }
-use UnaryOp::{EPos, ENeg, ENot, EParens};
+use UnaryOp::{EPos, ENeg, ENot, EParentheses};
 
 #[derive(Debug, PartialEq, PartialOrd, Copy, Clone)]
 pub enum BinaryOp {
@@ -84,14 +85,14 @@ pub enum BinaryOp {
     ELTE   =  6,
     EGT    =  7,
     ELT    =  8,
-    EPlus  =  9,
-    EMinus = 10,
+    EAdd   =  9,
+    ESub   = 10,
     EMul   = 11,
     EDiv   = 12,
     EMod   = 13,
     EExp   = 14,  // Highest Priority
 }
-use BinaryOp::{EPlus, EMinus, EMul, EDiv, EMod, EExp, ELT, ELTE, EEQ, ENE, EGTE, EGT, EOR, EAND};
+use BinaryOp::{EAdd, ESub, EMul, EDiv, EMod, EExp, ELT, ELTE, EEQ, ENE, EGTE, EGT, EOR, EAND};
 
 #[derive(Debug, PartialEq)]
 pub enum Callable {
@@ -144,7 +145,7 @@ use ExpressionOrString::{EExpr, EStr};
 #[derive(Debug, PartialEq)]
 pub struct EvalFunc {
     pub expr:   ExpressionI,
-    pub kwargs: Vec<KWArg>,  // cap=16
+    pub kwargs: Vec<KWArg>,  // cap=8
 }
 
 #[derive(Debug, PartialEq)]
@@ -158,8 +159,8 @@ pub struct KWArg {
 impl Clone for PrintFunc {
     fn clone(&self) -> Self {
         let mut vec = Vec::<ExpressionOrString>::with_capacity(self.0.len());
-        for xors in self.0.iter() {
-            vec.push(match xors {
+        for x_or_s in self.0.iter() {
+            vec.push(match x_or_s {
                 EExpr(i) => EExpr(*i),
                 EStr(s) => EStr(s.clone()),
             });
@@ -226,15 +227,23 @@ fn space(bs:&mut &[u8]) {
 
 
 pub struct Parser<'a> {
-    is_var_byte:&'a dyn Fn(u8,usize)->bool,
-    buf        :String,
+    pub is_var_byte  :Box<dyn Fn(u8,usize)->bool + 'a>,
+        char_buf     :String,
+        exprpair_bufs:BufStack<ExprPair>,
+        expri_bufs   :BufStack<ExpressionI>,
+        xors_bufs    :BufStack<ExpressionOrString>,
+        kwarg_bufs   :BufStack<KWArg>,
 }
 
 impl Parser<'_> {
     pub fn new<'b>() -> Parser<'b> {
         Parser{
-            is_var_byte:&Parser::default_is_var_byte,
-            buf:String::with_capacity(64),
+            is_var_byte  :Box::new(Parser::default_is_var_byte),
+            char_buf     :String::with_capacity(64),
+            exprpair_bufs:BufStack::new(),
+            expri_bufs   :BufStack::new(),
+            xors_bufs    :BufStack::new(),
+            kwarg_bufs   :BufStack::new(),
         }
     }
 
@@ -287,19 +296,19 @@ impl Parser<'_> {
 
     fn read_expression(&mut self, slab:&mut ParseSlab, bs:&mut &[u8], expect_eof:bool) -> Result<ExpressionI, KErr> {
         let first = self.read_value(slab,bs).map_err(|e| e.pre("read_value"))?;
-        let mut pairs = Vec::<ExprPair>::with_capacity(8);
+        let pairs_i = self.exprpair_bufs.push_buf(8);
         loop {
             match self.read_binaryop(bs).map_err(|e| e.pre("read_binaryop"))? {
                 Pass => break,
                 Bite(bop) => {
                     let val = self.read_value(slab,bs).map_err(|e| e.pre("read_value"))?;
-                    pairs.push(ExprPair(bop,val));
+                    self.exprpair_bufs.push(pairs_i, ExprPair(bop,val));
                 }
             }
         }
         space(bs);
         if expect_eof && !is_at_eof(bs) { return Err(KErr::new("unparsed tokens remaining")); }
-        Ok(slab.push_expr(Expression{first, pairs})?)
+        Ok(slab.push_expr(Expression{first, pairs:self.exprpair_bufs.pop_buf(pairs_i)})?)
     }
 
     fn read_value(&mut self, slab:&mut ParseSlab, bs:&mut &[u8]) -> Result<Value, KErr> {
@@ -325,25 +334,25 @@ impl Parser<'_> {
     fn read_const(&mut self, bs:&mut &[u8]) -> Result<Tok<Constant>, KErr> {
         space(bs);
 
-        self.buf.clear();
-        while Self::is_const_byte_opt(peek(bs,0),self.buf.len()) {
-            self.buf.push(read(bs)? as char);
+        self.char_buf.clear();
+        while Self::is_const_byte_opt(peek(bs,0),self.char_buf.len()) {
+            self.char_buf.push(read(bs)? as char);
         }
 
-        let buflen = self.buf.len();
+        let buflen = self.char_buf.len();
         if buflen==0 { return Ok(Pass); }
 
         let mut multiple = 1.0;
-        match self.buf.as_bytes()[buflen-1] {
-            b'k' | b'K' => {      multiple=1_000.0; self.buf.pop(); }
-            b'M' => {         multiple=1_000_000.0; self.buf.pop(); }
-            b'G' => {     multiple=1_000_000_000.0; self.buf.pop(); }
-            b'T' => { multiple=1_000_000_000_000.0; self.buf.pop(); }
+        match self.char_buf.as_bytes()[buflen-1] {
+            b'k' | b'K' => {      multiple=1_000.0; self.char_buf.pop(); }
+            b'M' => {         multiple=1_000_000.0; self.char_buf.pop(); }
+            b'G' => {     multiple=1_000_000_000.0; self.char_buf.pop(); }
+            b'T' => { multiple=1_000_000_000_000.0; self.char_buf.pop(); }
             _ => {}
         }
 
-        let val = self.buf.parse::<f64>().map_err(|_| {
-            KErr::new("parse<f64> error").pre(&self.buf)
+        let val = self.char_buf.parse::<f64>().map_err(|_| {
+            KErr::new("parse<f64> error").pre(&self.char_buf)
         })?;
         Ok(Bite(Constant(val*multiple)))
     }
@@ -351,14 +360,14 @@ impl Parser<'_> {
     fn read_var(&mut self, bs:&mut &[u8]) -> Result<Tok<Variable>, KErr> {
         space(bs);
 
-        self.buf.clear();
-        while self.is_var_byte_opt(peek(bs,0),self.buf.len()) {
-            self.buf.push(read(bs)? as char);
+        self.char_buf.clear();
+        while self.is_var_byte_opt(peek(bs,0),self.char_buf.len()) {
+            self.char_buf.push(read(bs)? as char);
         }
 
-        if self.buf.len()==0 { return Ok(Pass); }  // This is NOT a Pass after a read() -- len=0 so no read occurred.
+        if self.char_buf.len()==0 { return Ok(Pass); }  // This is NOT a Pass after a read() -- len=0 so no read occurred.
 
-        Ok(Bite(Variable(self.buf.clone())))
+        Ok(Bite(Variable(self.char_buf.clone())))
     }
 
     fn read_unaryop(&mut self, slab:&mut ParseSlab, bs:&mut &[u8]) -> Result<Tok<UnaryOp>, KErr> {
@@ -381,7 +390,7 @@ impl Parser<'_> {
                     let xi = self.read_expression(slab,bs,false)?;
                     space(bs);
                     if read(bs)? != b')' { return Err(KErr::new("Expected ')'")) }
-                    Ok(Bite(EParens(xi)))
+                    Ok(Bite(EParentheses(xi)))
                 }
                 b'!' => {
                     read(bs)?;
@@ -398,8 +407,8 @@ impl Parser<'_> {
         match peek(bs,0) {
             None => Ok(Pass), // Err(KErr::new("EOF")), -- EOF is usually OK in a BinaryOp position.
             Some(b) => match b {
-                b'+' => { read(bs)?; Ok(Bite(EPlus)) }
-                b'-' => { read(bs)?; Ok(Bite(EMinus)) }
+                b'+' => { read(bs)?; Ok(Bite(EAdd)) }
+                b'-' => { read(bs)?; Ok(Bite(ESub)) }
                 b'*' => { read(bs)?; Ok(Bite(EMul)) }
                 b'/' => { read(bs)?; Ok(Bite(EDiv)) }
                 b'%' => { read(bs)?; Ok(Bite(EMod)) }
@@ -424,64 +433,50 @@ impl Parser<'_> {
     }
 
     fn read_callable(&mut self, slab:&mut ParseSlab, bs:&mut &[u8]) -> Result<Tok<Callable>, KErr> {
-        match self.read_printfunc(slab,bs)? {
-            Pass => {}
-            Bite(f) => return Ok(Bite(EPrintFunc(f))),
+        match self.read_func_start(bs)? {
+            Pass => Ok(Pass),
+            Bite(fname) => match fname.as_ref() {
+                "print" => Ok(Bite(EPrintFunc(self.read_printfunc(slab,bs)?))),
+                "eval" => Ok(Bite(EEvalFunc(self.read_evalfunc(slab,bs)?))),
+                _ => Ok(Bite(EFunc(self.read_func(fname,slab,bs)?))),
+            }
         }
-        match self.read_evalfunc(slab,bs)? {
-            Pass => {}
-            Bite(f) => return Ok(Bite(EEvalFunc(f))),
-        }
-        match self.read_func(slab,bs)? {
-            Pass => {}
-            Bite(f) => return Ok(Bite(EFunc(f))),
-        }
-        Ok(Pass)
     }
 
-    fn read_func_start(&mut self, bs:&mut &[u8], expected_name:Option<&str>) -> Result<Tok<String>, KErr> {
+    fn read_func_start(&mut self, bs:&mut &[u8]) -> Result<Tok<String>, KErr> {
         space(bs);
 
-        self.buf.clear();
+        self.char_buf.clear();
         loop {
-            match peek(bs,self.buf.len()) {
+            match peek(bs,self.char_buf.len()) {
                 None => break,
                 Some(b) => {
-                    if Self::is_func_byte(b,self.buf.len()) { self.buf.push(b.to_ascii_lowercase() as char); }
+                    if Self::is_func_byte(b,self.char_buf.len()) { self.char_buf.push(b.to_ascii_lowercase() as char); }
                     else { break; }
                 }
             }
         }
-        if self.buf.len()==0 { return Ok(Pass) }
-        if let Some(xn) = expected_name {
-            if self.buf!=xn { return Ok(Pass) }
-        }
+        if self.char_buf.len()==0 { return Ok(Pass) }
 
         let mut post_name_spaces=0;
-        while let Some(b) = peek(bs,self.buf.len()+post_name_spaces) {
+        while let Some(b) = peek(bs,self.char_buf.len()+post_name_spaces) {
             if !is_space(b) { break; }
             post_name_spaces+=1;
         }
-        if peek(bs,self.buf.len()+post_name_spaces) != Some(b'(') { return Ok(Pass) }
+        if peek(bs,self.char_buf.len()+post_name_spaces) != Some(b'(') { return Ok(Pass) }
 
         // Begin 'Bite':
-        for _ in 0..self.buf.len()+post_name_spaces { read(bs)?; }
+        for _ in 0..self.char_buf.len()+post_name_spaces { read(bs)?; }
         if read(bs)? != b'(' { return Err(KErr::new("expected '('")) }
 
-        Ok(Bite(self.buf.clone()))
+        Ok(Bite(self.char_buf.clone()))
     }
-    fn read_func(&mut self, slab:&mut ParseSlab, bs:&mut &[u8]) -> Result<Tok<Func>, KErr> {
+    fn read_func(&mut self, fname:String, slab:&mut ParseSlab, bs:&mut &[u8]) -> Result<Func, KErr> {
         // For custom functions, I have two options:
         //     1) Evaluate arguments ahead of time and pass f64's.  Super simple.
         //     2) Pass ExpressionI's so that the function could perform conditional evaluation.  Surprisingly powerful... but do we need it???
         //     3) Like #2, but instead of passing ExpressionI's, pass callbacks that will load and cache the Expression (to reduce usage complexity).
         // I'll know the right answer when I find a real-life need for custom functions.
-
-        let fname : String;
-        match self.read_func_start(bs,None)? {
-            Pass => return Ok(Pass),
-            Bite(n) => fname=n,
-        }
 
         let mut args = Vec::<ExpressionI>::with_capacity(8);
 
@@ -509,107 +504,107 @@ impl Parser<'_> {
 
         match fname.as_str() {
             "int" => {
-                if args.len()==1 { Ok(Bite(EFuncInt(args.pop().unwrap())))
+                if args.len()==1 { Ok(EFuncInt(args.pop().unwrap()))
                 } else { Err(KErr::new("expected one arg")) }
             }
             "ceil" => {
-                if args.len()==1 { Ok(Bite(EFuncCeil(args.pop().unwrap())))
+                if args.len()==1 { Ok(EFuncCeil(args.pop().unwrap()))
                 } else { Err(KErr::new("expected one arg")) }
             }
             "floor" => {
-                if args.len()==1 { Ok(Bite(EFuncFloor(args.pop().unwrap())))
+                if args.len()==1 { Ok(EFuncFloor(args.pop().unwrap()))
                 } else { Err(KErr::new("expected one arg")) }
             }
             "abs" => {
-                if args.len()==1 { Ok(Bite(EFuncAbs(args.pop().unwrap())))
+                if args.len()==1 { Ok(EFuncAbs(args.pop().unwrap()))
                 } else { Err(KErr::new("expected one arg")) }
             }
             "sign" => {
-                if args.len()==1 { Ok(Bite(EFuncSign(args.pop().unwrap())))
+                if args.len()==1 { Ok(EFuncSign(args.pop().unwrap()))
                 } else { Err(KErr::new("expected one arg")) }
             }
             "log" => {
-                if args.len()==1 { Ok(Bite(EFuncLog{base:None, expr:args.pop().unwrap()}))
+                if args.len()==1 { Ok(EFuncLog{base:None, expr:args.pop().unwrap()})
                 } else if args.len()==2 {
                     let expr = args.pop().unwrap();
-                    Ok(Bite(EFuncLog{base:Some(args.pop().unwrap()), expr:expr}))
+                    Ok(EFuncLog{base:Some(args.pop().unwrap()), expr:expr})
                 } else { Err(KErr::new("expected log(x) or log(base,x)")) }
             }
             "round" => {
-                if args.len()==1 { Ok(Bite(EFuncRound{modulus:None, expr:args.pop().unwrap()}))
+                if args.len()==1 { Ok(EFuncRound{modulus:None, expr:args.pop().unwrap()})
                 } else if args.len()==2 {
                     let expr = args.pop().unwrap();
-                    Ok(Bite(EFuncRound{modulus:Some(args.pop().unwrap()), expr:expr}))
+                    Ok(EFuncRound{modulus:Some(args.pop().unwrap()), expr:expr})
                 } else { Err(KErr::new("expected round(x) or round(modulus,x)")) }
             }
             "min" => {
                 if args.len()>0 {
                     let first = args.remove(0);
-                    Ok(Bite(EFuncMin{first:first, rest:args}))
+                    Ok(EFuncMin{first:first, rest:args})
                 } else { Err(KErr::new("expected one or more args")) }
             }
             "max" => {
                 if args.len()>0 {
                     let first = args.remove(0);
-                    Ok(Bite(EFuncMax{first:first, rest:args}))
+                    Ok(EFuncMax{first:first, rest:args})
                 } else { Err(KErr::new("expected one or more args")) }
             }
 
             "e" => {
-                if args.len()==0 { Ok(Bite(EFuncE))
+                if args.len()==0 { Ok(EFuncE)
                 } else { Err(KErr::new("expected no args")) }
             }
             "pi" => {
-                if args.len()==0 { Ok(Bite(EFuncPi))
+                if args.len()==0 { Ok(EFuncPi)
                 } else { Err(KErr::new("expected no args")) }
             }
 
             "sin" => {
-                if args.len()==1 { Ok(Bite(EFuncSin(args.pop().unwrap())))
+                if args.len()==1 { Ok(EFuncSin(args.pop().unwrap()))
                 } else { Err(KErr::new("expected one arg")) }
             }
             "cos" => {
-                if args.len()==1 { Ok(Bite(EFuncCos(args.pop().unwrap())))
+                if args.len()==1 { Ok(EFuncCos(args.pop().unwrap()))
                 } else { Err(KErr::new("expected one arg")) }
             }
             "tan" => {
-                if args.len()==1 { Ok(Bite(EFuncTan(args.pop().unwrap())))
+                if args.len()==1 { Ok(EFuncTan(args.pop().unwrap()))
                 } else { Err(KErr::new("expected one arg")) }
             }
             "asin" => {
-                if args.len()==1 { Ok(Bite(EFuncASin(args.pop().unwrap())))
+                if args.len()==1 { Ok(EFuncASin(args.pop().unwrap()))
                 } else { Err(KErr::new("expected one arg")) }
             }
             "acos" => {
-                if args.len()==1 { Ok(Bite(EFuncACos(args.pop().unwrap())))
+                if args.len()==1 { Ok(EFuncACos(args.pop().unwrap()))
                 } else { Err(KErr::new("expected one arg")) }
             }
             "atan" => {
-                if args.len()==1 { Ok(Bite(EFuncATan(args.pop().unwrap())))
+                if args.len()==1 { Ok(EFuncATan(args.pop().unwrap()))
                 } else { Err(KErr::new("expected one arg")) }
             }
             "sinh" => {
-                if args.len()==1 { Ok(Bite(EFuncSinH(args.pop().unwrap())))
+                if args.len()==1 { Ok(EFuncSinH(args.pop().unwrap()))
                 } else { Err(KErr::new("expected one arg")) }
             }
             "cosh" => {
-                if args.len()==1 { Ok(Bite(EFuncCosH(args.pop().unwrap())))
+                if args.len()==1 { Ok(EFuncCosH(args.pop().unwrap()))
                 } else { Err(KErr::new("expected one arg")) }
             }
             "tanh" => {
-                if args.len()==1 { Ok(Bite(EFuncTanH(args.pop().unwrap())))
+                if args.len()==1 { Ok(EFuncTanH(args.pop().unwrap()))
                 } else { Err(KErr::new("expected one arg")) }
             }
             "asinh" => {
-                if args.len()==1 { Ok(Bite(EFuncASinH(args.pop().unwrap())))
+                if args.len()==1 { Ok(EFuncASinH(args.pop().unwrap()))
                 } else { Err(KErr::new("expected one arg")) }
             }
             "acosh" => {
-                if args.len()==1 { Ok(Bite(EFuncACosH(args.pop().unwrap())))
+                if args.len()==1 { Ok(EFuncACosH(args.pop().unwrap()))
                 } else { Err(KErr::new("expected one arg")) }
             }
             "atanh" => {
-                if args.len()==1 { Ok(Bite(EFuncATanH(args.pop().unwrap())))
+                if args.len()==1 { Ok(EFuncATanH(args.pop().unwrap()))
                 } else { Err(KErr::new("expected one arg")) }
             }
 
@@ -617,12 +612,7 @@ impl Parser<'_> {
         }
     }
 
-    fn read_printfunc(&mut self, slab:&mut ParseSlab, bs:&mut &[u8]) -> Result<Tok<PrintFunc>, KErr> {
-        match self.read_func_start(bs,Some("print"))? {
-            Pass => return Ok(Pass),
-            Bite(_) => {}  // We already know this is 'print'.
-        }
-
+    fn read_printfunc(&mut self, slab:&mut ParseSlab, bs:&mut &[u8]) -> Result<PrintFunc, KErr> {
         let mut args = Vec::<ExpressionOrString>::with_capacity(8);
         loop {
             space(bs);
@@ -644,17 +634,12 @@ impl Parser<'_> {
             args.push(self.read_expressionorstring(slab,bs)?);
         }
 
-        Ok(Bite(PrintFunc(args)))
+        Ok(PrintFunc(args))
     }
 
-    fn read_evalfunc(&mut self, slab:&mut ParseSlab, bs:&mut &[u8]) -> Result<Tok<EvalFunc>, KErr> {
-        match self.read_func_start(bs,Some("eval"))? {
-            Pass => return Ok(Pass),
-            Bite(_) => {}  // We already know this is 'eval'.
-        }
-
+    fn read_evalfunc(&mut self, slab:&mut ParseSlab, bs:&mut &[u8]) -> Result<EvalFunc, KErr> {
         let eval_expr = self.read_expression(slab,bs,false)?;
-        let mut kwargs = Vec::<KWArg>::with_capacity(16);
+        let mut kwargs = Vec::<KWArg>::with_capacity(8);
         fn kwargs_has(kwargs:&Vec<KWArg>, name:&Variable) -> bool {
             for kwarg in kwargs {
                 if kwarg.name==*name { return true; }
@@ -693,7 +678,7 @@ impl Parser<'_> {
             kwargs.push(KWArg{name, expr});
         }
 
-        Ok(Bite(EvalFunc{expr:eval_expr, kwargs:kwargs}))
+        Ok(EvalFunc{expr:eval_expr, kwargs:kwargs})
     }
 
     fn read_expressionorstring(&mut self, slab:&mut ParseSlab, bs:&mut &[u8]) -> Result<ExpressionOrString, KErr> {
@@ -713,14 +698,14 @@ impl Parser<'_> {
             Some(_) => { return Ok(Pass) }
         }
 
-        self.buf.clear();
+        self.char_buf.clear();
         loop {
             let b = read(bs)?;
             if b==b'"' { break; }
-            self.buf.push(b as char);
+            self.char_buf.push(b as char);
         }
 
-        Ok(Bite(self.buf.clone()))
+        Ok(Bite(self.char_buf.clone()))
     }
 }
 

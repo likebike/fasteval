@@ -266,3 +266,33 @@ fn corners() {
         "Ok(NaN)");
 }
 
+fn my_evalns_cb_function(_:&str) -> Option<f64> { None }
+#[test]
+fn evalns_cb_ownership() {
+    let _ns = EvalNS::new(my_evalns_cb_function);
+    let _ns = EvalNS::new(my_evalns_cb_function);
+    // Conclusion: You can pass a function pointer into a function that receives ownership.
+
+    let closure = |_:&str| None;
+    let _ns = EvalNS::new(closure);
+    let _ns = EvalNS::new(closure);
+
+    let x = 1.0;
+    let closure = |_:&str| Some(x);
+    let _ns = EvalNS::new(closure);
+    let _ns = EvalNS::new(closure);
+
+    let mut x = 1.0;
+    let closure = |_:&str| {
+        x+=1.0;
+        Some(x)
+    };
+    let _ns = EvalNS::new(closure);
+    //let _ns = EvalNS::new(closure);  // Not allowed.
+
+    // Conclusion: Functions and Closures that don't mutate state are effectively Copy.
+    //             Closures that mutate state aren't Copy.
+    //             Note that the argument type (FnMut vs Fn) doesn't actually matter,
+    //             just the implementation matters!
+}
+

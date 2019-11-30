@@ -5,6 +5,7 @@
 //   [x] Profile, boost critical sections.
 //   [x] optimize the peek/read process -- be able to read N bytes if we peek successfully.
 //   [x] optimize after parse
+//   [ ] REPL Example with Variables
 //   [ ] Copy smart tests from other libs.
 //   [ ] Readme
 //   [ ] Documentation
@@ -43,18 +44,19 @@ macro_rules! eval_instr_ref {
     }
 }
 
-pub mod slab;
 pub mod parser;
 pub mod compiler;
 pub mod evaler;
+pub mod slab;
+    mod bufstack;
 pub mod evalns;
 pub mod display;
 pub mod ez;
 
-pub use self::slab::Slab;
 pub use self::parser::{Parser, Expression, ExpressionI, Value, ValueI, Variable};
 pub use self::compiler::{Compiler, Instruction::{self, IConst}, InstructionI};
-pub use self::evalns::EvalNS;
 pub use self::evaler::Evaler;
+pub use self::slab::Slab;
+pub use self::evalns::EvalNS;
 pub use self::ez::ez_eval;
 

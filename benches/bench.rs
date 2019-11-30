@@ -34,7 +34,7 @@
 //     test preparse_precompile_eval_1000x ... bench:         758 ns/iter (+/- 67)
 //
 //     "x * 2"
-//     test ez                             ... N/A
+//     test ez                             ... bench:         760 ns/iter (+/- 76)
 //     test native_1000x                   ... bench:         723 ns/iter (+/- 125)
 //     test parse_compile_eval             ... bench:         479 ns/iter (+/- 34)
 //     test parse_eval                     ... bench:         325 ns/iter (+/- 146)
@@ -45,7 +45,7 @@
 //     test preparse_precompile_eval_1000x ... bench:      39,255 ns/iter (+/- 8,353)
 //
 //     "sin(x)"
-//     test ez                             ... N/A
+//     test ez                             ... bench:         873 ns/iter (+/- 93)
 //     test native_1000x                   ... bench:      17,866 ns/iter (+/- 2,230)
 //     test parse_compile_eval             ... bench:         475 ns/iter (+/- 39)
 //     test parse_eval                     ... bench:         512 ns/iter (+/- 69)
@@ -56,7 +56,7 @@
 //     test preparse_precompile_eval_1000x ... bench:      62,003 ns/iter (+/- 7,727)
 //
 //     "(-z + (z^2 - 4*x*y)^0.5) / (2*x)"
-//     test ez                             ... N/A
+//     test ez                             ... bench:       2,859 ns/iter (+/- 333)
 //     test native_1000x                   ... bench:       5,248 ns/iter (+/- 241)
 //     test parse_compile_eval             ... bench:       3,023 ns/iter (+/- 967)
 //     test parse_eval                     ... bench:       2,070 ns/iter (+/- 493)
@@ -67,15 +67,15 @@
 //     test preparse_precompile_eval_1000x ... bench:     276,372 ns/iter (+/- 17,863)
 //
 //     "((((87))) - 73) + (97 + (((15 / 55 * ((31)) + 35))) + (15 - (9)) - (39 / 26) / 20 / 91 + 27 / (33 * 26 + 28 - (7) / 10 + 66 * 6) + 60 / 35 - ((29) - (69) / 44 / (92)) / (89) + 2 + 87 / 47 * ((2)) * 83 / 98 * 42 / (((67)) * ((97))) / (34 / 89 + 77) - 29 + 70 * (20)) + ((((((92))) + 23 * (98) / (95) + (((99) * (41))) + (5 + 41) + 10) - (36) / (6 + 80 * 52 + (90))))"
-//     test ez                             ... bench:      13,455 ns/iter (+/- 2,166)
-//     test native_1000x                   ... bench:         347 ns/iter (+/- 53)
-//     test parse_compile_eval             ... bench:      16,699 ns/iter (+/- 3,347)
-//     test parse_eval                     ... bench:      13,191 ns/iter (+/- 511)
-//     test parse_eval_1000x               ... bench:  12,984,045 ns/iter (+/- 2,546,539)
-//     test preparse_eval                  ... bench:       4,819 ns/iter (+/- 1,127)
-//     test preparse_eval_1000x            ... bench:   4,805,482 ns/iter (+/- 1,105,957)
+//     test ez                             ... bench:      13,493 ns/iter (+/- 3,746)
+//     test native_1000x                   ... bench:         333 ns/iter (+/- 84)
+//     test parse_compile_eval             ... bench:      16,411 ns/iter (+/- 1,590)
+//     test parse_eval                     ... bench:      12,718 ns/iter (+/- 1,127)
+//     test parse_eval_1000x               ... bench:  12,933,763 ns/iter (+/- 1,609,815)
+//     test preparse_eval                  ... bench:       4,561 ns/iter (+/- 202)
+//     test preparse_eval_1000x            ... bench:   4,634,764 ns/iter (+/- 622,744)
 //     test preparse_precompile_eval       ... bench:           0 ns/iter (+/- 0)
-//     test preparse_precompile_eval_1000x ... bench:         754 ns/iter (+/- 88)
+//     test preparse_precompile_eval_1000x ... bench:         733 ns/iter (+/- 50)
 //
 //
 // python3:
@@ -281,6 +281,8 @@ use test::{Bencher, black_box};
 
 use al::{Parser, Compiler, Evaler, Slab, EvalNS, ez_eval};
 
+use std::collections::HashMap;
+
 //fn evalcb(_:&str) -> Option<f64> { None }
 fn evalcb(name:&str) -> Option<f64> {
     match name {
@@ -292,12 +294,12 @@ fn evalcb(name:&str) -> Option<f64> {
 }
 
 //static EXPR : &'static str = "(3 * (3 + 3) / 3)";
-//static EXPR : &'static str = "3 * 3 - 3 / 3";
+static EXPR : &'static str = "3 * 3 - 3 / 3";
 //static EXPR : &'static str = "2 ^ 3 ^ 4";
 //static EXPR : &'static str = "x * 2";
 //static EXPR : &'static str = "sin(x)";
 //static EXPR : &'static str = "(-z + (z^2 - 4*x*y)^0.5) / (2*x)";
-static EXPR : &'static str = "((((87))) - 73) + (97 + (((15 / 55 * ((31)) + 35))) + (15 - (9)) - (39 / 26) / 20 / 91 + 27 / (33 * 26 + 28 - (7) / 10 + 66 * 6) + 60 / 35 - ((29) - (69) / 44 / (92)) / (89) + 2 + 87 / 47 * ((2)) * 83 / 98 * 42 / (((67)) * ((97))) / (34 / 89 + 77) - 29 + 70 * (20)) + ((((((92))) + 23 * (98) / (95) + (((99) * (41))) + (5 + 41) + 10) - (36) / (6 + 80 * 52 + (90))))";
+//static EXPR : &'static str = "((((87))) - 73) + (97 + (((15 / 55 * ((31)) + 35))) + (15 - (9)) - (39 / 26) / 20 / 91 + 27 / (33 * 26 + 28 - (7) / 10 + 66 * 6) + 60 / 35 - ((29) - (69) / 44 / (92)) / (89) + 2 + 87 / 47 * ((2)) * 83 / 98 * 42 / (((67)) * ((97))) / (34 / 89 + 77) - 29 + 70 * (20)) + ((((((92))) + 23 * (98) / (95) + (((99) * (41))) + (5 + 41) + 10) - (36) / (6 + 80 * 52 + (90))))";
 
 #[bench]
 fn native_1000x(bencher:&mut Bencher) {
@@ -318,8 +320,13 @@ fn native_1000x(bencher:&mut Bencher) {
 
 #[bench]
 fn ez(b:&mut Bencher) {
+    let mut vars=HashMap::new();
+    vars.insert("x".to_string(),1.0);
+    vars.insert("y".to_string(),2.0);
+    vars.insert("z".to_string(),3.0);
+
     b.iter(|| {
-        black_box(ez_eval(EXPR).unwrap());
+        black_box(ez_eval(EXPR, &vars).unwrap());
     });
 }
 

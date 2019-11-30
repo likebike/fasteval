@@ -1,5 +1,5 @@
 use crate::slab::{ParseSlab, CompileSlab};
-use crate::parser::{Expression, ExprPair, Value, Variable, UnaryOp::{self, EPos, ENeg, ENot, EParens}, BinaryOp::{self, EOR, EAND, ENE, EEQ, EGTE, ELTE, EGT, ELT, EPlus, EMinus, EMul, EDiv, EMod, EExp}, Callable::{self, EFunc, EPrintFunc, EEvalFunc}, Func::{EFuncInt, EFuncCeil, EFuncFloor, EFuncAbs, EFuncSign, EFuncLog, EFuncRound, EFuncMin, EFuncMax, EFuncE, EFuncPi, EFuncSin, EFuncCos, EFuncTan, EFuncASin, EFuncACos, EFuncATan, EFuncSinH, EFuncCosH, EFuncTanH, EFuncASinH, EFuncACosH, EFuncATanH}, PrintFunc, EvalFunc};
+use crate::parser::{Expression, ExprPair, Value, Variable, UnaryOp::{self, EPos, ENeg, ENot, EParentheses}, BinaryOp::{self, EOR, EAND, ENE, EEQ, EGTE, ELTE, EGT, ELT, EAdd, ESub, EMul, EDiv, EMod, EExp}, Callable::{self, EFunc, EPrintFunc, EEvalFunc}, Func::{EFuncInt, EFuncCeil, EFuncFloor, EFuncAbs, EFuncSign, EFuncLog, EFuncRound, EFuncMin, EFuncMax, EFuncE, EFuncPi, EFuncSin, EFuncCos, EFuncTan, EFuncASin, EFuncACos, EFuncATan, EFuncSinH, EFuncCosH, EFuncTanH, EFuncASinH, EFuncACosH, EFuncATanH}, PrintFunc, EvalFunc};
 use crate::evaler::bool_to_f64;
 
 #[derive(Debug, PartialEq, Copy, Clone)]
@@ -12,7 +12,7 @@ pub enum Instruction {
     IVar(Variable),
 
     //---- Unary Ops:
-    // Parens is a noop
+    // Parentheses is a noop
     // Pos is a noop
     INeg(InstructionI),
     INot(InstructionI),
@@ -316,9 +316,9 @@ impl Compiler for ExprSlice<'_> {
             ELTE => unreachable!(),
             EGT => unreachable!(),
             ELT => unreachable!(),
-            EPlus => {
+            EAdd => {
                 let mut xss = Vec::<ExprSlice>::with_capacity(4);
-                self.split(EPlus, &mut xss);
+                self.split(EAdd, &mut xss);
                 let mut out = IConst(0.0); let mut out_set = false;
                 let mut const_sum = 0.0;
                 for xs in xss.iter() {
@@ -343,9 +343,9 @@ impl Compiler for ExprSlice<'_> {
                 }
                 out
             }
-            EMinus => {
+            ESub => {
                 let mut xss = Vec::<ExprSlice>::with_capacity(4);
-                self.split(EMinus, &mut xss);
+                self.split(ESub, &mut xss);
                 let mut out = IConst(0.0); let mut out_set = false;
                 let mut const_sum = 0.0;
                 let mut is_first = true;
@@ -555,7 +555,7 @@ impl Compiler for UnaryOp {
                     not_wrap(instr,cslab)
                 }
             }
-            EParens(i) => pslab.get_expr(*i).compile(pslab,cslab),
+            EParentheses(i) => pslab.get_expr(*i).compile(pslab,cslab),
         }
     }
 }

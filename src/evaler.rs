@@ -4,8 +4,8 @@ use crate::parser::{Expression,
                     Value::{self, EConstant, EVariable, EUnaryOp, ECallable},
                     Constant,
                     Variable,
-                    UnaryOp::{self, EPos, ENeg, ENot, EParens},
-                    BinaryOp::{self, EPlus, EMinus, EMul, EDiv, EMod, EExp, ELT, ELTE, EEQ, ENE, EGTE, EGT, EOR, EAND},
+                    UnaryOp::{self, EPos, ENeg, ENot, EParentheses},
+                    BinaryOp::{self, EAdd, ESub, EMul, EDiv, EMod, EExp, ELT, ELTE, EEQ, ENE, EGTE, EGT, EOR, EAND},
                     Callable::{self, EFunc, EPrintFunc, EEvalFunc},
                     Func::{self, EFuncInt, EFuncCeil, EFuncFloor, EFuncAbs, EFuncSign, EFuncLog, EFuncRound, EFuncMin, EFuncMax, EFuncE, EFuncPi, EFuncSin, EFuncCos, EFuncTan, EFuncASin, EFuncACos, EFuncATan, EFuncSinH, EFuncCosH, EFuncTanH, EFuncASinH, EFuncACosH, EFuncATanH},
                     PrintFunc,
@@ -148,12 +148,13 @@ impl Evaler for Expression {
             }
         }
 
+        // Keep the order of these statements in-sync with parser.rs BinaryOp priority values:
         rtol(&mut eval_op, &mut ops, EExp);  // https://codeplea.com/exponentiation-associativity-options
         ltor(&mut eval_op, &mut ops, EMod);
         ltor(&mut eval_op, &mut ops, EDiv);
         rtol(&mut eval_op, &mut ops, EMul);
-        ltor(&mut eval_op, &mut ops, EMinus);
-        rtol(&mut eval_op, &mut ops, EPlus);
+        ltor(&mut eval_op, &mut ops, ESub);
+        rtol(&mut eval_op, &mut ops, EAdd);
         ltor_multi(&mut eval_op, &mut ops, &[ELT, EGT, ELTE, EGTE]);  // TODO: Implement Python-style a<b<c ternary comparison... might as well generalize to N comparisons.
         ltor_multi(&mut eval_op, &mut ops, &[EEQ, ENE]);
         ltor(&mut eval_op, &mut ops, EAND);
@@ -195,7 +196,7 @@ impl Evaler for UnaryOp {
             EPos(val_i) => ns.eval(slab, slab.ps.get_val(*val_i)),
             ENeg(val_i) => Ok(-ns.eval(slab, slab.ps.get_val(*val_i))?),
             ENot(val_i) => Ok(bool_to_f64(ns.eval(slab, slab.ps.get_val(*val_i))?==0.0)),
-            EParens(expr_i) => ns.eval(slab, slab.ps.get_expr(*expr_i)),
+            EParentheses(expr_i) => ns.eval(slab, slab.ps.get_expr(*expr_i)),
         }
     }
 }
@@ -204,8 +205,8 @@ impl BinaryOp {
     // Non-standard eval interface (not generalized yet):
     fn binaryop_eval(&self, left:f64, right:f64) -> f64 {
         match self {
-            EPlus => left+right,
-            EMinus => left-right,
+            EAdd => left+right,
+            ESub => left-right,
             EMul => left*right,
             EDiv => left/right,
             EMod => left%right, //left - (left/right).trunc()*right

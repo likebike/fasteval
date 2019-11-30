@@ -19,18 +19,16 @@ impl ValueI {
     }
 }
 
-#[derive(Debug)]
+pub struct Slab {
+    pub ps: ParseSlab,
+    pub cs: CompileSlab,
+}
 pub struct ParseSlab {
     exprs:Vec<Expression>,
     vals: Vec<Value>,
 }
-#[derive(Debug)]
 pub struct CompileSlab {
     instrs:Vec<Instruction>,
-}
-pub struct Slab {
-    pub ps: ParseSlab,
-    pub cs: CompileSlab,
 }
 impl ParseSlab {
     #[inline]
@@ -73,7 +71,7 @@ impl CompileSlab {
         if i.0==self.instrs.len()-1 {
             self.instrs.pop().unwrap()
         } else {
-            mem::replace(&mut self.instrs[i.0], IConst(-888743.888888))  // Conspicuous Value
+            mem::replace(&mut self.instrs[i.0], IConst(std::f64::NAN))  // Conspicuous Value
         }
     }
 }
@@ -97,26 +95,46 @@ impl Slab {
         self.cs.instrs.clear();
     }
 }
+
+
+fn write_indexed_list<T>(f:&mut fmt::Formatter, lst:&Vec<T>) -> Result<(), fmt::Error> where T:fmt::Debug {
+    write!(f, "{{")?;
+    let mut nonempty = false;
+    for (i,x) in lst.iter().enumerate() {
+        if nonempty { write!(f, ",")?; }
+        nonempty = true;
+        write!(f, " {}:{:?}",i,x)?;
+    }
+    if nonempty { write!(f, " ")?; }
+    write!(f, "}}")?;
+    Ok(())
+}
 impl fmt::Debug for Slab {
     fn fmt(&self, f:&mut fmt::Formatter) -> Result<(), fmt::Error> {
-        fn write_indexed_list<T>(f:&mut fmt::Formatter, lst:&Vec<T>) -> Result<(), fmt::Error> where T:fmt::Debug {
-            write!(f, "{{")?;
-            let mut nonempty = false;
-            for (i,x) in lst.iter().enumerate() {
-                if nonempty { write!(f, ",")?; }
-                nonempty = true;
-                write!(f, " {}:{:?}",i,x)?;
-            }
-            if nonempty { write!(f, " ")?; }
-            write!(f, "}}")?;
-            Ok(())
-        }
         write!(f, "Slab{{ exprs:")?;
         write_indexed_list(f, &self.ps.exprs)?;
         write!(f, ", vals:")?;
         write_indexed_list(f, &self.ps.vals)?;
         write!(f, ", instrs:")?;
         write_indexed_list(f, &self.cs.instrs)?;
+        write!(f, " }}")?;
+        Ok(())
+    }
+}
+impl fmt::Debug for ParseSlab {
+    fn fmt(&self, f:&mut fmt::Formatter) -> Result<(), fmt::Error> {
+        write!(f, "ParseSlab{{ exprs:")?;
+        write_indexed_list(f, &self.exprs)?;
+        write!(f, ", vals:")?;
+        write_indexed_list(f, &self.vals)?;
+        write!(f, " }}")?;
+        Ok(())
+    }
+}
+impl fmt::Debug for CompileSlab {
+    fn fmt(&self, f:&mut fmt::Formatter) -> Result<(), fmt::Error> {
+        write!(f, "CompileSlab{{ instrs:")?;
+        write_indexed_list(f, &self.instrs)?;
         write!(f, " }}")?;
         Ok(())
     }
