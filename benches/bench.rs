@@ -303,7 +303,9 @@ static EXPR : &'static str = "3 * 3 - 3 / 3";
 
 #[bench]
 fn native_1000x(bencher:&mut Bencher) {
+    #[allow(dead_code)]
     fn x() -> f64 { black_box(1.0) }
+    #[allow(unused_variables)]
     let (a,b,c) = (1.0f64, 3.0f64, 2.0f64);
     bencher.iter(|| {
         for _ in 0..1000 {

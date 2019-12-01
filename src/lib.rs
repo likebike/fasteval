@@ -48,7 +48,6 @@ pub mod parser;
 pub mod compiler;
 pub mod evaler;
 pub mod slab;
-    mod bufstack;
 pub mod evalns;
 pub mod display;
 pub mod ez;

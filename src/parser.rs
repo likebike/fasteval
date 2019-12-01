@@ -1,5 +1,4 @@
 use crate::slab::ParseSlab;
-use crate::bufstack::BufStack;
 use kerr::KErr;
 
 
@@ -215,7 +214,7 @@ fn read(bs:&mut &[u8]) -> Result<u8, KErr> {
 
 fn is_space(b:u8) -> bool {
     if b>b' ' { return false }  // Try to improve performance of the common case.
-    return b==b' ' || b==b'\n' || b==b'\t' || b==b'\r'
+    b==b' ' || b==b'\n' || b==b'\t' || b==b'\r'
 }
 fn space(bs:&mut &[u8]) {
     while let Some(b) = peek(bs,0) {
@@ -227,23 +226,15 @@ fn space(bs:&mut &[u8]) {
 
 
 pub struct Parser<'a> {
-    pub is_var_byte  :Box<dyn Fn(u8,usize)->bool + 'a>,
-        char_buf     :String,
-        exprpair_bufs:BufStack<ExprPair>,
-        expri_bufs   :BufStack<ExpressionI>,
-        xors_bufs    :BufStack<ExpressionOrString>,
-        kwarg_bufs   :BufStack<KWArg>,
+    pub is_var_byte:Box<dyn Fn(u8,usize)->bool + 'a>,
+        char_buf   :String,
 }
 
 impl Parser<'_> {
     pub fn new<'b>() -> Parser<'b> {
         Parser{
-            is_var_byte  :Box::new(Parser::default_is_var_byte),
-            char_buf     :String::with_capacity(64),
-            exprpair_bufs:BufStack::new(),
-            expri_bufs   :BufStack::new(),
-            xors_bufs    :BufStack::new(),
-            kwarg_bufs   :BufStack::new(),
+            is_var_byte:Box::new(Parser::default_is_var_byte),
+            char_buf   :String::with_capacity(64),
         }
     }
 
@@ -251,7 +242,7 @@ impl Parser<'_> {
     fn is_const_byte(b:u8, i:usize) -> bool {
         if b'0'<=b && b<=b'9' || b==b'.' { return true }
         if i>0 && ( b==b'k' || b==b'K' || b==b'M' || b==b'G' || b==b'T' ) { return true }
-        return false
+        false
     }
     #[inline]
     fn is_const_byte_opt(bo:Option<u8>, i:usize) -> bool {
@@ -296,19 +287,19 @@ impl Parser<'_> {
 
     fn read_expression(&mut self, slab:&mut ParseSlab, bs:&mut &[u8], expect_eof:bool) -> Result<ExpressionI, KErr> {
         let first = self.read_value(slab,bs).map_err(|e| e.pre("read_value"))?;
-        let pairs_i = self.exprpair_bufs.push_buf(8);
+        let mut pairs = Vec::<ExprPair>::with_capacity(8);
         loop {
             match self.read_binaryop(bs).map_err(|e| e.pre("read_binaryop"))? {
                 Pass => break,
                 Bite(bop) => {
                     let val = self.read_value(slab,bs).map_err(|e| e.pre("read_value"))?;
-                    self.exprpair_bufs.push(pairs_i, ExprPair(bop,val));
+                    pairs.push(ExprPair(bop,val));
                 }
             }
         }
         space(bs);
         if expect_eof && !is_at_eof(bs) { return Err(KErr::new("unparsed tokens remaining")); }
-        Ok(slab.push_expr(Expression{first, pairs:self.exprpair_bufs.pop_buf(pairs_i)})?)
+        Ok(slab.push_expr(Expression{first, pairs})?)
     }
 
     fn read_value(&mut self, slab:&mut ParseSlab, bs:&mut &[u8]) -> Result<Value, KErr> {
@@ -373,7 +364,7 @@ impl Parser<'_> {
     fn read_unaryop(&mut self, slab:&mut ParseSlab, bs:&mut &[u8]) -> Result<Tok<UnaryOp>, KErr> {
         space(bs);
         match peek(bs,0) {
-            None => Err(KErr::new("EOF")),
+            None => Ok(Pass),  // Err(KErr::new("EOF at UnaryOp position")), -- Instead of erroring, let the higher level decide what to do.
             Some(b) => match b {
                 b'+' => {
                     read(bs)?;
@@ -472,7 +463,7 @@ impl Parser<'_> {
         Ok(Bite(self.char_buf.clone()))
     }
     fn read_func(&mut self, fname:String, slab:&mut ParseSlab, bs:&mut &[u8]) -> Result<Func, KErr> {
-        // For custom functions, I have two options:
+        // NOTES FOR FUTURE REFERENCE: For custom functions, I have two options:
         //     1) Evaluate arguments ahead of time and pass f64's.  Super simple.
         //     2) Pass ExpressionI's so that the function could perform conditional evaluation.  Surprisingly powerful... but do we need it???
         //     3) Like #2, but instead of passing ExpressionI's, pass callbacks that will load and cache the Expression (to reduce usage complexity).
