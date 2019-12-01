@@ -1,4 +1,4 @@
-// usage: cargo run --release --example repl
+// usage: rlwrap cargo run --release --example repl
 
 use al::{Parser, Slab, EvalNS};
 
@@ -20,11 +20,10 @@ fn repl() {
 
     let stdin = io::stdin();
     let mut lines = stdin.lock().lines();
-    let mut ans_i = 0usize;
     loop {
-        print!(">>> ");  io::stdout().flush().unwrap();
+        eprint!(">>> ");  io::stderr().flush().unwrap();
 
-        let mut ans_key = "ans_".to_string();  ans_key.push_str(&ans_i.to_string());  let mut ans_key_is_orig = true;
+        let mut ans_key = "_".to_string();
 
         let line = match lines.next() {
             Some(res) => res.unwrap(),
@@ -40,7 +39,7 @@ fn repl() {
                 continue;
             }
 
-            ans_key = pieces[1].to_string();  ans_key_is_orig = false;
+            ans_key = pieces[1].to_string();
             line = pieces[3..].join(" ");
         }
 
@@ -60,15 +59,13 @@ fn repl() {
             }
         };
 
-        println!("let {} = {}", ans_key, ans);
+        println!("{}", ans);
         {
             let mut ns_map = ns_map.borrow_mut();
             ns_map.insert(ans_key, ans);
-            ns_map.insert("_".to_string(), ans);
         }
-
-        if ans_key_is_orig { ans_i += 1; }
     }
+
     println!();
 }
 

@@ -6,7 +6,7 @@
 //   [x] optimize the peek/read process -- be able to read N bytes if we peek successfully.
 //   [x] optimize after parse
 //   [x] custom functions  (i.e. Variables With Arguments)
-//   [ ] REPL Example with Variables
+//   [x] REPL Example with Variables
 //   [ ] Copy smart tests from other libs.
 //   [ ] Readme
 //   [ ] Documentation
