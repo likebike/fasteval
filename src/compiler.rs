@@ -1,5 +1,5 @@
 use crate::slab::{ParseSlab, CompileSlab};
-use crate::parser::{Expression, ExprPair, Value, Variable, UnaryOp::{self, EPos, ENeg, ENot, EParentheses}, BinaryOp::{self, EOR, EAND, ENE, EEQ, EGTE, ELTE, EGT, ELT, EAdd, ESub, EMul, EDiv, EMod, EExp}, Callable::{self, EFunc, EPrintFunc, EEvalFunc}, Func::{EFuncInt, EFuncCeil, EFuncFloor, EFuncAbs, EFuncSign, EFuncLog, EFuncRound, EFuncMin, EFuncMax, EFuncE, EFuncPi, EFuncSin, EFuncCos, EFuncTan, EFuncASin, EFuncACos, EFuncATan, EFuncSinH, EFuncCosH, EFuncTanH, EFuncASinH, EFuncACosH, EFuncATanH}, PrintFunc, EvalFunc};
+use crate::parser::{Expression, ExprPair, Value, UnaryOp::{self, EPos, ENeg, ENot, EParentheses}, BinaryOp::{self, EOR, EAND, ENE, EEQ, EGTE, ELTE, EGT, ELT, EAdd, ESub, EMul, EDiv, EMod, EExp}, VarName, Callable::{self, EStdFunc, EPrintFunc, EEvalFunc}, StdFunc::{EVar, EFunc, EFuncInt, EFuncCeil, EFuncFloor, EFuncAbs, EFuncSign, EFuncLog, EFuncRound, EFuncMin, EFuncMax, EFuncE, EFuncPi, EFuncSin, EFuncCos, EFuncTan, EFuncASin, EFuncACos, EFuncATan, EFuncSinH, EFuncCosH, EFuncTanH, EFuncASinH, EFuncACosH, EFuncATanH}, PrintFunc, EvalFunc};
 use crate::evaler::bool_to_f64;
 
 #[derive(Debug, PartialEq, Copy, Clone)]
@@ -9,7 +9,6 @@ pub struct InstructionI(pub usize);
 pub enum Instruction {
     //---- Primitive Value Types:
     IConst(f64),
-    IVar(Variable),
 
     //---- Unary Ops:
     // Parentheses is a noop
@@ -39,6 +38,9 @@ pub enum Instruction {
     IAND(InstructionI, InstructionI),
 
     //---- Callables:
+    IVar(VarName),
+    IFunc{name:VarName, args:Vec<InstructionI>},
+
     IFuncInt(InstructionI),
     IFuncCeil(InstructionI),
     IFuncFloor(InstructionI),
@@ -65,9 +67,7 @@ pub enum Instruction {
     IPrintFunc(PrintFunc),  // Not optimized (it would be pointless because of i/o bottleneck).
     IEvalFunc(EvalFunc),    // Eval *could* be optimized, but I'll wait until I need to.
 }
-use Instruction::{IConst, IVar, INeg, INot, IInv, IAdd, IMul, IMod, IExp, ILT, ILTE, IEQ, INE, IGTE, IGT, IOR, IAND, IFuncInt, IFuncCeil, IFuncFloor, IFuncAbs, IFuncSign, IFuncLog, IFuncRound, IFuncMin, IFuncMax, IFuncSin, IFuncCos, IFuncTan, IFuncASin, IFuncACos, IFuncATan, IFuncSinH, IFuncCosH, IFuncTanH, IFuncASinH, IFuncACosH, IFuncATanH, IPrintFunc, IEvalFunc};
-
-
+use Instruction::{IConst, INeg, INot, IInv, IAdd, IMul, IMod, IExp, ILT, ILTE, IEQ, INE, IGTE, IGT, IOR, IAND, IVar, IFunc, IFuncInt, IFuncCeil, IFuncFloor, IFuncAbs, IFuncSign, IFuncLog, IFuncRound, IFuncMin, IFuncMax, IFuncSin, IFuncCos, IFuncTan, IFuncASin, IFuncACos, IFuncATan, IFuncSinH, IFuncCosH, IFuncTanH, IFuncASinH, IFuncACosH, IFuncATanH, IPrintFunc, IEvalFunc};
 
 
 
@@ -528,7 +528,6 @@ impl Compiler for Value {
     fn compile(&self, pslab:&ParseSlab, cslab:&mut CompileSlab) -> Instruction {
         match self {
             Value::EConstant(c) => IConst(c.0),
-            Value::EVariable(v) => IVar(Variable(v.0.clone())),
             Value::EUnaryOp(u) => u.compile(pslab,cslab),
             Value::ECallable(c) => c.compile(pslab,cslab),
         }
@@ -563,7 +562,17 @@ impl Compiler for UnaryOp {
 impl Compiler for Callable {
     fn compile(&self, pslab:&ParseSlab, cslab:&mut CompileSlab) -> Instruction {
         match self {
-            EFunc(f) => match f {
+            EStdFunc(f) => match f {
+                EVar(name) => IVar(VarName(name.0.clone())),
+                EFunc{name, args:xis} => {
+                    let mut args = Vec::<InstructionI>::with_capacity(xis.len());
+                    for xi in xis {
+                        let instr = pslab.get_expr(*xi).compile(pslab,cslab);
+                        args.push(cslab.push_instr(instr));
+                    }
+                    IFunc{name:VarName(name.0.clone()), args}
+                }
+
                 EFuncInt(i) => {
                     let instr = pslab.get_expr(*i).compile(pslab,cslab);
                     if let IConst(c) = instr {

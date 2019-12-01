@@ -16,7 +16,7 @@ fn parse<'a>(slab:&'a mut Slab, s:&str) -> ExpressionI { parse_raw(slab,s).unwra
 
 fn ez_eval(s:&str) -> f64 {
     let mut slab = Slab::new();
-    let mut ns = EvalNS::new(|_| None);
+    let mut ns = EvalNS::new(|_,_| None);
     parse(&mut slab, s).from(&slab.ps).eval(&slab, &mut ns).unwrap()
 }
 
@@ -100,16 +100,16 @@ fn aaa_test_c0() {
 
     parse({slab.clear(); &mut slab}, "3+5-xyz");
     assert_eq!(format!("{:?}",&slab),
-"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(3.0)), pairs: [ExprPair(EAdd, EConstant(Constant(5.0))), ExprPair(ESub, EVariable(Variable(`xyz`)))] } }, vals:{}, instrs:{} }");
+"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(3.0)), pairs: [ExprPair(EAdd, EConstant(Constant(5.0))), ExprPair(ESub, ECallable(EStdFunc(EVar(VarName(`xyz`)))))] } }, vals:{}, instrs:{} }");
     parse({slab.clear(); &mut slab}, "3+5-xyz_abc_def123");
     assert_eq!(format!("{:?}",&slab),
-"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(3.0)), pairs: [ExprPair(EAdd, EConstant(Constant(5.0))), ExprPair(ESub, EVariable(Variable(`xyz_abc_def123`)))] } }, vals:{}, instrs:{} }");
+"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(3.0)), pairs: [ExprPair(EAdd, EConstant(Constant(5.0))), ExprPair(ESub, ECallable(EStdFunc(EVar(VarName(`xyz_abc_def123`)))))] } }, vals:{}, instrs:{} }");
     parse({slab.clear(); &mut slab}, "3+5-XYZ_abc_def123");
     assert_eq!(format!("{:?}",&slab),
-"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(3.0)), pairs: [ExprPair(EAdd, EConstant(Constant(5.0))), ExprPair(ESub, EVariable(Variable(`XYZ_abc_def123`)))] } }, vals:{}, instrs:{} }");
+"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(3.0)), pairs: [ExprPair(EAdd, EConstant(Constant(5.0))), ExprPair(ESub, ECallable(EStdFunc(EVar(VarName(`XYZ_abc_def123`)))))] } }, vals:{}, instrs:{} }");
     parse({slab.clear(); &mut slab}, "3+5-XYZ_ab*c_def123");
     assert_eq!(format!("{:?}",&slab),
-"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(3.0)), pairs: [ExprPair(EAdd, EConstant(Constant(5.0))), ExprPair(ESub, EVariable(Variable(`XYZ_ab`))), ExprPair(EMul, EVariable(Variable(`c_def123`)))] } }, vals:{}, instrs:{} }");
+"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(3.0)), pairs: [ExprPair(EAdd, EConstant(Constant(5.0))), ExprPair(ESub, ECallable(EStdFunc(EVar(VarName(`XYZ_ab`))))), ExprPair(EMul, ECallable(EStdFunc(EVar(VarName(`c_def123`)))))] } }, vals:{}, instrs:{} }");
 }
 
 #[test]
@@ -135,7 +135,7 @@ fn aaa_test_d0() {
 "Slab{ exprs:{ 0:Expression { first: EConstant(Constant(3.0)), pairs: [ExprPair(EAdd, EUnaryOp(EPos(ValueI(0))))] } }, vals:{ 0:EConstant(Constant(5.0)) }, instrs:{} }");
     parse({slab.clear(); &mut slab}, " 3 + ( -x + y ) ");
     assert_eq!(format!("{:?}",&slab),
-"Slab{ exprs:{ 0:Expression { first: EUnaryOp(ENeg(ValueI(0))), pairs: [ExprPair(EAdd, EVariable(Variable(`y`)))] }, 1:Expression { first: EConstant(Constant(3.0)), pairs: [ExprPair(EAdd, EUnaryOp(EParentheses(ExpressionI(0))))] } }, vals:{ 0:EVariable(Variable(`x`)) }, instrs:{} }");
+"Slab{ exprs:{ 0:Expression { first: EUnaryOp(ENeg(ValueI(0))), pairs: [ExprPair(EAdd, ECallable(EStdFunc(EVar(VarName(`y`)))))] }, 1:Expression { first: EConstant(Constant(3.0)), pairs: [ExprPair(EAdd, EUnaryOp(EParentheses(ExpressionI(0))))] } }, vals:{ 0:ECallable(EStdFunc(EVar(VarName(`x`)))) }, instrs:{} }");
 }
 
 #[test]
@@ -196,8 +196,8 @@ fn aaa_test_e() {
 fn aaa_test_f() {
     let mut slab = Slab::new();
 
-    assert_eq!(parse({slab.clear(); &mut slab}, "(x)^(3)").from(&slab.ps).eval(&slab, &mut EvalNS::new(|n| { [("x",2.0)].iter().cloned().collect::<HashMap<&str,f64>>().get(n).cloned() })).unwrap(), 8.0);
-    assert_eq!(parse({slab.clear(); &mut slab}, "(x)^(y)").from(&slab.ps).eval(&slab, &mut EvalNS::new(|n| { [("x",2.0),("y",3.0)].iter().cloned().collect::<HashMap<&str,f64>>().get(n).cloned() })).unwrap(), 8.0);
+    assert_eq!(parse({slab.clear(); &mut slab}, "(x)^(3)").from(&slab.ps).eval(&slab, &mut EvalNS::new(|n,_| { [("x",2.0)].iter().cloned().collect::<HashMap<&str,f64>>().get(n).cloned() })).unwrap(), 8.0);
+    assert_eq!(parse({slab.clear(); &mut slab}, "(x)^(y)").from(&slab.ps).eval(&slab, &mut EvalNS::new(|n,_| { [("x",2.0),("y",3.0)].iter().cloned().collect::<HashMap<&str,f64>>().get(n).cloned() })).unwrap(), 8.0);
     assert_eq!(parse({slab.clear(); &mut slab}, "(x)^(y)").from(&slab.ps).var_names(&slab).unwrap().len(), 2);
     assert_eq!(parse({slab.clear(); &mut slab}, "1+(x*y/2)^(z)").from(&slab.ps).var_names(&slab).unwrap().len(), 3);
     assert_eq!(format!("{:?}",parse({slab.clear(); &mut slab}, "1+(x*y/2)^(z)").from(&slab.ps).var_names(&slab).unwrap().iter().collect::<BTreeSet<&String>>()), r#"{"x", "y", "z"}"#);

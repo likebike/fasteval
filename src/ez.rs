@@ -10,7 +10,7 @@ use std::collections::HashMap;
 pub fn ez_eval(expr_str:&str, vars:&HashMap<String,f64>) -> Result<f64,KErr> {
     let mut parser = Parser::new();
     let mut slab = Slab::new();           // A big block of memory, so we don't need to perform many tiny (and slow!) allocations.
-    let mut ns = EvalNS::new(|name| vars.get(name).map(|f| *f));   // An evaluation namespace, with a default closure that reads variables from the given HashMap.
+    let mut ns = EvalNS::new(|name, _args| vars.get(name).map(|f| *f));   // An evaluation namespace, with a default closure that reads variables from the given HashMap.
 
     // Here is a one-liner that performs the entire parse-and-eval process:
     // parser.parse(&mut slab.ps, expr_str)?.from(&slab).eval(&slab, &mut ns)

@@ -52,7 +52,7 @@ pub mod evalns;
 pub mod display;
 pub mod ez;
 
-pub use self::parser::{Parser, Expression, ExpressionI, Value, ValueI, Variable};
+pub use self::parser::{Parser, Expression, ExpressionI, Value, ValueI, VarName};
 pub use self::compiler::{Compiler, Instruction::{self, IConst}, InstructionI};
 pub use self::evaler::Evaler;
 pub use self::slab::Slab;

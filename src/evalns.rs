@@ -9,7 +9,7 @@ use std::collections::HashMap;
 
 pub struct EvalNS<'a> {
     nstack     :NameStack,
-    cb         :Box<dyn FnMut(&str)->Option<f64> + 'a>,  // I think a reference would be more efficient than a Box, but then I would need to use a funky 'let cb=|n|{}; EvalNS::new(&cb)' syntax.  The Box results in a super convenient pass-the-cb-by-value API interface.
+    cb         :Box<dyn FnMut(&str, Vec<f64>)->Option<f64> + 'a>,  // I think a reference would be more efficient than a Box, but then I would need to use a funky 'let cb=|n|{}; EvalNS::new(&cb)' syntax.  The Box results in a super convenient pass-the-cb-by-value API interface.
     reeval_mode:i32,
 }
 struct NameStack(Vec<NameLayer>);
@@ -22,8 +22,8 @@ struct NameLayer {
 
 impl<'a> EvalNS<'a> {
     #[inline]
-    pub fn new<F>(cb:F) -> Self where F:FnMut(&str)->Option<f64> + 'a { Self::with_capacity(cb, 8) }
-    pub fn with_capacity<F>(cb:F, cap:usize) -> Self where F:FnMut(&str)->Option<f64> + 'a {
+    pub fn new<F>(cb:F) -> Self where F:FnMut(&str,Vec<f64>)->Option<f64> + 'a { Self::with_capacity(cb, 8) }
+    pub fn with_capacity<F>(cb:F, cap:usize) -> Self where F:FnMut(&str,Vec<f64>)->Option<f64> + 'a {
         let mut ns = EvalNS{
             nstack:NameStack(Vec::with_capacity(cap)),
             cb:Box::new(cb),
@@ -50,6 +50,12 @@ impl<'a> EvalNS<'a> {
         self.nstack.0.pop();
     }
 
+    pub fn clear(&mut self) {
+        if self.reeval_mode!=0 { panic!("pending reeval"); }
+        while self.nstack.0.len()!=0 { self.pop(); }
+        self.push().unwrap();
+    }
+
     pub fn eval_bubble(&mut self, slab:&Slab, evaler:& impl Evaler) -> Result<f64,KErr> {
         self.push().map_err(|e| e.pre("eval_bubble ns.push"))?;
         let out = self.eval(slab,evaler);
@@ -70,13 +76,22 @@ impl<'a> EvalNS<'a> {
     }
 
     #[inline]
-    pub fn is_normal(&self) -> bool { self.reeval_mode==0 }
-    #[inline]
     pub fn is_reeval(&self) -> bool { self.reeval_mode>0 }
 
     // Later layers take precedence...
     // ...but groups of 'eval' layers should be treated as one layer, and *earlier* layers take precedence!
-    pub fn get(&mut self, name:&str) -> Option<f64> {
+    pub fn get(&mut self, name:&str, args:Vec<f64>) -> Option<f64> {
+        let mut keybuf = String::new();
+        let mut key = name;
+        if args.len()!=0 {
+            keybuf.reserve(name.len() + 20*args.len());
+            keybuf.push_str(name);
+            for f in &args {
+                keybuf.push_str(" , ");
+                keybuf.push_str(&f.to_string());
+            };
+            key = keybuf.as_str();
+        }
 
         // We can't use a standard 'for i in (0..ns.len()).rev() {}' loop here because the loop's internal logic needs to modify 'i':
         #[allow(non_snake_case)]
@@ -90,7 +105,7 @@ impl<'a> EvalNS<'a> {
                 while j>0 && self.nstack.0[j-1].is_eval { j-=1 }
 
                 for k in j..=i {
-                    match self.nstack.0[k].m.get(name) {
+                    match self.nstack.0[k].m.get(key) {
                         Some(&val) => return Some(val),
                         None => (),
                     }
@@ -99,17 +114,17 @@ impl<'a> EvalNS<'a> {
                 I = j as i32;
             } else {
                 // Normal layer
-                match self.nstack.0[i].m.get(name) {
+                match self.nstack.0[i].m.get(key) {
                     Some(&val) => return Some(val),
                     None => (),
                 }
             }
         }
 
-        match (self.cb)(name) {
+        match (self.cb)(name,args) {
             Some(val) => {
                 let len = self.nstack.0.len();
-                self.nstack.0[len-1].m.insert(name.to_string(),val);
+                self.nstack.0[len-1].m.insert(key.to_string(),val);
                 Some(val)
             }
             None => None,

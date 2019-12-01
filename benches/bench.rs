@@ -1,81 +1,95 @@
 // ---- Results (2019-11-26 on a 2012 i7 laptop) ----
 // al:
 //     "(3 * (3 + 3) / 3)"
-//     test ez                             ... bench:         870 ns/iter (+/- 192)
-//     test native_1000x                   ... bench:         345 ns/iter (+/- 28)
-//     test parse_compile_eval             ... bench:         917 ns/iter (+/- 178)
-//     test parse_eval                     ... bench:         682 ns/iter (+/- 29)
-//     test parse_eval_1000x               ... bench:     691,054 ns/iter (+/- 82,412)
-//     test preparse_eval                  ... bench:         262 ns/iter (+/- 39)
-//     test preparse_eval_1000x            ... bench:     282,084 ns/iter (+/- 23,198)
-//     test preparse_precompile_eval       ... bench:           0 ns/iter (+/- 0)
-//     test preparse_precompile_eval_1000x ... bench:         767 ns/iter (+/- 151)
+//     test ez                                ... bench:         812 ns/iter (+/- 56)
+//     test native_1000x                      ... bench:         349 ns/iter (+/- 46)
+//     test parse_compile_eval                ... bench:         895 ns/iter (+/- 201)
+//     test parse_eval                        ... bench:         637 ns/iter (+/- 114)
+//     test parse_eval_1000x                  ... bench:     637,996 ns/iter (+/- 82,963)
+//     test parse_nsbubble_eval               ... bench:         668 ns/iter (+/- 168)
+//     test preparse_eval                     ... bench:         197 ns/iter (+/- 27)
+//     test preparse_eval_1000x               ... bench:     196,357 ns/iter (+/- 15,631)
+//     test preparse_precompile_eval          ... bench:           0 ns/iter (+/- 0)
+//     test preparse_precompile_eval_1000x    ... bench:         763 ns/iter (+/- 89)
+//     test preparse_precompile_nsbubble_eval ... bench:           0 ns/iter (+/- 0)
 //
 //     "3 * 3 - 3 / 3"
-//     test ez                             ... bench:         591 ns/iter (+/- 120)
-//     test native_1000x                   ... bench:         345 ns/iter (+/- 54)
-//     test parse_compile_eval             ... bench:         685 ns/iter (+/- 215)
-//     test parse_eval                     ... bench:         417 ns/iter (+/- 73)
-//     test parse_eval_1000x               ... bench:     411,828 ns/iter (+/- 25,187)
-//     test preparse_eval                  ... bench:         130 ns/iter (+/- 29)
-//     test preparse_eval_1000x            ... bench:     130,887 ns/iter (+/- 28,369)
-//     test preparse_precompile_eval       ... bench:           0 ns/iter (+/- 0)
-//     test preparse_precompile_eval_1000x ... bench:         786 ns/iter (+/- 224)
+//     test ez                                ... bench:         601 ns/iter (+/- 110)
+//     test native_1000x                      ... bench:         353 ns/iter (+/- 48)
+//     test parse_compile_eval                ... bench:         682 ns/iter (+/- 20)
+//     test parse_eval                        ... bench:         405 ns/iter (+/- 47)
+//     test parse_eval_1000x                  ... bench:     408,589 ns/iter (+/- 58,356)
+//     test parse_nsbubble_eval               ... bench:         440 ns/iter (+/- 54)
+//     test preparse_eval                     ... bench:         108 ns/iter (+/- 34)
+//     test preparse_eval_1000x               ... bench:     109,191 ns/iter (+/- 22,193)
+//     test preparse_precompile_eval          ... bench:           0 ns/iter (+/- 0)
+//     test preparse_precompile_eval_1000x    ... bench:         760 ns/iter (+/- 94)
+//     test preparse_precompile_nsbubble_eval ... bench:           0 ns/iter (+/- 0)
 //
 //     "2 ^ 3 ^ 4"  = 2417851639229258300000000
-//     test ez                             ... bench:         611 ns/iter (+/- 33)
-//     test native_1000x                   ... bench:         343 ns/iter (+/- 16)
-//     test parse_compile_eval             ... bench:         585 ns/iter (+/- 101)
-//     test parse_eval                     ... bench:         428 ns/iter (+/- 91)
-//     test parse_eval_1000x               ... bench:     433,551 ns/iter (+/- 128,885)
-//     test preparse_eval                  ... bench:         231 ns/iter (+/- 59)
-//     test preparse_eval_1000x            ... bench:     222,698 ns/iter (+/- 54,141)
-//     test preparse_precompile_eval       ... bench:           0 ns/iter (+/- 0)
-//     test preparse_precompile_eval_1000x ... bench:         758 ns/iter (+/- 67)
+//     test ez                                ... bench:         637 ns/iter (+/- 601)
+//     test native_1000x                      ... bench:         345 ns/iter (+/- 35)
+//     test parse_compile_eval                ... bench:         563 ns/iter (+/- 74)
+//     test parse_eval                        ... bench:         427 ns/iter (+/- 56)
+//     test parse_eval_1000x                  ... bench:     434,872 ns/iter (+/- 59,375)
+//     test parse_nsbubble_eval               ... bench:         466 ns/iter (+/- 116)
+//     test preparse_eval                     ... bench:         210 ns/iter (+/- 32)
+//     test preparse_eval_1000x               ... bench:     212,140 ns/iter (+/- 23,682)
+//     test preparse_precompile_eval          ... bench:           0 ns/iter (+/- 0)
+//     test preparse_precompile_eval_1000x    ... bench:         766 ns/iter (+/- 67)
+//     test preparse_precompile_nsbubble_eval ... bench:           0 ns/iter (+/- 0)
 //
 //     "x * 2"
-//     test ez                             ... bench:         760 ns/iter (+/- 76)
-//     test native_1000x                   ... bench:         723 ns/iter (+/- 125)
-//     test parse_compile_eval             ... bench:         479 ns/iter (+/- 34)
-//     test parse_eval                     ... bench:         325 ns/iter (+/- 146)
-//     test parse_eval_1000x               ... bench:     329,780 ns/iter (+/- 67,712)
-//     test preparse_eval                  ... bench:         112 ns/iter (+/- 28)
-//     test preparse_eval_1000x            ... bench:     108,477 ns/iter (+/- 11,279)
-//     test preparse_precompile_eval       ... bench:          38 ns/iter (+/- 5)
-//     test preparse_precompile_eval_1000x ... bench:      39,255 ns/iter (+/- 8,353)
+//     test ez                                ... bench:         654 ns/iter (+/- 191)
+//     test native_1000x                      ... bench:         749 ns/iter (+/- 94)
+//     test parse_compile_eval                ... bench:         444 ns/iter (+/- 117)
+//     test parse_eval                        ... bench:         311 ns/iter (+/- 48)
+//     test parse_eval_1000x                  ... bench:     313,494 ns/iter (+/- 44,247)
+//     test parse_nsbubble_eval               ... bench:         469 ns/iter (+/- 104)
+//     test preparse_eval                     ... bench:         112 ns/iter (+/- 24)
+//     test preparse_eval_1000x               ... bench:     111,808 ns/iter (+/- 26,282)
+//     test preparse_precompile_eval          ... bench:          44 ns/iter (+/- 8)
+//     test preparse_precompile_eval_1000x    ... bench:      46,269 ns/iter (+/- 10,244)
+//     test preparse_precompile_nsbubble_eval ... bench:         188 ns/iter (+/- 91)
 //
 //     "sin(x)"
-//     test ez                             ... bench:         873 ns/iter (+/- 93)
-//     test native_1000x                   ... bench:      17,866 ns/iter (+/- 2,230)
-//     test parse_compile_eval             ... bench:         475 ns/iter (+/- 39)
-//     test parse_eval                     ... bench:         512 ns/iter (+/- 69)
-//     test parse_eval_1000x               ... bench:     500,407 ns/iter (+/- 169,872)
-//     test preparse_eval                  ... bench:         147 ns/iter (+/- 31)
-//     test preparse_eval_1000x            ... bench:     153,511 ns/iter (+/- 33,782)
-//     test preparse_precompile_eval       ... bench:          61 ns/iter (+/- 8)
-//     test preparse_precompile_eval_1000x ... bench:      62,003 ns/iter (+/- 7,727)
+//     test ez                                ... bench:         853 ns/iter (+/- 199)
+//     test native_1000x                      ... bench:      17,917 ns/iter (+/- 1,649)
+//     test parse_compile_eval                ... bench:         392 ns/iter (+/- 291)
+//     test parse_eval                        ... bench:         415 ns/iter (+/- 68)
+//     test parse_eval_1000x                  ... bench:     424,480 ns/iter (+/- 140,820)
+//     test parse_nsbubble_eval               ... bench:         589 ns/iter (+/- 111)
+//     test preparse_eval                     ... bench:         155 ns/iter (+/- 29)
+//     test preparse_eval_1000x               ... bench:     159,424 ns/iter (+/- 31,861)
+//     test preparse_precompile_eval          ... bench:          69 ns/iter (+/- 15)
+//     test preparse_precompile_eval_1000x    ... bench:      70,909 ns/iter (+/- 11,554)
+//     test preparse_precompile_nsbubble_eval ... bench:         202 ns/iter (+/- 40)
 //
 //     "(-z + (z^2 - 4*x*y)^0.5) / (2*x)"
-//     test ez                             ... bench:       2,859 ns/iter (+/- 333)
-//     test native_1000x                   ... bench:       5,248 ns/iter (+/- 241)
-//     test parse_compile_eval             ... bench:       3,023 ns/iter (+/- 967)
-//     test parse_eval                     ... bench:       2,070 ns/iter (+/- 493)
-//     test parse_eval_1000x               ... bench:   2,009,740 ns/iter (+/- 482,957)
-//     test preparse_eval                  ... bench:         807 ns/iter (+/- 102)
-//     test preparse_eval_1000x            ... bench:     824,232 ns/iter (+/- 98,840)
-//     test preparse_precompile_eval       ... bench:         278 ns/iter (+/- 20)
-//     test preparse_precompile_eval_1000x ... bench:     276,372 ns/iter (+/- 17,863)
+//     test ez                                ... bench:       2,673 ns/iter (+/- 318)
+//     test native_1000x                      ... bench:       5,237 ns/iter (+/- 331)
+//     test parse_compile_eval                ... bench:       2,984 ns/iter (+/- 262)
+//     test parse_eval                        ... bench:       1,776 ns/iter (+/- 338)
+//     test parse_eval_1000x                  ... bench:   1,821,472 ns/iter (+/- 393,671)
+//     test parse_nsbubble_eval               ... bench:       2,192 ns/iter (+/- 439)
+//     test preparse_eval                     ... bench:         712 ns/iter (+/- 180)
+//     test preparse_eval_1000x               ... bench:     724,482 ns/iter (+/- 127,215)
+//     test preparse_precompile_eval          ... bench:         336 ns/iter (+/- 65)
+//     test preparse_precompile_eval_1000x    ... bench:     325,739 ns/iter (+/- 33,726)
+//     test preparse_precompile_nsbubble_eval ... bench:         740 ns/iter (+/- 155)
 //
 //     "((((87))) - 73) + (97 + (((15 / 55 * ((31)) + 35))) + (15 - (9)) - (39 / 26) / 20 / 91 + 27 / (33 * 26 + 28 - (7) / 10 + 66 * 6) + 60 / 35 - ((29) - (69) / 44 / (92)) / (89) + 2 + 87 / 47 * ((2)) * 83 / 98 * 42 / (((67)) * ((97))) / (34 / 89 + 77) - 29 + 70 * (20)) + ((((((92))) + 23 * (98) / (95) + (((99) * (41))) + (5 + 41) + 10) - (36) / (6 + 80 * 52 + (90))))"
-//     test ez                             ... bench:      13,493 ns/iter (+/- 3,746)
-//     test native_1000x                   ... bench:         333 ns/iter (+/- 84)
-//     test parse_compile_eval             ... bench:      16,411 ns/iter (+/- 1,590)
-//     test parse_eval                     ... bench:      12,718 ns/iter (+/- 1,127)
-//     test parse_eval_1000x               ... bench:  12,933,763 ns/iter (+/- 1,609,815)
-//     test preparse_eval                  ... bench:       4,561 ns/iter (+/- 202)
-//     test preparse_eval_1000x            ... bench:   4,634,764 ns/iter (+/- 622,744)
-//     test preparse_precompile_eval       ... bench:           0 ns/iter (+/- 0)
-//     test preparse_precompile_eval_1000x ... bench:         733 ns/iter (+/- 50)
+//     test ez                                ... bench:      12,478 ns/iter (+/- 2,335)
+//     test native_1000x                      ... bench:         349 ns/iter (+/- 48)
+//     test parse_compile_eval                ... bench:      17,437 ns/iter (+/- 4,795)
+//     test parse_eval                        ... bench:      12,387 ns/iter (+/- 1,451)
+//     test parse_eval_1000x                  ... bench:  13,203,738 ns/iter (+/- 2,191,339)
+//     test parse_nsbubble_eval               ... bench:      12,520 ns/iter (+/- 2,087)
+//     test preparse_eval                     ... bench:       3,603 ns/iter (+/- 918)
+//     test preparse_eval_1000x               ... bench:   3,636,834 ns/iter (+/- 645,853)
+//     test preparse_precompile_eval          ... bench:           0 ns/iter (+/- 0)
+//     test preparse_precompile_eval_1000x    ... bench:         776 ns/iter (+/- 195)
+//     test preparse_precompile_nsbubble_eval ... bench:           0 ns/iter (+/- 0)
 //
 //
 // python3:
@@ -282,24 +296,28 @@ use test::{Bencher, black_box};
 use al::{Parser, Compiler, Evaler, Slab, EvalNS, ez_eval};
 
 use std::collections::HashMap;
+use std::f64::NAN;
+
 
 //fn evalcb(_:&str) -> Option<f64> { None }
-fn evalcb(name:&str) -> Option<f64> {
+fn evalcb(name:&str, args:Vec<f64>) -> Option<f64> {
     match name {
         "x" => Some(1.0),
         "y" => Some(2.0),
         "z" => Some(3.0),
+        "foo" => Some(args.get(0).unwrap_or(&NAN)*10.0),
+        "bar" => Some(args.get(0).unwrap_or(&NAN) + args.get(1).unwrap_or(&NAN)),
         _ => None,
     }
 }
 
 //static EXPR : &'static str = "(3 * (3 + 3) / 3)";
-static EXPR : &'static str = "3 * 3 - 3 / 3";
+//static EXPR : &'static str = "3 * 3 - 3 / 3";
 //static EXPR : &'static str = "2 ^ 3 ^ 4";
 //static EXPR : &'static str = "x * 2";
 //static EXPR : &'static str = "sin(x)";
 //static EXPR : &'static str = "(-z + (z^2 - 4*x*y)^0.5) / (2*x)";
-//static EXPR : &'static str = "((((87))) - 73) + (97 + (((15 / 55 * ((31)) + 35))) + (15 - (9)) - (39 / 26) / 20 / 91 + 27 / (33 * 26 + 28 - (7) / 10 + 66 * 6) + 60 / 35 - ((29) - (69) / 44 / (92)) / (89) + 2 + 87 / 47 * ((2)) * 83 / 98 * 42 / (((67)) * ((97))) / (34 / 89 + 77) - 29 + 70 * (20)) + ((((((92))) + 23 * (98) / (95) + (((99) * (41))) + (5 + 41) + 10) - (36) / (6 + 80 * 52 + (90))))";
+static EXPR : &'static str = "((((87))) - 73) + (97 + (((15 / 55 * ((31)) + 35))) + (15 - (9)) - (39 / 26) / 20 / 91 + 27 / (33 * 26 + 28 - (7) / 10 + 66 * 6) + 60 / 35 - ((29) - (69) / 44 / (92)) / (89) + 2 + 87 / 47 * ((2)) * 83 / 98 * 42 / (((67)) * ((97))) / (34 / 89 + 77) - 29 + 70 * (20)) + ((((((92))) + 23 * (98) / (95) + (((99) * (41))) + (5 + 41) + 10) - (36) / (6 + 80 * 52 + (90))))";
 
 #[bench]
 fn native_1000x(bencher:&mut Bencher) {
@@ -340,6 +358,19 @@ fn parse_eval(b:&mut Bencher) {
 
     b.iter(|| {
         black_box(p.parse({slab.clear(); &mut slab.ps}, EXPR).unwrap().from(&slab.ps).eval(&slab, &mut ns).unwrap());
+    });
+}
+
+#[bench]
+fn parse_nsbubble_eval(b:&mut Bencher) {
+    let mut p = Parser::new();
+    let mut slab = Slab::new();
+    let mut ns = EvalNS::new(evalcb);
+
+    b.iter(|| {
+        ns.push().unwrap();
+        black_box(p.parse({slab.clear(); &mut slab.ps}, EXPR).unwrap().from(&slab.ps).eval(&slab, &mut ns).unwrap());
+        ns.pop();
     });
 }
 
@@ -407,6 +438,26 @@ fn preparse_precompile_eval(b:&mut Bencher) {
                       c
                   } else {
                       instr.eval(&slab, &mut ns).unwrap()
+                  });
+    });
+}
+
+#[bench]
+fn preparse_precompile_nsbubble_eval(b:&mut Bencher) {
+    let mut p = Parser::new();
+    let mut slab = Slab::new();
+    let mut ns = EvalNS::new(evalcb);
+    let expr_ref = p.parse(&mut slab.ps, EXPR).unwrap().from(&slab.ps);
+    let instr = expr_ref.compile(&slab.ps, &mut slab.cs);
+
+    b.iter(|| {
+        black_box(if let al::IConst(c) = instr {
+                      c
+                  } else {
+                      ns.push().unwrap();
+                      let out = instr.eval(&slab, &mut ns).unwrap();
+                      ns.pop();
+                      out
                   });
     });
 }

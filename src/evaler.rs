@@ -1,13 +1,13 @@
 use crate::slab::Slab;
 use crate::evalns::EvalNS;
 use crate::parser::{Expression,
-                    Value::{self, EConstant, EVariable, EUnaryOp, ECallable},
+                    Value::{self, EConstant, EUnaryOp, ECallable},
                     Constant,
-                    Variable,
                     UnaryOp::{self, EPos, ENeg, ENot, EParentheses},
                     BinaryOp::{self, EAdd, ESub, EMul, EDiv, EMod, EExp, ELT, ELTE, EEQ, ENE, EGTE, EGT, EOR, EAND},
-                    Callable::{self, EFunc, EPrintFunc, EEvalFunc},
-                    Func::{self, EFuncInt, EFuncCeil, EFuncFloor, EFuncAbs, EFuncSign, EFuncLog, EFuncRound, EFuncMin, EFuncMax, EFuncE, EFuncPi, EFuncSin, EFuncCos, EFuncTan, EFuncASin, EFuncACos, EFuncATan, EFuncSinH, EFuncCosH, EFuncTanH, EFuncASinH, EFuncACosH, EFuncATanH},
+                    VarName,
+                    Callable::{self, EStdFunc, EPrintFunc, EEvalFunc},
+                    StdFunc::{self, EVar, EFunc, EFuncInt, EFuncCeil, EFuncFloor, EFuncAbs, EFuncSign, EFuncLog, EFuncRound, EFuncMin, EFuncMax, EFuncE, EFuncPi, EFuncSin, EFuncCos, EFuncTan, EFuncASin, EFuncACos, EFuncATan, EFuncSinH, EFuncCosH, EFuncTanH, EFuncASinH, EFuncACosH, EFuncATanH},
                     PrintFunc,
                     EvalFunc,
                     ExpressionOrString::{EExpr, EStr}};
@@ -33,7 +33,7 @@ pub trait Evaler : fmt::Debug {
     fn var_names(&self, slab:&Slab) -> Result<HashSet<String>,KErr> {
         let mut set = HashSet::new();
         {
-            let mut ns = EvalNS::new(|name:&str| {
+            let mut ns = EvalNS::new(|name:&str, _args:Vec<f64>| {
                 set.insert(name.to_string());
                 Some(0.0)
             });
@@ -170,7 +170,6 @@ impl Evaler for Value {
     fn eval(&self, slab:&Slab, ns:&mut EvalNS) -> Result<f64,KErr> {
         match self {
             EConstant(c) => c.eval(slab, ns),
-            EVariable(v) => v.eval(slab, ns),
             EUnaryOp(u) => u.eval(slab, ns),
             ECallable(c) => c.eval(slab, ns),
         }
@@ -179,15 +178,6 @@ impl Evaler for Value {
 
 impl Evaler for Constant {
     fn eval(&self, _slab:&Slab, _ns:&mut EvalNS) -> Result<f64,KErr> { Ok(self.0) }
-}
-
-impl Evaler for Variable {
-    fn eval(&self, _slab:&Slab, ns:&mut EvalNS) -> Result<f64,KErr> {
-        match ns.get(self.0.as_str()) {
-            Some(f) => Ok(f),
-            None => Err(KErr::new("variable undefined")),
-        }
-    }
 }
 
 impl Evaler for UnaryOp {
@@ -225,24 +215,40 @@ impl BinaryOp {
     }
 }
 
+fn eval_var(ns:&mut EvalNS, name:&VarName, args:Vec<f64>) -> Result<f64,KErr> {
+    match ns.get(&name.0,args) {
+        Some(f) => Ok(f),
+        None => Err(KErr::new(&format!("variable undefined: {}",name))),
+    }
+}
+
 impl Evaler for Callable {
     fn eval(&self, slab:&Slab, ns:&mut EvalNS) -> Result<f64,KErr> {
         match self {
-            EFunc(f) => ns.eval(slab, f),
+            EStdFunc(f) => ns.eval(slab, f),
             EEvalFunc(f) => ns.eval(slab, f),
             EPrintFunc(f) => ns.eval(slab, f),
         }
     }
 }
 
-impl Evaler for Func {
+impl Evaler for StdFunc {
     fn eval(&self, slab:&Slab, ns:&mut EvalNS) -> Result<f64,KErr> {
         match self {
-            EFuncInt(expr_i) => { Ok(ns.eval(slab, slab.ps.get_expr(*expr_i))?.trunc()) }
-            EFuncCeil(expr_i) => { Ok(ns.eval(slab, slab.ps.get_expr(*expr_i))?.ceil()) }
-            EFuncFloor(expr_i) => { Ok(ns.eval(slab, slab.ps.get_expr(*expr_i))?.floor()) }
-            EFuncAbs(expr_i) => { Ok(ns.eval(slab, slab.ps.get_expr(*expr_i))?.abs()) }
-            EFuncSign(expr_i) => { Ok(ns.eval(slab, slab.ps.get_expr(*expr_i))?.signum()) }
+            EVar(name) => eval_var(ns, name, Vec::new()),
+            EFunc{name, args:xis} => {
+                let mut args = Vec::with_capacity(xis.len());
+                for xi in xis {
+                    args.push(ns.eval(slab, slab.ps.get_expr(*xi))?)
+                }
+                eval_var(ns, name, args)
+            }
+
+            EFuncInt(expr_i) => Ok(ns.eval(slab, slab.ps.get_expr(*expr_i))?.trunc()),
+            EFuncCeil(expr_i) => Ok(ns.eval(slab, slab.ps.get_expr(*expr_i))?.ceil()),
+            EFuncFloor(expr_i) => Ok(ns.eval(slab, slab.ps.get_expr(*expr_i))?.floor()),
+            EFuncAbs(expr_i) => Ok(ns.eval(slab, slab.ps.get_expr(*expr_i))?.abs()),
+            EFuncSign(expr_i) => Ok(ns.eval(slab, slab.ps.get_expr(*expr_i))?.signum()),
             EFuncLog{base:base_opt, expr:expr_i} => {
                 let base = match base_opt {
                     Some(b_expr_i) => ns.eval(slab, slab.ps.get_expr(*b_expr_i))?,
@@ -276,18 +282,18 @@ impl Evaler for Func {
             EFuncE => Ok(consts::E),
             EFuncPi => Ok(consts::PI),
 
-            EFuncSin(expr_i) => { Ok(ns.eval(slab, slab.ps.get_expr(*expr_i))?.sin()) },
-            EFuncCos(expr_i) => { Ok(ns.eval(slab, slab.ps.get_expr(*expr_i))?.cos()) },
-            EFuncTan(expr_i) => { Ok(ns.eval(slab, slab.ps.get_expr(*expr_i))?.tan()) },
-            EFuncASin(expr_i) => { Ok(ns.eval(slab, slab.ps.get_expr(*expr_i))?.asin()) },
-            EFuncACos(expr_i) => { Ok(ns.eval(slab, slab.ps.get_expr(*expr_i))?.acos()) },
-            EFuncATan(expr_i) => { Ok(ns.eval(slab, slab.ps.get_expr(*expr_i))?.atan()) },
-            EFuncSinH(expr_i) => { Ok(ns.eval(slab, slab.ps.get_expr(*expr_i))?.sinh()) },
-            EFuncCosH(expr_i) => { Ok(ns.eval(slab, slab.ps.get_expr(*expr_i))?.cosh()) },
-            EFuncTanH(expr_i) => { Ok(ns.eval(slab, slab.ps.get_expr(*expr_i))?.tanh()) },
-            EFuncASinH(expr_i) => { Ok(ns.eval(slab, slab.ps.get_expr(*expr_i))?.asinh()) },
-            EFuncACosH(expr_i) => { Ok(ns.eval(slab, slab.ps.get_expr(*expr_i))?.acosh()) },
-            EFuncATanH(expr_i) => { Ok(ns.eval(slab, slab.ps.get_expr(*expr_i))?.atanh()) },
+            EFuncSin(expr_i) => Ok(ns.eval(slab, slab.ps.get_expr(*expr_i))?.sin()),
+            EFuncCos(expr_i) => Ok(ns.eval(slab, slab.ps.get_expr(*expr_i))?.cos()),
+            EFuncTan(expr_i) => Ok(ns.eval(slab, slab.ps.get_expr(*expr_i))?.tan()),
+            EFuncASin(expr_i) => Ok(ns.eval(slab, slab.ps.get_expr(*expr_i))?.asin()),
+            EFuncACos(expr_i) => Ok(ns.eval(slab, slab.ps.get_expr(*expr_i))?.acos()),
+            EFuncATan(expr_i) => Ok(ns.eval(slab, slab.ps.get_expr(*expr_i))?.atan()),
+            EFuncSinH(expr_i) => Ok(ns.eval(slab, slab.ps.get_expr(*expr_i))?.sinh()),
+            EFuncCosH(expr_i) => Ok(ns.eval(slab, slab.ps.get_expr(*expr_i))?.cosh()),
+            EFuncTanH(expr_i) => Ok(ns.eval(slab, slab.ps.get_expr(*expr_i))?.tanh()),
+            EFuncASinH(expr_i) => Ok(ns.eval(slab, slab.ps.get_expr(*expr_i))?.asinh()),
+            EFuncACosH(expr_i) => Ok(ns.eval(slab, slab.ps.get_expr(*expr_i))?.acosh()),
+            EFuncATanH(expr_i) => Ok(ns.eval(slab, slab.ps.get_expr(*expr_i))?.atanh()),
         }
     }
 }
@@ -370,7 +376,6 @@ impl Evaler for Instruction {
     fn eval(&self, slab:&Slab, ns:&mut EvalNS) -> Result<f64,KErr> {
         match self {
             Instruction::IConst(c) => Ok(*c),
-            Instruction::IVar(v) => v.eval(slab,ns),
 
             Instruction::INeg(i) => Ok(-eval_instr_ref!(slab.cs.get_instr(*i), slab, ns)),
             Instruction::INot(i) => Ok(bool_to_f64(eval_instr_ref!(slab.cs.get_instr(*i), slab, ns)==0.0)),
@@ -412,6 +417,15 @@ impl Evaler for Instruction {
                     Ok(eval_instr_ref!(slab.cs.get_instr(*righti), slab, ns))
                 }
             }
+
+            Instruction::IVar(name) => eval_var(ns, name, Vec::new()),
+            Instruction::IFunc{name, args:iis} => {
+                let mut args = Vec::with_capacity(iis.len());
+                for ii in iis {
+                    args.push( eval_instr_ref!(slab.cs.get_instr(*ii), slab, ns) );
+                }
+                eval_var(ns, name, args)
+            },
 
             Instruction::IFuncInt(i) => Ok( eval_instr_ref!(slab.cs.get_instr(*i), slab, ns).trunc() ),
             Instruction::IFuncCeil(i) => Ok( eval_instr_ref!(slab.cs.get_instr(*i), slab, ns).ceil() ),
