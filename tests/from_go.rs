@@ -6,7 +6,7 @@ use al::{ExpressionI, Parser, Slab, EvalNS, Evaler};
 
 use kerr::KErr;
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 
 fn parse_raw<'a>(slab:&'a mut Slab, s:&str) -> Result<ExpressionI, KErr> {
@@ -196,8 +196,8 @@ fn aaa_test_e() {
 fn aaa_test_f() {
     let mut slab = Slab::new();
 
-    assert_eq!(parse({slab.clear(); &mut slab}, "(x)^(3)").from(&slab.ps).eval(&slab, &mut EvalNS::new(|n,_| { [("x",2.0)].iter().cloned().collect::<HashMap<&str,f64>>().get(n).cloned() })).unwrap(), 8.0);
-    assert_eq!(parse({slab.clear(); &mut slab}, "(x)^(y)").from(&slab.ps).eval(&slab, &mut EvalNS::new(|n,_| { [("x",2.0),("y",3.0)].iter().cloned().collect::<HashMap<&str,f64>>().get(n).cloned() })).unwrap(), 8.0);
+    assert_eq!(parse({slab.clear(); &mut slab}, "(x)^(3)").from(&slab.ps).eval(&slab, &mut EvalNS::new(|n,_| { [("x",2.0)].iter().cloned().collect::<BTreeMap<&str,f64>>().get(n).cloned() })).unwrap(), 8.0);
+    assert_eq!(parse({slab.clear(); &mut slab}, "(x)^(y)").from(&slab.ps).eval(&slab, &mut EvalNS::new(|n,_| { [("x",2.0),("y",3.0)].iter().cloned().collect::<BTreeMap<&str,f64>>().get(n).cloned() })).unwrap(), 8.0);
     assert_eq!(parse({slab.clear(); &mut slab}, "(x)^(y)").from(&slab.ps).var_names(&slab).unwrap().len(), 2);
     assert_eq!(parse({slab.clear(); &mut slab}, "1+(x*y/2)^(z)").from(&slab.ps).var_names(&slab).unwrap().len(), 3);
     assert_eq!(format!("{:?}",parse({slab.clear(); &mut slab}, "1+(x*y/2)^(z)").from(&slab.ps).var_names(&slab).unwrap().iter().collect::<BTreeSet<&String>>()), r#"{"x", "y", "z"}"#);

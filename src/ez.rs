@@ -5,12 +5,12 @@ use crate::evaler::Evaler;
 
 use kerr::KErr;
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
-pub fn ez_eval(expr_str:&str, vars:&HashMap<String,f64>) -> Result<f64,KErr> {
+pub fn ez_eval(expr_str:&str, vars:&BTreeMap<String,f64>) -> Result<f64,KErr> {
     let mut parser = Parser::new();
     let mut slab = Slab::new();           // A big block of memory, so we don't need to perform many tiny (and slow!) allocations.
-    let mut ns = EvalNS::new(|name, _args| vars.get(name).copied());   // An evaluation namespace, with a default closure that reads variables from the given HashMap.
+    let mut ns = EvalNS::new(|name, _args| vars.get(name).copied());   // An evaluation namespace, with a default closure that reads variables from the given map.
 
     // Here is a one-liner that performs the entire parse-and-eval process:
     // parser.parse(&mut slab.ps, expr_str)?.from(&slab).eval(&slab, &mut ns)

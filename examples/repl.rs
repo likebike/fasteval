@@ -2,7 +2,7 @@
 
 use al::{Parser, Slab, EvalNS};
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::io::{self, BufRead, Write};
 use std::cell::RefCell;
 
@@ -13,7 +13,7 @@ fn main() {
 fn repl() {
     let mut parser = Parser::new();
     let mut slab = Slab::new();
-    let ns_map = RefCell::new(HashMap::new());
+    let ns_map = RefCell::new(BTreeMap::new());
     let mut ns = EvalNS::new(|name, _args| {
         ns_map.borrow().get(name).cloned()
     });

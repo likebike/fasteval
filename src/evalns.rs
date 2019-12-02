@@ -3,7 +3,7 @@ use crate::evaler::Evaler;
 
 use kerr::KErr;
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 //---- Types:
 
@@ -15,7 +15,7 @@ pub struct EvalNS<'a> {
 struct NameStack(Vec<NameLayer>);
 struct NameLayer {
     is_eval:bool,
-    m      :HashMap<String,f64>,
+    m      :BTreeMap<String,f64>,
 }
 
 //---- Impls:
@@ -40,7 +40,7 @@ impl<'a> EvalNS<'a> {
         if i>=self.nstack.0.capacity() { return Err(KErr::new("evalns overflow")) }
         self.nstack.0.push(NameLayer{
             is_eval,
-            m:HashMap::new(),
+            m:BTreeMap::new(),
         });
         Ok(i)
     }
