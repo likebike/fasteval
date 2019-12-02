@@ -163,6 +163,22 @@ fn all_instrs() {
     comp_chk("4 == 3", IConst(0.0), "CompileSlab{ instrs:{} }", 0.0);
     comp_chk("4 == z", IEQ(InstructionI(0), InstructionI(1)), "CompileSlab{ instrs:{ 0:IConst(4.0), 1:IVar(VarName(`z`)) } }", 0.0);
     comp_chk("4 == z == 1.0", IEQ(InstructionI(2), InstructionI(3)), "CompileSlab{ instrs:{ 0:IConst(4.0), 1:IVar(VarName(`z`)), 2:IEQ(InstructionI(0), InstructionI(1)), 3:IConst(1.0) } }", 0.0);
+    comp_chk("3.1 == z", IEQ(InstructionI(0), InstructionI(1)), "CompileSlab{ instrs:{ 0:IConst(3.1), 1:IVar(VarName(`z`)) } }", 0.0);
+    comp_chk("3.01 == z", IEQ(InstructionI(0), InstructionI(1)), "CompileSlab{ instrs:{ 0:IConst(3.01), 1:IVar(VarName(`z`)) } }", 0.0);
+    comp_chk("3.001 == z", IEQ(InstructionI(0), InstructionI(1)), "CompileSlab{ instrs:{ 0:IConst(3.001), 1:IVar(VarName(`z`)) } }", 0.0);
+    comp_chk("3.0001 == z", IEQ(InstructionI(0), InstructionI(1)), "CompileSlab{ instrs:{ 0:IConst(3.0001), 1:IVar(VarName(`z`)) } }", 0.0);
+    comp_chk("3.00001 == z", IEQ(InstructionI(0), InstructionI(1)), "CompileSlab{ instrs:{ 0:IConst(3.00001), 1:IVar(VarName(`z`)) } }", 0.0);
+    comp_chk("3.000001 == z", IEQ(InstructionI(0), InstructionI(1)), "CompileSlab{ instrs:{ 0:IConst(3.000001), 1:IVar(VarName(`z`)) } }", 0.0);
+    comp_chk("3.0000001 == z", IEQ(InstructionI(0), InstructionI(1)), "CompileSlab{ instrs:{ 0:IConst(3.0000001), 1:IVar(VarName(`z`)) } }", 0.0);
+    comp_chk("3.00000001 == z", IEQ(InstructionI(0), InstructionI(1)), "CompileSlab{ instrs:{ 0:IConst(3.00000001), 1:IVar(VarName(`z`)) } }", 0.0);
+    comp_chk("3.000000001 == z", IEQ(InstructionI(0), InstructionI(1)), "CompileSlab{ instrs:{ 0:IConst(3.000000001), 1:IVar(VarName(`z`)) } }", 0.0);
+    comp_chk("3.0000000001 == z", IEQ(InstructionI(0), InstructionI(1)), "CompileSlab{ instrs:{ 0:IConst(3.0000000001), 1:IVar(VarName(`z`)) } }", 0.0);
+    comp_chk("3.00000000001 == z", IEQ(InstructionI(0), InstructionI(1)), "CompileSlab{ instrs:{ 0:IConst(3.00000000001), 1:IVar(VarName(`z`)) } }", 0.0);
+    comp_chk("3.000000000001 == z", IEQ(InstructionI(0), InstructionI(1)), "CompileSlab{ instrs:{ 0:IConst(3.000000000001), 1:IVar(VarName(`z`)) } }", 0.0);
+    comp_chk("3.0000000000001 == z", IEQ(InstructionI(0), InstructionI(1)), "CompileSlab{ instrs:{ 0:IConst(3.0000000000001), 1:IVar(VarName(`z`)) } }", 0.0);
+    comp_chk("3.00000000000001 == z", IEQ(InstructionI(0), InstructionI(1)), "CompileSlab{ instrs:{ 0:IConst(3.00000000000001), 1:IVar(VarName(`z`)) } }", 0.0);
+    comp_chk("3.000000000000001 == z", IEQ(InstructionI(0), InstructionI(1)), "CompileSlab{ instrs:{ 0:IConst(3.000000000000001), 1:IVar(VarName(`z`)) } }", 1.0);
+    comp_chk("3.0000000000000001 == z", IEQ(InstructionI(0), InstructionI(1)), "CompileSlab{ instrs:{ 0:IConst(3.0), 1:IVar(VarName(`z`)) } }", 1.0);
     
     // INE:
     comp_chk("2 != 3", IConst(1.0), "CompileSlab{ instrs:{} }", 1.0);
@@ -171,6 +187,22 @@ fn all_instrs() {
     comp_chk("3 != z", INE(InstructionI(0), InstructionI(1)), "CompileSlab{ instrs:{ 0:IConst(3.0), 1:IVar(VarName(`z`)) } }", 0.0);
     comp_chk("4 != 3", IConst(1.0), "CompileSlab{ instrs:{} }", 1.0);
     comp_chk("4 != z", INE(InstructionI(0), InstructionI(1)), "CompileSlab{ instrs:{ 0:IConst(4.0), 1:IVar(VarName(`z`)) } }", 1.0);
+    comp_chk("3.1 != z", INE(InstructionI(0), InstructionI(1)), "CompileSlab{ instrs:{ 0:IConst(3.1), 1:IVar(VarName(`z`)) } }", 1.0);
+    comp_chk("3.01 != z", INE(InstructionI(0), InstructionI(1)), "CompileSlab{ instrs:{ 0:IConst(3.01), 1:IVar(VarName(`z`)) } }", 1.0);
+    comp_chk("3.001 != z", INE(InstructionI(0), InstructionI(1)), "CompileSlab{ instrs:{ 0:IConst(3.001), 1:IVar(VarName(`z`)) } }", 1.0);
+    comp_chk("3.0001 != z", INE(InstructionI(0), InstructionI(1)), "CompileSlab{ instrs:{ 0:IConst(3.0001), 1:IVar(VarName(`z`)) } }", 1.0);
+    comp_chk("3.00001 != z", INE(InstructionI(0), InstructionI(1)), "CompileSlab{ instrs:{ 0:IConst(3.00001), 1:IVar(VarName(`z`)) } }", 1.0);
+    comp_chk("3.000001 != z", INE(InstructionI(0), InstructionI(1)), "CompileSlab{ instrs:{ 0:IConst(3.000001), 1:IVar(VarName(`z`)) } }", 1.0);
+    comp_chk("3.0000001 != z", INE(InstructionI(0), InstructionI(1)), "CompileSlab{ instrs:{ 0:IConst(3.0000001), 1:IVar(VarName(`z`)) } }", 1.0);
+    comp_chk("3.00000001 != z", INE(InstructionI(0), InstructionI(1)), "CompileSlab{ instrs:{ 0:IConst(3.00000001), 1:IVar(VarName(`z`)) } }", 1.0);
+    comp_chk("3.000000001 != z", INE(InstructionI(0), InstructionI(1)), "CompileSlab{ instrs:{ 0:IConst(3.000000001), 1:IVar(VarName(`z`)) } }", 1.0);
+    comp_chk("3.0000000001 != z", INE(InstructionI(0), InstructionI(1)), "CompileSlab{ instrs:{ 0:IConst(3.0000000001), 1:IVar(VarName(`z`)) } }", 1.0);
+    comp_chk("3.00000000001 != z", INE(InstructionI(0), InstructionI(1)), "CompileSlab{ instrs:{ 0:IConst(3.00000000001), 1:IVar(VarName(`z`)) } }", 1.0);
+    comp_chk("3.000000000001 != z", INE(InstructionI(0), InstructionI(1)), "CompileSlab{ instrs:{ 0:IConst(3.000000000001), 1:IVar(VarName(`z`)) } }", 1.0);
+    comp_chk("3.0000000000001 != z", INE(InstructionI(0), InstructionI(1)), "CompileSlab{ instrs:{ 0:IConst(3.0000000000001), 1:IVar(VarName(`z`)) } }", 1.0);
+    comp_chk("3.00000000000001 != z", INE(InstructionI(0), InstructionI(1)), "CompileSlab{ instrs:{ 0:IConst(3.00000000000001), 1:IVar(VarName(`z`)) } }", 1.0);
+    comp_chk("3.000000000000001 != z", INE(InstructionI(0), InstructionI(1)), "CompileSlab{ instrs:{ 0:IConst(3.000000000000001), 1:IVar(VarName(`z`)) } }", 0.0);
+    comp_chk("3.0000000000000001 != z", INE(InstructionI(0), InstructionI(1)), "CompileSlab{ instrs:{ 0:IConst(3.0), 1:IVar(VarName(`z`)) } }", 0.0);
 
     // IGTE:
     comp_chk("2 >= 3", IConst(0.0), "CompileSlab{ instrs:{} }", 0.0);
@@ -207,6 +239,23 @@ fn all_instrs() {
     comp_chk("0 or x", IVar(VarName("x".to_string())), "CompileSlab{ instrs:{} }", 1.0);
     comp_chk("w or x", IOR(InstructionI(0), InstructionI(1)), "CompileSlab{ instrs:{ 0:IVar(VarName(`w`)), 1:IVar(VarName(`x`)) } }", 1.0);
     comp_chk("x or w", IOR(InstructionI(0), InstructionI(1)), "CompileSlab{ instrs:{ 0:IVar(VarName(`x`)), 1:IVar(VarName(`w`)) } }", 1.0);
+
+    // IVar
+    comp_chk("x", IVar(VarName("x".to_string())), "CompileSlab{ instrs:{} }", 1.0);
+    {
+        let (_s,i) = comp("int");
+        assert_eq!(i, IVar(VarName("int".to_string())));
+
+        let (_s,i) = comp("print");
+        assert_eq!(i, IVar(VarName("print".to_string())));
+
+        let (_s,i) = comp("eval");
+        assert_eq!(i, IVar(VarName("eval".to_string())));
+    }
+
+    // IFunc
+    comp_chk("foo(2.7)", IFunc { name: VarName("foo".to_string()), args:vec![InstructionI(0)] }, "CompileSlab{ instrs:{ 0:IConst(2.7) } }", 27.0);
+    comp_chk("foo(2.7, 3.4)", IFunc { name: VarName("foo".to_string()), args:vec![InstructionI(0), InstructionI(1)] }, "CompileSlab{ instrs:{ 0:IConst(2.7), 1:IConst(3.4) } }", 27.0);
 
     // IFuncInt
     comp_chk("int(2.7)", IConst(2.0), "CompileSlab{ instrs:{} }", 2.0);

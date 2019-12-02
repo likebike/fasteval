@@ -13,8 +13,7 @@
 //
 //   [ ] sprintf
 
-#![feature(test)]
-//#![feature(backtrace)]
+//#![warn(missing_docs)]
 
 
 #[macro_export]

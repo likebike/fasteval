@@ -82,14 +82,14 @@ struct ExprSlice<'s> {
     pairs: Vec<&'s ExprPair>,
 }
 impl<'s> ExprSlice<'s> {
-    fn new<'a>(first:&'a Value) -> ExprSlice<'a> {
+    fn new(first:&Value) -> ExprSlice<'_> {
         ExprSlice{
-            first:first,
+            first,
             pairs:Vec::with_capacity(8),
         }
     }
-    fn from_expr<'x>(expr:&'x Expression) -> ExprSlice<'x> {
-        let mut sl = ExprSlice::new(&/*'x*/ expr.first);  // possible???
+    fn from_expr(expr:&Expression) -> ExprSlice<'_> {
+        let mut sl = ExprSlice::new(&expr.first);
         for exprpairref in expr.pairs.iter() { sl.pairs.push(exprpairref) }
         sl
     }
@@ -121,6 +121,10 @@ impl<'s> ExprSlice<'s> {
 }
 
 #[inline]
+pub fn f64_eq(l:f64, r:f64) -> bool { (l-r).abs() <= 8.0*std::f64::EPSILON }
+#[inline]
+pub fn f64_ne(l:f64, r:f64) -> bool { (l-r).abs() > 8.0*std::f64::EPSILON }
+#[inline]
 fn neg_wrap(instr:Instruction, cslab:&mut CompileSlab) -> Instruction {
     if let IConst(c) = instr {
         IConst(-c)
@@ -133,7 +137,7 @@ fn neg_wrap(instr:Instruction, cslab:&mut CompileSlab) -> Instruction {
 #[inline]
 fn not_wrap(instr:Instruction, cslab:&mut CompileSlab) -> Instruction {
     if let IConst(c) = instr {
-        IConst(bool_to_f64(c==0.0))
+        IConst(bool_to_f64(f64_eq(c,0.0)))
     } else if let INot(i) = instr {
         cslab.take_instr(i)
     } else {
@@ -165,7 +169,7 @@ fn compile_mul(instrs:Vec<Instruction>, cslab:&mut CompileSlab) -> Instruction {
             }
         }
     }
-    if const_prod!=1.0 {
+    if f64_ne(const_prod,1.0) {
         if out_set {
             out = IMul(cslab.push_instr(out), cslab.push_instr(IConst(const_prod)));
         } else {
@@ -177,10 +181,11 @@ fn compile_mul(instrs:Vec<Instruction>, cslab:&mut CompileSlab) -> Instruction {
 #[inline]
 pub fn log(base:f64, n:f64) -> f64 {
     // Can't use floating point in 'match' patterns.  :(
-    if base==2.0 { return n.log2(); }
-    if base==10.0 { return n.log10(); }
+    if f64_eq(base,2.0) { return n.log2(); }
+    if f64_eq(base,10.0) { return n.log10(); }
     n.log(base)
 }
+
 impl Compiler for ExprSlice<'_> {
     fn compile(&self, pslab:&ParseSlab, cslab:&mut CompileSlab) -> Instruction {
         // Associative:  (2+3)+4 = 2+(3+4)
@@ -198,7 +203,7 @@ impl Compiler for ExprSlice<'_> {
         // Mod
         // Exp
 
-        if self.pairs.len()==0 {
+        if self.pairs.is_empty() {
             return self.first.compile(pslab,cslab);
         }
 
@@ -252,8 +257,8 @@ impl Compiler for ExprSlice<'_> {
                 if let IConst(l) = out {
                     if let IConst(r) = instr {
                         out = match op {
-                            EEQ => IConst(bool_to_f64(l==r)),
-                            ENE => IConst(bool_to_f64(l!=r)),
+                            EEQ => IConst(bool_to_f64(f64_eq(l,r))),
+                            ENE => IConst(bool_to_f64(f64_ne(l,r))),
                             _ => unreachable!(),
                         };
                         continue;
@@ -279,7 +284,7 @@ impl Compiler for ExprSlice<'_> {
                         out = IOR(cslab.push_instr(out), cslab.push_instr(instr));
                     } else {
                         if let IConst(c) = instr {
-                            if c!=0.0 { return instr; }
+                            if f64_ne(c,0.0) { return instr; }
                             // out = instr;     // Skip this 0 value (mostly so I don't complicate my logic in 'if out_set' since I can assume that any set value is non-const).
                             // out_set = true;
                         } else {
@@ -334,7 +339,7 @@ impl Compiler for ExprSlice<'_> {
                         }
                     }
                 }
-                if const_sum!=0.0 {
+                if f64_ne(const_sum,0.0) {
                     if out_set {
                         out = IAdd(cslab.push_instr(out), cslab.push_instr(IConst(const_sum)));
                     } else {
@@ -377,7 +382,7 @@ impl Compiler for ExprSlice<'_> {
                     }
                     is_first = false;
                 }
-                if const_sum!=0.0 {
+                if f64_ne(const_sum,0.0) {
                     if out_set {
                         out = IAdd(cslab.push_instr(out), cslab.push_instr(IConst(const_sum)));
                     } else {
@@ -441,7 +446,7 @@ impl Compiler for ExprSlice<'_> {
 //                    }
 //                    is_first = false;
 //                }
-//                if const_prod!=1.0 {
+//                if f64_ne(const_prod,1.0) {
 //                    if out_set {
 //                        out = IMul(cslab.push_instr(out), cslab.push_instr(IConst(const_prod)));
 //                    } else {
@@ -475,7 +480,7 @@ impl Compiler for ExprSlice<'_> {
                 let mut xss = Vec::<ExprSlice>::with_capacity(2);
                 self.split(EExp, &mut xss);
                 let mut out = IConst(0.0); let mut out_set = false;
-                while xss.len()>0 {
+                while !xss.is_empty() {
                     let instr = xss.pop().unwrap().compile(pslab,cslab);
                     if out_set {
                         if let IConst(power) = out {
@@ -549,7 +554,7 @@ impl Compiler for UnaryOp {
             ENot(i) => {
                 let instr = pslab.get_val(*i).compile(pslab,cslab);
                 if let IConst(c) = instr {
-                    IConst(bool_to_f64(c==0.0))
+                    IConst(bool_to_f64(f64_eq(c,0.0)))
                 } else {
                     not_wrap(instr,cslab)
                 }

@@ -39,8 +39,8 @@ impl<'a> EvalNS<'a> {
         let i = self.nstack.0.len();
         if i>=self.nstack.0.capacity() { return Err(KErr::new("evalns overflow")) }
         self.nstack.0.push(NameLayer{
-            is_eval:is_eval,
-            m      :HashMap::new(),
+            is_eval,
+            m:HashMap::new(),
         });
         Ok(i)
     }
@@ -52,7 +52,7 @@ impl<'a> EvalNS<'a> {
 
     pub fn clear(&mut self) {
         if self.reeval_mode!=0 { panic!("pending reeval"); }
-        while self.nstack.0.len()!=0 { self.pop(); }
+        while !self.nstack.0.is_empty() { self.pop(); }
         self.push().unwrap();
     }
 
@@ -82,16 +82,17 @@ impl<'a> EvalNS<'a> {
     // ...but groups of 'eval' layers should be treated as one layer, and *earlier* layers take precedence!
     pub fn get(&mut self, name:&str, args:Vec<f64>) -> Option<f64> {
         let mut keybuf = String::new();
-        let mut key = name;
-        if args.len()!=0 {
+        let key = if args.is_empty() {
+            name
+        } else {
             keybuf.reserve(name.len() + 20*args.len());
             keybuf.push_str(name);
             for f in &args {
                 keybuf.push_str(" , ");
                 keybuf.push_str(&f.to_string());
             };
-            key = keybuf.as_str();
-        }
+            keybuf.as_str()
+        };
 
         // We can't use a standard 'for i in (0..ns.len()).rev() {}' loop here because the loop's internal logic needs to modify 'i':
         #[allow(non_snake_case)]
@@ -105,19 +106,13 @@ impl<'a> EvalNS<'a> {
                 while j>0 && self.nstack.0[j-1].is_eval { j-=1 }
 
                 for k in j..=i {
-                    match self.nstack.0[k].m.get(key) {
-                        Some(&val) => return Some(val),
-                        None => (),
-                    }
+                    if let Some(&val) = self.nstack.0[k].m.get(key) { return Some(val); }
                 }
 
                 I = j as i32;
             } else {
                 // Normal layer
-                match self.nstack.0[i].m.get(key) {
-                    Some(&val) => return Some(val),
-                    None => (),
-                }
+                if let Some(&val) = self.nstack.0[i].m.get(key) { return Some(val); }
             }
         }
 

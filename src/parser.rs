@@ -196,7 +196,7 @@ fn peek(bs:&[u8], skip:usize) -> Option<u8> {
     if bs.len()>skip { Some(bs[skip]) }
     else { None }
 }
-fn is_at_eof(bs:&[u8]) -> bool { bs.len() == 0 }
+fn is_at_eof(bs:&[u8]) -> bool { bs.is_empty() }
 fn peek_is(bs:&[u8], skip:usize, val:u8) -> bool {
     match peek(bs,skip) {
         Some(b) => b==val,
@@ -205,7 +205,7 @@ fn peek_is(bs:&[u8], skip:usize, val:u8) -> bool {
 }
 
 fn read(bs:&mut &[u8]) -> Result<u8, KErr> {
-    if bs.len() > 0 {
+    if !bs.is_empty() {
         let b = bs[0];
         *bs = &bs[1..];
         Ok(b)
@@ -419,7 +419,7 @@ impl Parser {
             self.char_buf.push(read(bs)? as char);
         }
 
-        if self.char_buf.len()==0 { return Ok(Pass); }  // This is NOT a Pass after a read() -- len=0 so no read occurred.
+        if self.char_buf.is_empty() { return Ok(Pass); }  // This is NOT a Pass after a read() -- len=0 so no read occurred.
 
         Ok(Bite(VarName(self.char_buf.clone())))
     }
@@ -436,7 +436,6 @@ impl Parser {
 
     fn read_func(&mut self, fname:VarName, slab:&mut ParseSlab, bs:&mut &[u8]) -> Result<StdFunc, KErr> {
         let mut args = Vec::<ExpressionI>::with_capacity(4);
-
         loop {
             space(bs);
             match peek(bs,0) {
@@ -448,7 +447,7 @@ impl Parser {
                 }
                 None => return Err(KErr::new(&format!("Reached end of input while parsing function: {}",fname))),
             }
-            if args.len()>0 {
+            if !args.is_empty() {
                 match read(bs) {
                     Ok(b',') | Ok(b';') => {
                         // I accept ',' or ';' because the TV API disallows the ',' char in symbols... so I'm using ';' as a compromise.
@@ -484,35 +483,35 @@ impl Parser {
                 if args.len()==1 { Ok(EFuncLog{base:None, expr:args.pop().unwrap()})
                 } else if args.len()==2 {
                     let expr = args.pop().unwrap();
-                    Ok(EFuncLog{base:Some(args.pop().unwrap()), expr:expr})
+                    Ok(EFuncLog{base:Some(args.pop().unwrap()), expr})
                 } else { Err(KErr::new("expected log(x) or log(base,x)")) }
             }
             "round" => {
                 if args.len()==1 { Ok(EFuncRound{modulus:None, expr:args.pop().unwrap()})
                 } else if args.len()==2 {
                     let expr = args.pop().unwrap();
-                    Ok(EFuncRound{modulus:Some(args.pop().unwrap()), expr:expr})
+                    Ok(EFuncRound{modulus:Some(args.pop().unwrap()), expr})
                 } else { Err(KErr::new("expected round(x) or round(modulus,x)")) }
             }
             "min" => {
-                if args.len()>0 {
+                if !args.is_empty() {
                     let first = args.remove(0);
-                    Ok(EFuncMin{first:first, rest:args})
+                    Ok(EFuncMin{first, rest:args})
                 } else { Err(KErr::new("expected one or more args")) }
             }
             "max" => {
-                if args.len()>0 {
+                if !args.is_empty() {
                     let first = args.remove(0);
-                    Ok(EFuncMax{first:first, rest:args})
+                    Ok(EFuncMax{first, rest:args})
                 } else { Err(KErr::new("expected one or more args")) }
             }
 
             "e" => {
-                if args.len()==0 { Ok(EFuncE)
+                if args.is_empty() { Ok(EFuncE)
                 } else { Err(KErr::new("expected no args")) }
             }
             "pi" => {
-                if args.len()==0 { Ok(EFuncPi)
+                if args.is_empty() { Ok(EFuncPi)
                 } else { Err(KErr::new("expected no args")) }
             }
 
@@ -582,7 +581,7 @@ impl Parser {
                 }
                 None => { return Err(KErr::new("reached end of inupt while parsing printfunc")) }
             }
-            if args.len()>0 {
+            if !args.is_empty() {
                 match read(bs) {
                     Ok(b',') | Ok(b';') => {}
                     _ => { return Err(KErr::new("expected ',' or ';'")) }
@@ -597,9 +596,9 @@ impl Parser {
     fn read_evalfunc(&mut self, slab:&mut ParseSlab, bs:&mut &[u8]) -> Result<EvalFunc, KErr> {
         let eval_expr = self.read_expression(slab,bs,false)?;
         let mut kwargs = Vec::<KWArg>::with_capacity(8);
-        fn kwargs_has(kwargs:&Vec<KWArg>, name:&VarName) -> bool {
+        fn kwargs_has(kwargs:&[KWArg], name:&VarName) -> bool {
             for kwarg in kwargs {
-                if kwarg.name==*name { return true; }
+                if kwarg.name.0==name.0 { return true; }
             }
             false
         }
@@ -635,7 +634,7 @@ impl Parser {
             kwargs.push(KWArg{name, expr});
         }
 
-        Ok(EvalFunc{expr:eval_expr, kwargs:kwargs})
+        Ok(EvalFunc{expr:eval_expr, kwargs})
     }
 
     fn read_expressionorstring(&mut self, slab:&mut ParseSlab, bs:&mut &[u8]) -> Result<ExpressionOrString, KErr> {
@@ -664,6 +663,9 @@ impl Parser {
 
         Ok(Bite(self.char_buf.clone()))
     }
+}
+impl Default for Parser {
+    fn default() -> Self { Self::new() }
 }
 
 #[cfg(test)]

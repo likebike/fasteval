@@ -11,7 +11,7 @@ use crate::parser::{Expression,
                     PrintFunc,
                     EvalFunc,
                     ExpressionOrString::{EExpr, EStr}};
-use crate::compiler::{log, Instruction::{self, IConst}};
+use crate::compiler::{log, f64_eq, f64_ne, Instruction::{self, IConst}};
 
 use kerr::KErr;
 
@@ -160,7 +160,7 @@ impl Evaler for Expression {
         ltor(&mut eval_op, &mut ops, EAND);
         ltor(&mut eval_op, &mut ops, EOR);
 
-        if ops.len()!=0 { return Err(KErr::new("Unhandled Expression ops")); }
+        if !ops.is_empty() { return Err(KErr::new("Unhandled Expression ops")); }
         if vals.len()!=1 { return Err(KErr::new("More than one final Expression value")); }
         Ok(vals[0])
     }
@@ -185,7 +185,7 @@ impl Evaler for UnaryOp {
         match self {
             EPos(val_i) => ns.eval(slab, slab.ps.get_val(*val_i)),
             ENeg(val_i) => Ok(-ns.eval(slab, slab.ps.get_val(*val_i))?),
-            ENot(val_i) => Ok(bool_to_f64(ns.eval(slab, slab.ps.get_val(*val_i))?==0.0)),
+            ENot(val_i) => Ok(bool_to_f64(f64_eq(ns.eval(slab, slab.ps.get_val(*val_i))?,0.0))),
             EParentheses(expr_i) => ns.eval(slab, slab.ps.get_expr(*expr_i)),
         }
     }
@@ -193,7 +193,7 @@ impl Evaler for UnaryOp {
 
 impl BinaryOp {
     // Non-standard eval interface (not generalized yet):
-    fn binaryop_eval(&self, left:f64, right:f64) -> f64 {
+    fn binaryop_eval(self, left:f64, right:f64) -> f64 {  // Passing 'self' by value is more efficient than pass-by-reference.
         match self {
             EAdd => left+right,
             ESub => left-right,
@@ -203,13 +203,13 @@ impl BinaryOp {
             EExp => left.powf(right),
             ELT => bool_to_f64(left<right),
             ELTE => bool_to_f64(left<=right),
-            EEQ => bool_to_f64(left==right),
-            ENE => bool_to_f64(left!=right),
+            EEQ => bool_to_f64(f64_eq(left,right)),
+            ENE => bool_to_f64(f64_ne(left,right)),
             EGTE => bool_to_f64(left>=right),
             EGT => bool_to_f64(left>right),
-            EOR => if left!=0.0 { left }
+            EOR => if f64_ne(left,0.0) { left }
                    else { right },
-            EAND => if left==0.0 { left }
+            EAND => if f64_eq(left,0.0) { left }
                     else { right },
         }
     }
@@ -302,20 +302,19 @@ impl Evaler for PrintFunc {
     fn eval(&self, slab:&Slab, ns:&mut EvalNS) -> Result<f64,KErr> {
         let mut val = 0f64;
 
+        #[inline]
         fn process_str(s:&str) -> String {
-            let s = s.replace("\\n","\n");
-            let s = s.replace("\\t","\t");
-            s
+            s.replace("\\n","\n").replace("\\t","\t")
         }
 
-        if self.0.len()>0 {
+        if !self.0.is_empty() {
             if let EStr(ref fmtstr) = self.0[0] {
                 if fmtstr.contains('%') {
                     // printf mode:
 
                     //let fmtstr = process_str(fmtstr);
 
-                    unimplemented!();  // Make a pure-rust printf libarary.
+                    unimplemented!();  // TODO: Make a pure-rust printf libarary.
 
                     //return Ok(val);
                 }
@@ -358,13 +357,9 @@ impl Evaler for EvalFunc {
             }
 
             ns.start_reeval_mode();
-            // Another defer structure (a bit overly-complex for this simple case):
-            let res = (|| -> Result<f64,KErr> {
-                ns.eval(slab, slab.ps.get_expr(self.expr))
-            })();
+            let res = ns.eval(slab, slab.ps.get_expr(self.expr));
             ns.end_reeval_mode();
             res
-
         })();
         ns.pop();
         res
@@ -378,7 +373,7 @@ impl Evaler for Instruction {
             Instruction::IConst(c) => Ok(*c),
 
             Instruction::INeg(i) => Ok(-eval_instr_ref!(slab.cs.get_instr(*i), slab, ns)),
-            Instruction::INot(i) => Ok(bool_to_f64(eval_instr_ref!(slab.cs.get_instr(*i), slab, ns)==0.0)),
+            Instruction::INot(i) => Ok(bool_to_f64(f64_eq(eval_instr_ref!(slab.cs.get_instr(*i), slab, ns),0.0))),
             Instruction::IInv(i) => Ok(1.0/eval_instr_ref!(slab.cs.get_instr(*i), slab, ns)),
 
             Instruction::IAdd(li,ri) => Ok( eval_instr_ref!(slab.cs.get_instr(*li), slab, ns) +
@@ -394,10 +389,10 @@ impl Evaler for Instruction {
                                                              eval_instr_ref!(slab.cs.get_instr(*right), slab, ns)) ),
             Instruction::ILTE(left, right) => Ok( bool_to_f64(eval_instr_ref!(slab.cs.get_instr(*left), slab, ns) <=
                                                               eval_instr_ref!(slab.cs.get_instr(*right), slab, ns)) ),
-            Instruction::IEQ(left, right) => Ok( bool_to_f64(eval_instr_ref!(slab.cs.get_instr(*left), slab, ns) ==
-                                                             eval_instr_ref!(slab.cs.get_instr(*right), slab, ns)) ),
-            Instruction::INE(left, right) => Ok( bool_to_f64(eval_instr_ref!(slab.cs.get_instr(*left), slab, ns) !=
-                                                             eval_instr_ref!(slab.cs.get_instr(*right), slab, ns)) ),
+            Instruction::IEQ(left, right) => Ok( bool_to_f64(f64_eq(eval_instr_ref!(slab.cs.get_instr(*left), slab, ns),
+                                                                    eval_instr_ref!(slab.cs.get_instr(*right), slab, ns))) ),
+            Instruction::INE(left, right) => Ok( bool_to_f64(f64_ne(eval_instr_ref!(slab.cs.get_instr(*left), slab, ns),
+                                                                    eval_instr_ref!(slab.cs.get_instr(*right), slab, ns))) ),
             Instruction::IGTE(left, right) => Ok( bool_to_f64(eval_instr_ref!(slab.cs.get_instr(*left), slab, ns) >=
                                                               eval_instr_ref!(slab.cs.get_instr(*right), slab, ns)) ),
             Instruction::IGT(left, right) => Ok( bool_to_f64(eval_instr_ref!(slab.cs.get_instr(*left), slab, ns) >
@@ -405,14 +400,14 @@ impl Evaler for Instruction {
 
             Instruction::IAND(lefti, righti) => {
                 let left = eval_instr_ref!(slab.cs.get_instr(*lefti), slab, ns);
-                if left==0.0 { Ok(left) }
+                if f64_eq(left,0.0) { Ok(left) }
                 else {
                     Ok(eval_instr_ref!(slab.cs.get_instr(*righti), slab, ns))
                 }
             }
             Instruction::IOR(lefti, righti) => {
                 let left = eval_instr_ref!(slab.cs.get_instr(*lefti), slab, ns);
-                if left!=0.0 { Ok(left) }
+                if f64_ne(left,0.0) { Ok(left) }
                 else {
                     Ok(eval_instr_ref!(slab.cs.get_instr(*righti), slab, ns))
                 }

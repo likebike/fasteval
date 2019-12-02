@@ -8,13 +8,13 @@ use std::mem;
 
 impl ExpressionI {
     #[inline]
-    pub fn from<'a>(self, ps:&'a ParseSlab) -> &'a Expression {
+    pub fn from(self, ps:&ParseSlab) -> &Expression {
         ps.get_expr(self)
     }
 }
 impl ValueI {
     #[inline]
-    pub fn from<'a>(self, ps:&'a ParseSlab) -> &'a Value {
+    pub fn from(self, ps:&ParseSlab) -> &Value {
         ps.get_val(self)
     }
 }
@@ -97,7 +97,7 @@ impl Slab {
 }
 
 
-fn write_indexed_list<T>(f:&mut fmt::Formatter, lst:&Vec<T>) -> Result<(), fmt::Error> where T:fmt::Debug {
+fn write_indexed_list<T>(f:&mut fmt::Formatter, lst:&[T]) -> Result<(), fmt::Error> where T:fmt::Debug {
     write!(f, "{{")?;
     let mut nonempty = false;
     for (i,x) in lst.iter().enumerate() {
@@ -138,5 +138,9 @@ impl fmt::Debug for CompileSlab {
         write!(f, " }}")?;
         Ok(())
     }
+}
+
+impl Default for Slab {
+    fn default() -> Self { Self::new() }
 }
 
