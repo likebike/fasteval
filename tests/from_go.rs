@@ -83,7 +83,7 @@ fn aaa_test_b1() {
     assert_eq!(parse_raw({slab.clear(); &mut slab}, "3.14 + 4.99999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999.9999"),
 Err(KErr::new("parse<f64> error")));
     assert_eq!(parse_raw({slab.clear(); &mut slab}, "3.14 + 4.9999.9999"),
-Err(KErr::new("parse<f64> error")));
+Err(KErr::new("unparsed tokens remaining")));
 }
 
 #[test]
@@ -91,7 +91,7 @@ fn aaa_test_b2() {
     let mut slab = Slab::new();
 
     assert_eq!(parse_raw({slab.clear(); &mut slab}, "3.14 + ."),
-Err(KErr::new("parse<f64> error")));
+Err(KErr::new("decimal without pre- or post-digits")));
 }
 
 #[test]
@@ -126,13 +126,13 @@ fn aaa_test_d0() {
 
     parse({slab.clear(); &mut slab}, "3+(-5)");
     assert_eq!(format!("{:?}",&slab),
-"Slab{ exprs:{ 0:Expression { first: EUnaryOp(ENeg(ValueI(0))), pairs: [] }, 1:Expression { first: EConstant(Constant(3.0)), pairs: [ExprPair(EAdd, EUnaryOp(EParentheses(ExpressionI(0))))] } }, vals:{ 0:EConstant(Constant(5.0)) }, instrs:{} }");
+"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(-5.0)), pairs: [] }, 1:Expression { first: EConstant(Constant(3.0)), pairs: [ExprPair(EAdd, EUnaryOp(EParentheses(ExpressionI(0))))] } }, vals:{}, instrs:{} }");
     parse({slab.clear(); &mut slab}, "3+-5");
     assert_eq!(format!("{:?}",&slab),
-"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(3.0)), pairs: [ExprPair(EAdd, EUnaryOp(ENeg(ValueI(0))))] } }, vals:{ 0:EConstant(Constant(5.0)) }, instrs:{} }");
+"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(3.0)), pairs: [ExprPair(EAdd, EConstant(Constant(-5.0)))] } }, vals:{}, instrs:{} }");
     parse({slab.clear(); &mut slab}, "3++5");
     assert_eq!(format!("{:?}",&slab),
-"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(3.0)), pairs: [ExprPair(EAdd, EUnaryOp(EPos(ValueI(0))))] } }, vals:{ 0:EConstant(Constant(5.0)) }, instrs:{} }");
+"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(3.0)), pairs: [ExprPair(EAdd, EConstant(Constant(5.0)))] } }, vals:{}, instrs:{} }");
     parse({slab.clear(); &mut slab}, " 3 + ( -x + y ) ");
     assert_eq!(format!("{:?}",&slab),
 "Slab{ exprs:{ 0:Expression { first: EUnaryOp(ENeg(ValueI(0))), pairs: [ExprPair(EAdd, ECallable(EStdFunc(EVar(VarName(`y`)))))] }, 1:Expression { first: EConstant(Constant(3.0)), pairs: [ExprPair(EAdd, EUnaryOp(EParentheses(ExpressionI(0))))] } }, vals:{ 0:ECallable(EStdFunc(EVar(VarName(`x`)))) }, instrs:{} }");

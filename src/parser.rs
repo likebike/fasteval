@@ -1,6 +1,7 @@
 use crate::slab::ParseSlab;
 use kerr::KErr;
 
+use std::str::from_utf8;
 
 
 // === Algebra Grammar ===
@@ -9,7 +10,7 @@ use kerr::KErr;
 //
 // Value: Constant || UnaryOp || Callable
 //
-// Constant: (\.[0-9])+(k || K || M || G || T)?
+// Constant: [+-]?[0-9]*(\.[0-9]+)?( ([eE][+-]?[0-9]+) || [pnuµmkKMGT] )?
 //
 // UnaryOp: +Value || -Value || (Expression) || !Value
 //
@@ -237,7 +238,7 @@ impl Parser {
     #[inline]
     fn is_const_byte(b:u8, i:usize) -> bool {
         if b'0'<=b && b<=b'9' || b==b'.' { return true }
-        if i>0 && ( b==b'k' || b==b'K' || b==b'M' || b==b'G' || b==b'T' ) { return true }
+        if i>0 && ( b==b'k' || b==b'K' || b==b'M' || b==b'G' || b==b'T' || b==b'm' || b==b'u' || b==b'n' || b==b'p' || b==b'e' || b==b'E' ) { return true }
         false
     }
     #[inline]
@@ -281,7 +282,10 @@ impl Parser {
             }
         }
         space(bs);
-        if expect_eof && !is_at_eof(bs) { return Err(KErr::new("unparsed tokens remaining")); }
+        if expect_eof && !is_at_eof(bs) {
+            let bs_str = from_utf8(bs).map_err(|_| KErr::new("Utf8Error while handling 'unparsed tokens remaining' error."))?;
+            return Err(KErr::new("unparsed tokens remaining").pre(bs_str));
+        }
         Ok(slab.push_expr(Expression{first, pairs})?)
     }
 
@@ -304,27 +308,80 @@ impl Parser {
     fn read_const(&mut self, bs:&mut &[u8]) -> Result<Tok<Constant>, KErr> {
         space(bs);
 
+        // Grammar: [+-]?[0-9]*(\.[0-9]+)?( ([eE][+-]?[0-9]+) || [pnuµmkKMGT] )?
+        #[inline]
+        fn peek_digits(bs:&[u8]) -> usize {
+            let mut i = 0;
+            while i<bs.len() && b'0'<=bs[i] && bs[i]<=b'9' { i+=1; }
+            i
+        }
+        #[inline]
+        fn peek_exp(bs:&[u8]) -> Result<usize, KErr> {
+            if bs.is_empty() { return Err(KErr::new("peek_exp empty")); }
+            let mut i = 0;
+            if bs[i]==b'-' || bs[i]==b'+' { i+=1; }
+            let digits = peek_digits(&bs[i..]);
+            if digits==0 { return Err(KErr::new("peek_exp no digits")); }
+            Ok(i+digits)
+        }
+        #[inline]
+        fn peek_tail(bs:&[u8]) -> Result<(/*read:*/usize, /*skip:*/usize, /*exp:*/i32), KErr> {
+            if bs.is_empty() { return Ok((0,0,0)); }
+            match bs[0] {
+                b'k' | b'K' => Ok((0,1,3)),
+                b'M' => Ok((0,1,6)),
+                b'G' => Ok((0,1,9)),
+                b'T' => Ok((0,1,12)),
+                b'm' => Ok((0,1,-3)),
+                b'u' | b'\xb5' => Ok((0,1,-6)),  // ASCII-encoded 'µ'
+                b'\xc2' if bs.len()>1 && bs[1]==b'\xb5' => Ok((0,2,-6)),  // UTF8-encoded 'µ'
+                b'n' => Ok((0,1,-9)),
+                b'p' => Ok((0,1,-12)),
+                b'e' | b'E' => peek_exp(&bs[1..]).map(|size| (1+size,0,0)),
+                _ => Ok((0,0,0)),
+            }
+        }
+
+        let mut toread=0;  let mut toskip=0;  let mut exp=0;
+
+        match peek(bs,0) {
+            None => return Ok(Pass), 
+            Some(b) => {
+                if b==b'-' || b==b'+' { toread+=1; }
+            }
+            
+        }
+
+        let predec = peek_digits(&bs[toread..]);
+        toread+=predec;
+
+        match peek(bs, toread) {
+            None => {
+                if predec==0 { return Ok(Pass); }
+            }
+            Some(b) => {
+                if b==b'.' {
+                    toread+=1;
+                    let postdec = peek_digits(&bs[toread..]);
+                    if predec==0 && postdec==0 { return Err(KErr::new("decimal without pre- or post-digits")); }
+                    toread+=postdec;
+                } else {
+                    if predec==0 { return Ok(Pass); }
+                }
+                let (rd,sk,ex) = peek_tail(&bs[toread..])?;
+                toread+=rd;  toskip=sk;  exp=ex;
+            }
+        }
+
         self.char_buf.clear();
-        while Self::is_const_byte_opt(peek(bs,0),self.char_buf.len()) {
-            self.char_buf.push(read(bs)? as char);
-        }
-
-        let buflen = self.char_buf.len();
-        if buflen==0 { return Ok(Pass); }
-
-        let mut multiple = 1.0;
-        match self.char_buf.as_bytes()[buflen-1] {
-            b'k' | b'K' => {      multiple=1_000.0; self.char_buf.pop(); }
-            b'M' => {         multiple=1_000_000.0; self.char_buf.pop(); }
-            b'G' => {     multiple=1_000_000_000.0; self.char_buf.pop(); }
-            b'T' => { multiple=1_000_000_000_000.0; self.char_buf.pop(); }
-            _ => {}
-        }
+        for _ in 0..toread { self.char_buf.push(read(bs)? as char); }
+        for _ in 0..toskip { read(bs)?; }
+        if exp!=0 { self.char_buf.push('e'); self.char_buf.push_str(&exp.to_string()); }
 
         let val = self.char_buf.parse::<f64>().map_err(|_| {
             KErr::new("parse<f64> error").pre(&self.char_buf)
         })?;
-        Ok(Bite(Constant(val*multiple)))
+        Ok(Bite(Constant(val)))
     }
 
     fn read_unaryop(&mut self, slab:&mut ParseSlab, bs:&mut &[u8]) -> Result<Tok<UnaryOp>, KErr> {

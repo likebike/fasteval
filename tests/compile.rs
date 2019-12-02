@@ -9,9 +9,17 @@ fn slab_overflow() {
     let mut slab = Slab::with_capacity(2);
     assert_eq!(p.parse({slab.clear(); &mut slab.ps}, "1 + 2 + -3 + ( +4 )"), Ok(ExpressionI(1)));
     assert_eq!(format!("{:?}", slab),
-"Slab{ exprs:{ 0:Expression { first: EUnaryOp(EPos(ValueI(1))), pairs: [] }, 1:Expression { first: EConstant(Constant(1.0)), pairs: [ExprPair(EAdd, EConstant(Constant(2.0))), ExprPair(EAdd, EUnaryOp(ENeg(ValueI(0)))), ExprPair(EAdd, EUnaryOp(EParentheses(ExpressionI(0))))] } }, vals:{ 0:EConstant(Constant(3.0)), 1:EConstant(Constant(4.0)) }, instrs:{} }");
+"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(4.0)), pairs: [] }, 1:Expression { first: EConstant(Constant(1.0)), pairs: [ExprPair(EAdd, EConstant(Constant(2.0))), ExprPair(EAdd, EConstant(Constant(-3.0))), ExprPair(EAdd, EUnaryOp(EParentheses(ExpressionI(0))))] } }, vals:{}, instrs:{} }");
 
-    assert_eq!(p.parse({slab.clear(); &mut slab.ps}, "1 + 2 + -3 + ( ++4 )"), Err(KErr::new("slab val overflow")));
+    assert_eq!(p.parse({slab.clear(); &mut slab.ps}, "1 + 2 + -3 + ( ++4 )"), Ok(ExpressionI(1)));
+    assert_eq!(format!("{:?}", slab),
+"Slab{ exprs:{ 0:Expression { first: EUnaryOp(EPos(ValueI(0))), pairs: [] }, 1:Expression { first: EConstant(Constant(1.0)), pairs: [ExprPair(EAdd, EConstant(Constant(2.0))), ExprPair(EAdd, EConstant(Constant(-3.0))), ExprPair(EAdd, EUnaryOp(EParentheses(ExpressionI(0))))] } }, vals:{ 0:EConstant(Constant(4.0)) }, instrs:{} }");
+
+    assert_eq!(p.parse({slab.clear(); &mut slab.ps}, "1 + 2 + -3 + ( +++4 )"), Ok(ExpressionI(1)));
+    assert_eq!(format!("{:?}", slab),
+"Slab{ exprs:{ 0:Expression { first: EUnaryOp(EPos(ValueI(1))), pairs: [] }, 1:Expression { first: EConstant(Constant(1.0)), pairs: [ExprPair(EAdd, EConstant(Constant(2.0))), ExprPair(EAdd, EConstant(Constant(-3.0))), ExprPair(EAdd, EUnaryOp(EParentheses(ExpressionI(0))))] } }, vals:{ 0:EConstant(Constant(4.0)), 1:EUnaryOp(EPos(ValueI(0))) }, instrs:{} }");
+
+    assert_eq!(p.parse({slab.clear(); &mut slab.ps}, "1 + 2 + -3 + ( ++++4 )"), Err(KErr::new("slab val overflow")));
 }
 
 #[test]

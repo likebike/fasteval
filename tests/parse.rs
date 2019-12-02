@@ -1,4 +1,5 @@
 use al::{Slab, Parser};
+use kerr::KErr;
 
 #[test]
 fn basics() {
@@ -10,7 +11,7 @@ fn basics() {
 
     p.parse({slab.clear(); &mut slab.ps}, "12.34 + abs ( -43 - 0.21 ) + 11.11").unwrap();
     assert_eq!(format!("{:?}",&slab),
-"Slab{ exprs:{ 0:Expression { first: EUnaryOp(ENeg(ValueI(0))), pairs: [ExprPair(ESub, EConstant(Constant(0.21)))] }, 1:Expression { first: EConstant(Constant(12.34)), pairs: [ExprPair(EAdd, ECallable(EStdFunc(EFuncAbs(ExpressionI(0))))), ExprPair(EAdd, EConstant(Constant(11.11)))] } }, vals:{ 0:EConstant(Constant(43.0)) }, instrs:{} }");
+"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(-43.0)), pairs: [ExprPair(ESub, EConstant(Constant(0.21)))] }, 1:Expression { first: EConstant(Constant(12.34)), pairs: [ExprPair(EAdd, ECallable(EStdFunc(EFuncAbs(ExpressionI(0))))), ExprPair(EAdd, EConstant(Constant(11.11)))] } }, vals:{}, instrs:{} }");
 
     p.parse({slab.clear(); &mut slab.ps}, "12.34 + print ( 43.21 ) + 11.11").unwrap();
     assert_eq!(format!("{:?}",&slab),
@@ -22,7 +23,97 @@ fn basics() {
 
     p.parse({slab.clear(); &mut slab.ps}, "(-1) ^ 0.5").unwrap();
     assert_eq!(format!("{:?}",&slab),
-"Slab{ exprs:{ 0:Expression { first: EUnaryOp(ENeg(ValueI(0))), pairs: [] }, 1:Expression { first: EUnaryOp(EParentheses(ExpressionI(0))), pairs: [ExprPair(EExp, EConstant(Constant(0.5)))] } }, vals:{ 0:EConstant(Constant(1.0)) }, instrs:{} }");
+"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(-1.0)), pairs: [] }, 1:Expression { first: EUnaryOp(EParentheses(ExpressionI(0))), pairs: [ExprPair(EExp, EConstant(Constant(0.5)))] } }, vals:{}, instrs:{} }");
 
+}
+
+#[test]
+fn consts() {
+    let mut p = Parser::new();
+    let mut slab = Slab::new();
+
+    p.parse({slab.clear(); &mut slab.ps}, "12.34").unwrap();
+    assert_eq!(format!("{:?}",&slab),
+"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(12.34)), pairs: [] } }, vals:{}, instrs:{} }");
+    
+    p.parse({slab.clear(); &mut slab.ps}, ".34").unwrap();
+    assert_eq!(format!("{:?}",&slab),
+"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(0.34)), pairs: [] } }, vals:{}, instrs:{} }");
+    
+    p.parse({slab.clear(); &mut slab.ps}, "12.").unwrap();
+    assert_eq!(format!("{:?}",&slab),
+"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(12.0)), pairs: [] } }, vals:{}, instrs:{} }");
+
+    assert_eq!(p.parse({slab.clear(); &mut slab.ps}, "."), Err(KErr::new("decimal without pre- or post-digits")));
+
+    assert_eq!(p.parse({slab.clear(); &mut slab.ps}, "12..34"), Err(KErr::new("unparsed tokens remaining")));
+
+    p.parse({slab.clear(); &mut slab.ps}, "12.34k").unwrap();
+    assert_eq!(format!("{:?}",&slab),
+"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(12340.0)), pairs: [] } }, vals:{}, instrs:{} }");
+
+    p.parse({slab.clear(); &mut slab.ps}, "12.34K").unwrap();
+    assert_eq!(format!("{:?}",&slab),
+"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(12340.0)), pairs: [] } }, vals:{}, instrs:{} }");
+
+    p.parse({slab.clear(); &mut slab.ps}, "12.34M").unwrap();
+    assert_eq!(format!("{:?}",&slab),
+"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(12340000.0)), pairs: [] } }, vals:{}, instrs:{} }");
+
+    p.parse({slab.clear(); &mut slab.ps}, "12.34G").unwrap();
+    assert_eq!(format!("{:?}",&slab),
+"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(12340000000.0)), pairs: [] } }, vals:{}, instrs:{} }");
+
+    p.parse({slab.clear(); &mut slab.ps}, "12.34T").unwrap();
+    assert_eq!(format!("{:?}",&slab),
+"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(12340000000000.0)), pairs: [] } }, vals:{}, instrs:{} }");
+
+    p.parse({slab.clear(); &mut slab.ps}, "12.34m").unwrap();
+    assert_eq!(format!("{:?}",&slab),
+"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(0.01234)), pairs: [] } }, vals:{}, instrs:{} }");
+
+    p.parse({slab.clear(); &mut slab.ps}, "12.34u").unwrap();
+    assert_eq!(format!("{:?}",&slab),
+"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(0.00001234)), pairs: [] } }, vals:{}, instrs:{} }");
+
+    p.parse({slab.clear(); &mut slab.ps}, "12.34µ").unwrap();
+    assert_eq!(format!("{:?}",&slab),
+"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(0.00001234)), pairs: [] } }, vals:{}, instrs:{} }");
+
+    p.parse({slab.clear(); &mut slab.ps}, "12.34n").unwrap();
+    assert_eq!(format!("{:?}",&slab),
+"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(0.00000001234)), pairs: [] } }, vals:{}, instrs:{} }");
+
+    p.parse({slab.clear(); &mut slab.ps}, "12.34p").unwrap();
+    assert_eq!(format!("{:?}",&slab),
+"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(0.00000000001234)), pairs: [] } }, vals:{}, instrs:{} }");
+
+    p.parse({slab.clear(); &mut slab.ps}, "12.34e56").unwrap();
+    assert_eq!(format!("{:?}",&slab),
+"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(1234000000000000000000000000000000000000000000000000000000.0)), pairs: [] } }, vals:{}, instrs:{} }");
+
+    p.parse({slab.clear(); &mut slab.ps}, "12.34E56").unwrap();
+    assert_eq!(format!("{:?}",&slab),
+"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(1234000000000000000000000000000000000000000000000000000000.0)), pairs: [] } }, vals:{}, instrs:{} }");
+
+    p.parse({slab.clear(); &mut slab.ps}, "12.34e-56").unwrap();
+    assert_eq!(format!("{:?}",&slab),
+"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(0.0000000000000000000000000000000000000000000000000000001234)), pairs: [] } }, vals:{}, instrs:{} }");
+
+    p.parse({slab.clear(); &mut slab.ps}, "12.34E-56").unwrap();
+    assert_eq!(format!("{:?}",&slab),
+"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(0.0000000000000000000000000000000000000000000000000000001234)), pairs: [] } }, vals:{}, instrs:{} }");
+
+    p.parse({slab.clear(); &mut slab.ps}, "+12.34E-56").unwrap();
+    assert_eq!(format!("{:?}",&slab),
+"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(0.0000000000000000000000000000000000000000000000000000001234)), pairs: [] } }, vals:{}, instrs:{} }");
+
+    p.parse({slab.clear(); &mut slab.ps}, "-12.34E-56").unwrap();
+    assert_eq!(format!("{:?}",&slab),
+"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(-0.0000000000000000000000000000000000000000000000000000001234)), pairs: [] } }, vals:{}, instrs:{} }");
+
+    p.parse({slab.clear(); &mut slab.ps}, "-x").unwrap();
+    assert_eq!(format!("{:?}",&slab),
+"Slab{ exprs:{ 0:Expression { first: EUnaryOp(ENeg(ValueI(0))), pairs: [] } }, vals:{ 0:ECallable(EStdFunc(EVar(VarName(`x`)))) }, instrs:{} }");
 }
 
