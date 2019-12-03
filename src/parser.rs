@@ -1,7 +1,7 @@
 use crate::slab::ParseSlab;
 use kerr::KErr;
 
-use std::str::from_utf8;
+use std::str::{from_utf8, from_utf8_unchecked};
 
 
 // === Algebra Grammar ===
@@ -191,20 +191,28 @@ enum Tok<T> {
 use Tok::{Pass, Bite};
 
 
-// Vec seems really inefficient to me because remove() does not just increment the internal pointer -- it shifts data all around.  There's also split_* methods but they seem to be designed to return new Vecs, not modify self.
-// Just use slices instead, which I know will be very efficient:
-fn peek(bs:&[u8], skip:usize) -> Option<u8> {
+#[inline]
+fn peek(bs:&[u8]) -> Option<u8> {
+    if !bs.is_empty() { Some(bs[0]) }
+    else { None }
+}
+#[inline]
+fn peek_n(bs:&[u8], skip:usize) -> Option<u8> {
+    // This is slightly different than slice.get(i) because we return a u8, not a ref.
     if bs.len()>skip { Some(bs[skip]) }
     else { None }
 }
+#[inline]
 fn is_at_eof(bs:&[u8]) -> bool { bs.is_empty() }
+#[inline]
 fn peek_is(bs:&[u8], skip:usize, val:u8) -> bool {
-    match peek(bs,skip) {
+    match peek_n(bs,skip) {
         Some(b) => b==val,
         None => false,
     }
 }
 
+#[inline]
 fn read(bs:&mut &[u8]) -> Result<u8, KErr> {
     if !bs.is_empty() {
         let b = bs[0];
@@ -213,14 +221,31 @@ fn read(bs:&mut &[u8]) -> Result<u8, KErr> {
     } else { Err(KErr::new("EOF")) }
 }
 
+#[inline]
+fn skip(bs:&mut &[u8]) -> Result<(), KErr> {
+    if !bs.is_empty() {
+        *bs = &bs[1..];
+        Ok(())
+    } else { Err(KErr::new("EOF")) }
+}
+#[inline]
+fn skip_n(bs:&mut &[u8], n:usize) -> Result<(), KErr> {
+    if bs.len()>=n {
+        *bs = &bs[n..];
+        Ok(())
+    } else { Err(KErr::new("EOF")) }
+}
+
+#[inline]
 fn is_space(b:u8) -> bool {
     if b>b' ' { return false }  // Try to improve performance of the common case.
     b==b' ' || b==b'\n' || b==b'\t' || b==b'\r'
 }
-fn space(bs:&mut &[u8]) {
-    while let Some(b) = peek(bs,0) {
+#[inline]
+fn spaces(bs:&mut &[u8]) {
+    while let Some(b) = peek(bs) {
         if !is_space(b) { break }
-        let _ = read(bs);
+        skip(bs).unwrap();
     }
 }
 
@@ -233,20 +258,6 @@ pub struct Parser {
 impl Parser {
     pub fn new() -> Parser {
         Parser{ char_buf:String::with_capacity(64) }
-    }
-
-    #[inline]
-    fn is_const_byte(b:u8, i:usize) -> bool {
-        if b'0'<=b && b<=b'9' || b==b'.' { return true }
-        if i>0 && ( b==b'k' || b==b'K' || b==b'M' || b==b'G' || b==b'T' || b==b'm' || b==b'u' || b==b'n' || b==b'p' || b==b'e' || b==b'E' ) { return true }
-        false
-    }
-    #[inline]
-    fn is_const_byte_opt(bo:Option<u8>, i:usize) -> bool {
-        match bo {
-            Some(b) => Self::is_const_byte(b,i),
-            None => false,
-        }
     }
 
     #[inline]
@@ -281,7 +292,7 @@ impl Parser {
                 }
             }
         }
-        space(bs);
+        spaces(bs);
         if expect_eof && !is_at_eof(bs) {
             let bs_str = from_utf8(bs).map_err(|_| KErr::new("Utf8Error while handling 'unparsed tokens remaining' error."))?;
             return Err(KErr::new("unparsed tokens remaining").pre(bs_str));
@@ -306,108 +317,184 @@ impl Parser {
     }
 
     fn read_const(&mut self, bs:&mut &[u8]) -> Result<Tok<Constant>, KErr> {
-        space(bs);
+        spaces(bs);
 
-        // Grammar: [+-]?[0-9]*(\.[0-9]+)?( ([eE][+-]?[0-9]+) || [pnuµmkKMGT] )?
-        #[inline]
-        fn peek_digits(bs:&[u8]) -> usize {
-            let mut i = 0;
-            while i<bs.len() && b'0'<=bs[i] && bs[i]<=b'9' { i+=1; }
-            i
-        }
-        #[inline]
-        fn peek_exp(bs:&[u8]) -> Result<usize, KErr> {
-            if bs.is_empty() { return Err(KErr::new("peek_exp empty")); }
-            let mut i = 0;
-            if bs[i]==b'-' || bs[i]==b'+' { i+=1; }
-            let digits = peek_digits(&bs[i..]);
-            if digits==0 { return Err(KErr::new("peek_exp no digits")); }
-            Ok(i+digits)
-        }
-        #[inline]
-        fn peek_tail(bs:&[u8]) -> Result<(/*read:*/usize, /*skip:*/usize, /*exp:*/i32), KErr> {
-            if bs.is_empty() { return Ok((0,0,0)); }
-            match bs[0] {
-                b'k' | b'K' => Ok((0,1,3)),
-                b'M' => Ok((0,1,6)),
-                b'G' => Ok((0,1,9)),
-                b'T' => Ok((0,1,12)),
-                b'm' => Ok((0,1,-3)),
-                b'u' | b'\xb5' => Ok((0,1,-6)),  // ASCII-encoded 'µ'
-                b'\xc2' if bs.len()>1 && bs[1]==b'\xb5' => Ok((0,2,-6)),  // UTF8-encoded 'µ'
-                b'n' => Ok((0,1,-9)),
-                b'p' => Ok((0,1,-12)),
-                b'e' | b'E' => peek_exp(&bs[1..]).map(|size| (1+size,0,0)),
-                _ => Ok((0,0,0)),
+        let mut toklen=0;  let mut sign_ok=true;  let mut specials_ok=true;  let mut suffix_ok=true;  let mut saw_val=false;
+        while toklen<bs.len() {
+            let b = bs[toklen];
+            if b'0'<=b && b<=b'9' || b==b'.' {
+                saw_val = true;
+                sign_ok=false; specials_ok=false;
+                toklen += 1;
+            } else if sign_ok && (b==b'-' || b==b'+') {
+                sign_ok = false;
+                toklen += 1;
+            } else if saw_val && (b==b'e' || b==b'E') {
+                suffix_ok = false;
+                sign_ok = true;
+                toklen += 1;
+            } else if specials_ok && ( b==b'N' && peek_is(bs,toklen+1,b'a') && peek_is(bs,toklen+2,b'N')  ||  b==b'i' && peek_is(bs,toklen+1,b'n') && peek_is(bs,toklen+2,b'f') ) {
+                saw_val = true;
+                suffix_ok = false;
+                toklen += 3;
+                break;
+            } else {
+                break;
             }
         }
 
-        let mut toread=0;  let mut toskip=0;  let mut exp=0;
+        if !saw_val { return Ok(Pass); }
 
-        match peek(bs,0) {
-            None => return Ok(Pass), 
-            Some(b) => {
-                if b==b'-' || b==b'+' { toread+=1; }
-            }
-            
-        }
+        let mut tok = unsafe { from_utf8_unchecked(&bs[..toklen]) };
+        if suffix_ok {
+            match peek_n(bs,toklen) {
+                None => (),
+                Some(b) => {
+                    let (exp,suffixlen) = match b {
+                        b'k' | b'K' => (3,1),
+                        b'M' => (6,1),
+                        b'G' => (9,1),
+                        b'T' => (12,1),
+                        b'm' => (-3,1),
+                        b'u' | b'\xb5' => (-6,1),  // ASCII-encoded 'µ'
+                        b'\xc2' if peek_is(bs,toklen+1,b'\xb5') => (-6,2),  // UTF8-encoded 'µ'
+                        b'n' => (-9,1),
+                        b'p' => (-12,1),
+                        _ => (0,0),
+                    };
+                    if exp!=0 {
+                        self.char_buf.clear();
+                        self.char_buf.push_str(tok);
+                        self.char_buf.push('e');
+                        self.char_buf.push_str(&exp.to_string());
+                        tok = &self.char_buf;
 
-        let predec = peek_digits(&bs[toread..]);
-        toread+=predec;
-
-        match peek(bs, toread) {
-            None => {
-                if predec==0 { return Ok(Pass); }
-            }
-            Some(b) => {
-                if b==b'.' {
-                    toread+=1;
-                    let postdec = peek_digits(&bs[toread..]);
-                    if predec==0 && postdec==0 { return Err(KErr::new("decimal without pre- or post-digits")); }
-                    toread+=postdec;
-                } else {
-                    if predec==0 { return Ok(Pass); }
+                        toklen += suffixlen;
+                    }
                 }
-                let (rd,sk,ex) = peek_tail(&bs[toread..])?;
-                toread+=rd;  toskip=sk;  exp=ex;
             }
         }
 
-        self.char_buf.clear();
-        for _ in 0..toread { self.char_buf.push(read(bs)? as char); }
-        for _ in 0..toskip { read(bs)?; }
-        if exp!=0 { self.char_buf.push('e'); self.char_buf.push_str(&exp.to_string()); }
+        let val = tok.parse::<f64>().map_err(|_| { KErr::new("parse<f64> error").pre(tok) })?;
+        skip_n(bs,toklen)?;
 
-        let val = self.char_buf.parse::<f64>().map_err(|_| {
-            KErr::new("parse<f64> error").pre(&self.char_buf)
-        })?;
         Ok(Bite(Constant(val)))
     }
 
+    // // This implementation is beautiful and correct, but it is slow due to the fact that I am first parsing everything,
+    // // and then I'm calling parse::<f64> which repeats the entire process.
+    // // I wish I could just call dec2flt::convert() ( https://doc.rust-lang.org/src/core/num/dec2flt/mod.rs.html#247 )
+    // // with all the pieces I already parsed, but, alas, that function is private.
+    // //
+    // // Also, I have decided that I really do need to support 'NaN' and 'inf'.  I could add them below, but instead,
+    // // I think I will just switch back to a drastically-simplified parser which isn't as "correct", but re-uses
+    // // more functionality from the stdlib.
+    // //
+    // // As a side-note, It's surprising how similar these algorithms are (which I created from scratch at 3am with no reference),
+    // // compared to the dec2flt::parse module.
+    // fn read_const(&mut self, bs:&mut &[u8]) -> Result<Tok<Constant>, KErr> {
+    //     spaces(bs);
+    //
+    //     // Grammar: [+-]?[0-9]*(\.[0-9]+)?( ([eE][+-]?[0-9]+) || [pnuµmkKMGT] )?
+    //     #[inline]
+    //     fn peek_digits(bs:&[u8]) -> usize {
+    //         let mut i = 0;
+    //         while i<bs.len() && b'0'<=bs[i] && bs[i]<=b'9' { i+=1; }
+    //         i
+    //     }
+    //     #[inline]
+    //     fn peek_exp(bs:&[u8]) -> Result<usize, KErr> {
+    //         if bs.is_empty() { return Err(KErr::new("peek_exp empty")); }
+    //         let mut i = 0;
+    //         if bs[i]==b'-' || bs[i]==b'+' { i+=1; }
+    //         let digits = peek_digits(&bs[i..]);
+    //         if digits==0 { return Err(KErr::new("peek_exp no digits")); }
+    //         Ok(i+digits)
+    //     }
+    //     #[inline]
+    //     fn peek_tail(bs:&[u8]) -> Result<(/*read:*/usize, /*skip:*/usize, /*exp:*/i32), KErr> {
+    //         if bs.is_empty() { return Ok((0,0,0)); }
+    //         match bs[0] {
+    //             b'k' | b'K' => Ok((0,1,3)),
+    //             b'M' => Ok((0,1,6)),
+    //             b'G' => Ok((0,1,9)),
+    //             b'T' => Ok((0,1,12)),
+    //             b'm' => Ok((0,1,-3)),
+    //             b'u' | b'\xb5' => Ok((0,1,-6)),  // ASCII-encoded 'µ'
+    //             b'\xc2' if bs.len()>1 && bs[1]==b'\xb5' => Ok((0,2,-6)),  // UTF8-encoded 'µ'
+    //             b'n' => Ok((0,1,-9)),
+    //             b'p' => Ok((0,1,-12)),
+    //             b'e' | b'E' => peek_exp(&bs[1..]).map(|size| (1+size,0,0)),
+    //             _ => Ok((0,0,0)),
+    //         }
+    //     }
+    //
+    //     let mut toread=0;  let mut toskip=0;  let mut exp=0;
+    //
+    //     match peek(bs, 0) {
+    //         None => return Ok(Pass), 
+    //         Some(b) => {
+    //             if b==b'-' || b==b'+' { toread+=1; }
+    //         }
+    //         
+    //     }
+    //
+    //     let predec = peek_digits(&bs[toread..]);
+    //     toread+=predec;
+    //
+    //     match peek(bs, toread) {
+    //         None => {
+    //             if predec==0 { return Ok(Pass); }
+    //         }
+    //         Some(b) => {
+    //             if b==b'.' {
+    //                 toread+=1;
+    //                 let postdec = peek_digits(&bs[toread..]);
+    //                 if predec==0 && postdec==0 { return Err(KErr::new("decimal without pre- or post-digits")); }
+    //                 toread+=postdec;
+    //             } else {
+    //                 if predec==0 { return Ok(Pass); }
+    //             }
+    //             let (rd,sk,ex) = peek_tail(&bs[toread..])?;
+    //             toread+=rd;  toskip=sk;  exp=ex;
+    //         }
+    //     }
+    //
+    //     self.char_buf.clear();
+    //     for _ in 0..toread { self.char_buf.push(read(bs)? as char); }
+    //     for _ in 0..toskip { read(bs)?; }
+    //     if exp!=0 { self.char_buf.push('e'); self.char_buf.push_str(&exp.to_string()); }
+    //
+    //     let val = self.char_buf.parse::<f64>().map_err(|_| {
+    //         KErr::new("parse<f64> error").pre(&self.char_buf)
+    //     })?;
+    //     Ok(Bite(Constant(val)))
+    // }
+
     fn read_unaryop(&mut self, slab:&mut ParseSlab, bs:&mut &[u8]) -> Result<Tok<UnaryOp>, KErr> {
-        space(bs);
-        match peek(bs,0) {
+        spaces(bs);
+        match peek(bs) {
             None => Ok(Pass),  // Err(KErr::new("EOF at UnaryOp position")), -- Instead of erroring, let the higher level decide what to do.
             Some(b) => match b {
                 b'+' => {
-                    read(bs)?;
+                    skip(bs)?;
                     let v = self.read_value(slab,bs)?;
                     Ok(Bite(EPos(slab.push_val(v)?)))
                 }
                 b'-' => {
-                    read(bs)?;
+                    skip(bs)?;
                     let v = self.read_value(slab,bs)?;
                     Ok(Bite(ENeg(slab.push_val(v)?)))
                 }
                 b'(' => {
-                    read(bs)?;
+                    skip(bs)?;
                     let xi = self.read_expression(slab,bs,false)?;
-                    space(bs);
+                    spaces(bs);
                     if read(bs)? != b')' { return Err(KErr::new("Expected ')'")) }
                     Ok(Bite(EParentheses(xi)))
                 }
                 b'!' => {
-                    read(bs)?;
+                    skip(bs)?;
                     let v = self.read_value(slab,bs)?;
                     Ok(Bite(ENot(slab.push_val(v)?)))
                 }
@@ -417,29 +504,29 @@ impl Parser {
     }
 
     fn read_binaryop(&self, bs:&mut &[u8]) -> Result<Tok<BinaryOp>, KErr> {
-        space(bs);
-        match peek(bs,0) {
+        spaces(bs);
+        match peek(bs) {
             None => Ok(Pass), // Err(KErr::new("EOF")), -- EOF is usually OK in a BinaryOp position.
             Some(b) => match b {
-                b'+' => { read(bs)?; Ok(Bite(EAdd)) }
-                b'-' => { read(bs)?; Ok(Bite(ESub)) }
-                b'*' => { read(bs)?; Ok(Bite(EMul)) }
-                b'/' => { read(bs)?; Ok(Bite(EDiv)) }
-                b'%' => { read(bs)?; Ok(Bite(EMod)) }
-                b'^' => { read(bs)?; Ok(Bite(EExp)) }
-                b'<' => { read(bs)?;
-                          if peek_is(bs,0,b'=') { read(bs)?; Ok(Bite(ELTE)) }
+                b'+' => { skip(bs)?; Ok(Bite(EAdd)) }
+                b'-' => { skip(bs)?; Ok(Bite(ESub)) }
+                b'*' => { skip(bs)?; Ok(Bite(EMul)) }
+                b'/' => { skip(bs)?; Ok(Bite(EDiv)) }
+                b'%' => { skip(bs)?; Ok(Bite(EMod)) }
+                b'^' => { skip(bs)?; Ok(Bite(EExp)) }
+                b'<' => { skip(bs)?;
+                          if peek_is(bs,0,b'=') { skip(bs)?; Ok(Bite(ELTE)) }
                           else { Ok(Bite(ELT)) } }
-                b'>' => { read(bs)?;
-                          if peek_is(bs,0,b'=') { read(bs)?; Ok(Bite(EGTE)) }
+                b'>' => { skip(bs)?;
+                          if peek_is(bs,0,b'=') { skip(bs)?; Ok(Bite(EGTE)) }
                           else { Ok(Bite(EGT)) } }
-                b'=' if peek_is(bs,1,b'=') => { read(bs)?; read(bs)?;
+                b'=' if peek_is(bs,1,b'=') => { skip_n(bs,2)?;
                                                 Ok(Bite(EEQ)) }
-                b'!' if peek_is(bs,1,b'=') => { read(bs)?; read(bs)?;
+                b'!' if peek_is(bs,1,b'=') => { skip_n(bs,2)?;
                                                 Ok(Bite(ENE)) }
-                b'o' if peek_is(bs,1,b'r') => { read(bs)?; read(bs)?;
+                b'o' if peek_is(bs,1,b'r') => { skip_n(bs,2)?;
                                                 Ok(Bite(EOR)) }
-                b'a' if peek_is(bs,1,b'n') && peek_is(bs,2,b'd') => { read(bs)?; read(bs)?; read(bs)?;
+                b'a' if peek_is(bs,1,b'n') && peek_is(bs,2,b'd') => { skip_n(bs,3)?;
                                                                       Ok(Bite(EAND)) }
                 _ => Ok(Pass),
             }
@@ -469,23 +556,23 @@ impl Parser {
     }
 
     fn read_varname(&mut self, bs:&mut &[u8]) -> Result<Tok<VarName>, KErr> {
-        space(bs);
+        spaces(bs);
 
-        self.char_buf.clear();
-        while self.is_varname_byte_opt(peek(bs,0),self.char_buf.len()) {
-            self.char_buf.push(read(bs)? as char);
-        }
+        let mut toklen = 0;
+        while self.is_varname_byte_opt(peek_n(bs,toklen),toklen) { toklen+=1; }
 
-        if self.char_buf.is_empty() { return Ok(Pass); }  // This is NOT a Pass after a read() -- len=0 so no read occurred.
+        if toklen==0 { return Ok(Pass); }
 
-        Ok(Bite(VarName(self.char_buf.clone())))
+        let out = unsafe { from_utf8_unchecked(&bs[..toklen]) }.to_string();
+        skip_n(bs, toklen)?;
+        Ok(Bite(VarName(out)))
     }
 
     fn read_open_parenthesis(&mut self, bs:&mut &[u8]) -> Result<Tok<()>, KErr> {
-        space(bs);
+        spaces(bs);
 
-        if peek(bs,0) == Some(b'(') {
-            read(bs)?;
+        if peek_is(bs,0,b'(') {
+            skip(bs)?;
             return Ok(Bite(()));
         }
         Ok(Pass)
@@ -494,11 +581,11 @@ impl Parser {
     fn read_func(&mut self, fname:VarName, slab:&mut ParseSlab, bs:&mut &[u8]) -> Result<StdFunc, KErr> {
         let mut args = Vec::<ExpressionI>::with_capacity(4);
         loop {
-            space(bs);
-            match peek(bs,0) {
+            spaces(bs);
+            match peek(bs) {
                 Some(b) => {
                     if b==b')' {
-                        read(bs)?;
+                        skip(bs)?;
                         break;
                     }
                 }
@@ -628,11 +715,11 @@ impl Parser {
     fn read_printfunc(&mut self, slab:&mut ParseSlab, bs:&mut &[u8]) -> Result<PrintFunc, KErr> {
         let mut args = Vec::<ExpressionOrString>::with_capacity(8);
         loop {
-            space(bs);
-            match peek(bs,0) {
+            spaces(bs);
+            match peek(bs) {
                 Some(b) => {
                     if b==b')' {
-                        read(bs)?;
+                        skip(bs)?;
                         break;
                     }
                 }
@@ -662,11 +749,11 @@ impl Parser {
 
 
         loop {
-            space(bs);
-            match peek(bs,0) {
+            spaces(bs);
+            match peek(bs) {
                 Some(b) => {
                     if b==b')' {
-                        read(bs)?;   
+                        skip(bs)?;   
                         break;
                     }
                 }
@@ -682,7 +769,7 @@ impl Parser {
                 Ok(Bite(v)) => name=v,
                 Err(e) => return Err(e),
             }
-            space(bs);
+            spaces(bs);
             if let Ok(b'=') = read(bs) {
             } else { return Err(KErr::new("expected '='")) }
             let expr = self.read_expression(slab,bs,false)?;
@@ -703,11 +790,11 @@ impl Parser {
     }
 
     fn read_string(&mut self, bs:&mut &[u8]) -> Result<Tok<String>,KErr> {
-        space(bs);
+        spaces(bs);
 
-        match peek(bs,0) {
+        match peek(bs) {
             None => return Err(KErr::new("EOF while reading opening quote of string")),
-            Some(b'"') => { read(bs)?; }
+            Some(b'"') => { skip(bs)?; }
             Some(_) => { return Ok(Pass) }
         }
 
@@ -736,13 +823,13 @@ mod internal_tests {
             let bsarr = [1,2,3];
             let bs = &mut &bsarr[..];
 
-            assert_eq!(peek(bs,0), Some(1));
-            assert_eq!(peek(bs,1), Some(2));
-            assert_eq!(peek(bs,2), Some(3));
-            assert_eq!(peek(bs,3), None);
+            assert_eq!(peek(bs), Some(1));
+            assert_eq!(peek_n(bs,1), Some(2));
+            assert_eq!(peek_n(bs,2), Some(3));
+            assert_eq!(peek_n(bs,3), None);
 
             assert_eq!(read(bs)?, 1);
-            assert_eq!(read(bs)?, 2);
+            skip(bs)?;
             assert_eq!(read(bs)?, 3);
             match read(bs).err() {
                 Some(KErr{..}) => {}  // Can I improve this so I can match the "EOF" ?
@@ -773,7 +860,7 @@ mod internal_tests {
         {
             let bsarr = b"  abc 123   ";
             let bs = &mut &bsarr[..];
-            space(bs);
+            spaces(bs);
             assert_eq!(bs, b"abc 123   ");
         }
     }
@@ -782,7 +869,6 @@ mod internal_tests {
     fn priv_tests() {
         let mut p = Parser::new();
         assert!(p.is_varname_byte_opt(Some(b'a'),0));
-        assert!(!Parser::is_const_byte_opt(Some(b'a'),0));
 
         let mut slab = Slab::new();
         

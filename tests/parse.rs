@@ -44,9 +44,9 @@ fn consts() {
     assert_eq!(format!("{:?}",&slab),
 "Slab{ exprs:{ 0:Expression { first: EConstant(Constant(12.0)), pairs: [] } }, vals:{}, instrs:{} }");
 
-    assert_eq!(p.parse({slab.clear(); &mut slab.ps}, "."), Err(KErr::new("decimal without pre- or post-digits")));
+    assert_eq!(p.parse({slab.clear(); &mut slab.ps}, "."), Err(KErr::new("parse<f64> error")));
 
-    assert_eq!(p.parse({slab.clear(); &mut slab.ps}, "12..34"), Err(KErr::new("unparsed tokens remaining")));
+    assert_eq!(p.parse({slab.clear(); &mut slab.ps}, "12..34"), Err(KErr::new("parse<f64> error")));
 
     p.parse({slab.clear(); &mut slab.ps}, "12.34k").unwrap();
     assert_eq!(format!("{:?}",&slab),
@@ -92,7 +92,15 @@ fn consts() {
     assert_eq!(format!("{:?}",&slab),
 "Slab{ exprs:{ 0:Expression { first: EConstant(Constant(1234000000000000000000000000000000000000000000000000000000.0)), pairs: [] } }, vals:{}, instrs:{} }");
 
+    p.parse({slab.clear(); &mut slab.ps}, "12.34e+56").unwrap();
+    assert_eq!(format!("{:?}",&slab),
+"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(1234000000000000000000000000000000000000000000000000000000.0)), pairs: [] } }, vals:{}, instrs:{} }");
+
     p.parse({slab.clear(); &mut slab.ps}, "12.34E56").unwrap();
+    assert_eq!(format!("{:?}",&slab),
+"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(1234000000000000000000000000000000000000000000000000000000.0)), pairs: [] } }, vals:{}, instrs:{} }");
+
+    p.parse({slab.clear(); &mut slab.ps}, "12.34E+56").unwrap();
     assert_eq!(format!("{:?}",&slab),
 "Slab{ exprs:{ 0:Expression { first: EConstant(Constant(1234000000000000000000000000000000000000000000000000000000.0)), pairs: [] } }, vals:{}, instrs:{} }");
 
@@ -115,5 +123,36 @@ fn consts() {
     p.parse({slab.clear(); &mut slab.ps}, "-x").unwrap();
     assert_eq!(format!("{:?}",&slab),
 "Slab{ exprs:{ 0:Expression { first: EUnaryOp(ENeg(ValueI(0))), pairs: [] } }, vals:{ 0:ECallable(EStdFunc(EVar(VarName(`x`)))) }, instrs:{} }");
+
+    p.parse({slab.clear(); &mut slab.ps}, "NaN").unwrap();
+    assert_eq!(format!("{:?}",&slab),
+"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(NaN)), pairs: [] } }, vals:{}, instrs:{} }");
+
+    p.parse({slab.clear(); &mut slab.ps}, "+NaN").unwrap();
+    assert_eq!(format!("{:?}",&slab),
+"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(NaN)), pairs: [] } }, vals:{}, instrs:{} }");
+
+    p.parse({slab.clear(); &mut slab.ps}, "-NaN").unwrap();
+    assert_eq!(format!("{:?}",&slab),
+"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(NaN)), pairs: [] } }, vals:{}, instrs:{} }");
+
+    p.parse({slab.clear(); &mut slab.ps}, "inf").unwrap();
+    assert_eq!(format!("{:?}",&slab),
+"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(inf)), pairs: [] } }, vals:{}, instrs:{} }");
+
+    p.parse({slab.clear(); &mut slab.ps}, "+inf").unwrap();
+    assert_eq!(format!("{:?}",&slab),
+"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(inf)), pairs: [] } }, vals:{}, instrs:{} }");
+
+    p.parse({slab.clear(); &mut slab.ps}, "-inf").unwrap();
+    assert_eq!(format!("{:?}",&slab),
+"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(-inf)), pairs: [] } }, vals:{}, instrs:{} }");
+
+
+
+    assert_eq!(p.parse({slab.clear(); &mut slab.ps}, "-infK"), Err(KErr::new("unparsed tokens remaining")));
+    assert_eq!(p.parse({slab.clear(); &mut slab.ps}, "NaNK"), Err(KErr::new("unparsed tokens remaining")));
+    assert_eq!(p.parse({slab.clear(); &mut slab.ps}, "12.34e56K"), Err(KErr::new("unparsed tokens remaining")));
+
 }
 
