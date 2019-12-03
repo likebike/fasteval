@@ -54,6 +54,7 @@ fn comp_chk(expr_str:&str, expect_instr:Instruction, expect_fmt:&str, expect_eva
 
     assert_eq!(instr, expect_instr);
     assert_eq!(format!("{:?}",slab.cs), expect_fmt);
+
     let mut ns = EvalNS::new(|name,args| {
         match name {
             "w" => Some(0.0),
