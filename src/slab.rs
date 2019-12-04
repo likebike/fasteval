@@ -24,8 +24,9 @@ pub struct Slab {
     pub cs: CompileSlab,
 }
 pub struct ParseSlab {
-    exprs:Vec<Expression>,
-    vals: Vec<Value>,
+        exprs:   Vec<Expression>,
+        vals:    Vec<Value>,
+    pub char_buf:String,
 }
 pub struct CompileSlab {
     instrs:Vec<Instruction>,
@@ -82,8 +83,9 @@ impl Slab {
     pub fn with_capacity(cap:usize) -> Self {
         Self{
             ps:ParseSlab{
-                exprs:Vec::with_capacity(cap),
-                vals: Vec::with_capacity(cap),
+                exprs:   Vec::with_capacity(cap),
+                vals:    Vec::with_capacity(cap),
+                char_buf:String::with_capacity(64),
             },
             cs:CompileSlab{instrs:Vec::new()},  // Don't pre-allocation for compilation.
         }
