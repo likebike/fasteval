@@ -30,6 +30,18 @@
 //     test preparse_precompile_eval_1000x    ... bench:         738 ns/iter (+/- 42)
 //     test preparse_precompile_eval          ... bench:           0 ns/iter (+/- 0)
 //     test preparse_precompile_nsbubble_eval ... bench:           0 ns/iter (+/- 0)
+//     func-only implementation:
+//     test ez                                ... bench:         579 ns/iter (+/- 57)
+//     test native_1000x                      ... bench:         329 ns/iter (+/- 25)
+//     test parse_compile_eval                ... bench:         682 ns/iter (+/- 46)
+//     test parse_eval_1000x                  ... bench:     413,403 ns/iter (+/- 50,262)
+//     test parse_eval                        ... bench:         418 ns/iter (+/- 49)
+//     test parse_nsbubble_eval               ... bench:         421 ns/iter (+/- 34)
+//     test preparse_eval_1000x               ... bench:     112,795 ns/iter (+/- 14,497)
+//     test preparse_eval                     ... bench:         113 ns/iter (+/- 7)
+//     test preparse_precompile_eval_1000x    ... bench:         733 ns/iter (+/- 57)
+//     test preparse_precompile_eval          ... bench:           0 ns/iter (+/- 0)
+//     test preparse_precompile_nsbubble_eval ... bench:           0 ns/iter (+/- 0)
 //
 //     "2 ^ 3 ^ 4"  = 2417851639229258300000000
 //     test ez                                ... bench:         596 ns/iter (+/- 69)
@@ -95,6 +107,19 @@
 //     test preparse_precompile_eval_1000x    ... bench:         737 ns/iter (+/- 48)
 //     test preparse_precompile_eval          ... bench:           0 ns/iter (+/- 0)
 //     test preparse_precompile_nsbubble_eval ... bench:           0 ns/iter (+/- 0)
+//     func-only implementation:
+//     test ez                                ... bench:      12,095 ns/iter (+/- 1,000)
+//     test native_1000x                      ... bench:         336 ns/iter (+/- 59)
+//     test parse_compile_eval                ... bench:      16,144 ns/iter (+/- 4,616)
+//     test parse_eval_1000x                  ... bench:  11,941,587 ns/iter (+/- 2,694,005)
+//     test parse_eval                        ... bench:      11,962 ns/iter (+/- 1,333)
+//     test parse_nsbubble_eval               ... bench:      11,875 ns/iter (+/- 1,065)
+//     test preparse_eval_1000x               ... bench:   3,535,581 ns/iter (+/- 217,258)
+//     test preparse_eval                     ... bench:       3,577 ns/iter (+/- 548)
+//     test preparse_precompile_eval_1000x    ... bench:         741 ns/iter (+/- 41)
+//     test preparse_precompile_eval          ... bench:           0 ns/iter (+/- 0)
+//     test preparse_precompile_nsbubble_eval ... bench:           0 ns/iter (+/- 0)
+
 //
 //
 // python3:
@@ -298,7 +323,7 @@
 extern crate test;  // 'extern crate' seems to be required for this scenario: https://github.com/rust-lang/rust/issues/57288
 use test::{Bencher, black_box};
 
-use al::{Parser, Compiler, Evaler, Slab, EvalNS, ez_eval};
+use al::{parse, Compiler, Evaler, Slab, EvalNS, ez_eval};
 
 use std::collections::BTreeMap;
 use std::f64::NAN;
@@ -317,12 +342,12 @@ fn evalcb(name:&str, args:Vec<f64>) -> Option<f64> {
 }
 
 //static EXPR : &'static str = "(3 * (3 + 3) / 3)";
-//static EXPR : &'static str = "3 * 3 - 3 / 3";
+static EXPR : &'static str = "3 * 3 - 3 / 3";
 //static EXPR : &'static str = "2 ^ 3 ^ 4";
 //static EXPR : &'static str = "x * 2";
 //static EXPR : &'static str = "sin(x)";
 //static EXPR : &'static str = "(-z + (z^2 - 4*x*y)^0.5) / (2*x)";
-static EXPR : &'static str = "((((87))) - 73) + (97 + (((15 / 55 * ((31)) + 35))) + (15 - (9)) - (39 / 26) / 20 / 91 + 27 / (33 * 26 + 28 - (7) / 10 + 66 * 6) + 60 / 35 - ((29) - (69) / 44 / (92)) / (89) + 2 + 87 / 47 * ((2)) * 83 / 98 * 42 / (((67)) * ((97))) / (34 / 89 + 77) - 29 + 70 * (20)) + ((((((92))) + 23 * (98) / (95) + (((99) * (41))) + (5 + 41) + 10) - (36) / (6 + 80 * 52 + (90))))";
+//static EXPR : &'static str = "((((87))) - 73) + (97 + (((15 / 55 * ((31)) + 35))) + (15 - (9)) - (39 / 26) / 20 / 91 + 27 / (33 * 26 + 28 - (7) / 10 + 66 * 6) + 60 / 35 - ((29) - (69) / 44 / (92)) / (89) + 2 + 87 / 47 * ((2)) * 83 / 98 * 42 / (((67)) * ((97))) / (34 / 89 + 77) - 29 + 70 * (20)) + ((((((92))) + 23 * (98) / (95) + (((99) * (41))) + (5 + 41) + 10) - (36) / (6 + 80 * 52 + (90))))";
 
 #[bench]
 fn native_1000x(bencher:&mut Bencher) {
@@ -333,12 +358,12 @@ fn native_1000x(bencher:&mut Bencher) {
     bencher.iter(|| {
         for _ in 0..1000 {
             //black_box(3.0 * (3.0 + 3.0) / 3.0);
-            //black_box(3.0 * 3.0 - 3.0 / 3.0);
+            black_box(3.0 * 3.0 - 3.0 / 3.0);
             //black_box(2.0f64.powf(3.0).powf(4.0));
             //black_box(x() * 2.0);
             //black_box(x().sin());
             //black_box( (-b + (b.powf(2.0) - 4.0*a*c).powf(0.5)) / (2.0*a) );
-            black_box( ((((87.))) - 73.) + (97. + (((15. / 55. * ((31.)) + 35.))) + (15. - (9.)) - (39. / 26.) / 20. / 91. + 27. / (33. * 26. + 28. - (7.) / 10. + 66. * 6.) + 60. / 35. - ((29.) - (69.) / 44. / (92.)) / (89.) + 2. + 87. / 47. * ((2.)) * 83. / 98. * 42. / (((67.)) * ((97.))) / (34. / 89. + 77.) - 29. + 70. * (20.)) + ((((((92.))) + 23. * (98.) / (95.) + (((99.) * (41.))) + (5. + 41.) + 10.) - (36.) / (6. + 80. * 52. + (90.)))) );
+            //black_box( ((((87.))) - 73.) + (97. + (((15. / 55. * ((31.)) + 35.))) + (15. - (9.)) - (39. / 26.) / 20. / 91. + 27. / (33. * 26. + 28. - (7.) / 10. + 66. * 6.) + 60. / 35. - ((29.) - (69.) / 44. / (92.)) / (89.) + 2. + 87. / 47. * ((2.)) * 83. / 98. * 42. / (((67.)) * ((97.))) / (34. / 89. + 77.) - 29. + 70. * (20.)) + ((((((92.))) + 23. * (98.) / (95.) + (((99.) * (41.))) + (5. + 41.) + 10.) - (36.) / (6. + 80. * 52. + (90.)))) );
         }
     });
 }
@@ -357,23 +382,21 @@ fn ez(b:&mut Bencher) {
 
 #[bench]
 fn parse_eval(b:&mut Bencher) {
-    let mut p = Parser::new();
     let mut slab = Slab::new();
     let mut ns = EvalNS::new(evalcb);
 
     b.iter(|| {
-        black_box(p.parse({slab.clear(); &mut slab.ps}, EXPR).unwrap().from(&slab.ps).eval(&slab, &mut ns).unwrap());
+        black_box(parse({slab.clear(); &mut slab.ps}, EXPR).unwrap().from(&slab.ps).eval(&slab, &mut ns).unwrap());
     });
 }
 
 #[bench]
 fn parse_nsbubble_eval(b:&mut Bencher) {
-    let mut p = Parser::new();
     let mut slab = Slab::new();
     let mut ns = EvalNS::new(evalcb);
 
     b.iter(|| {
-        let expr_ref = p.parse({slab.clear(); &mut slab.ps}, EXPR).unwrap().from(&slab.ps);
+        let expr_ref = parse({slab.clear(); &mut slab.ps}, EXPR).unwrap().from(&slab.ps);
         black_box(
             ns.eval_bubble(&slab, expr_ref).unwrap()
         );
@@ -383,23 +406,21 @@ fn parse_nsbubble_eval(b:&mut Bencher) {
 // Let's see how much the benchmark system is affected by its self:
 #[bench]
 fn parse_eval_1000x(b:&mut Bencher) {
-    let mut p = Parser::new();
     let mut slab = Slab::new();
     let mut ns = EvalNS::new(evalcb);
 
     b.iter(|| {
         for _ in 0..1000 {
-            black_box(p.parse({slab.clear(); &mut slab.ps}, EXPR).unwrap().from(&slab.ps).eval(&slab, &mut ns).unwrap());
+            black_box(parse({slab.clear(); &mut slab.ps}, EXPR).unwrap().from(&slab.ps).eval(&slab, &mut ns).unwrap());
         }
     });
 }
 
 #[bench]
 fn preparse_eval(b:&mut Bencher) {
-    let mut p = Parser::new();
     let mut slab = Slab::new();
     let mut ns = EvalNS::new(evalcb);
-    let expr_ref = p.parse(&mut slab.ps, EXPR).unwrap().from(&slab.ps);
+    let expr_ref = parse(&mut slab.ps, EXPR).unwrap().from(&slab.ps);
 
     b.iter(|| {
         black_box(expr_ref.eval(&slab, &mut ns).unwrap());
@@ -408,10 +429,9 @@ fn preparse_eval(b:&mut Bencher) {
 
 #[bench]
 fn preparse_eval_1000x(b:&mut Bencher) {
-    let mut p = Parser::new();
     let mut slab = Slab::new();
     let mut ns = EvalNS::new(evalcb);
-    let expr_ref = p.parse(&mut slab.ps, EXPR).unwrap().from(&slab.ps);
+    let expr_ref = parse(&mut slab.ps, EXPR).unwrap().from(&slab.ps);
 
     b.iter(|| {
         for _ in 0..1000 {
@@ -422,21 +442,19 @@ fn preparse_eval_1000x(b:&mut Bencher) {
 
 #[bench]
 fn parse_compile_eval(b:&mut Bencher) {
-    let mut p = Parser::new();
     let mut slab = Slab::new();
     let mut ns = EvalNS::new(evalcb);
 
     b.iter(|| {
-        black_box(p.parse({slab.clear(); &mut slab.ps}, EXPR).unwrap().from(&slab.ps).compile(&slab.ps, &mut slab.cs).eval(&slab, &mut ns).unwrap());
+        black_box(parse({slab.clear(); &mut slab.ps}, EXPR).unwrap().from(&slab.ps).compile(&slab.ps, &mut slab.cs).eval(&slab, &mut ns).unwrap());
     });
 }
 
 #[bench]
 fn preparse_precompile_eval(b:&mut Bencher) {
-    let mut p = Parser::new();
     let mut slab = Slab::new();
     let mut ns = EvalNS::new(evalcb);
-    let expr_ref = p.parse(&mut slab.ps, EXPR).unwrap().from(&slab.ps);
+    let expr_ref = parse(&mut slab.ps, EXPR).unwrap().from(&slab.ps);
     let instr = expr_ref.compile(&slab.ps, &mut slab.cs);
 
     b.iter(|| {
@@ -450,10 +468,9 @@ fn preparse_precompile_eval(b:&mut Bencher) {
 
 #[bench]
 fn preparse_precompile_nsbubble_eval(b:&mut Bencher) {
-    let mut p = Parser::new();
     let mut slab = Slab::new();
     let mut ns = EvalNS::new(evalcb);
-    let expr_ref = p.parse(&mut slab.ps, EXPR).unwrap().from(&slab.ps);
+    let expr_ref = parse(&mut slab.ps, EXPR).unwrap().from(&slab.ps);
     let instr = expr_ref.compile(&slab.ps, &mut slab.cs);
 
     b.iter(|| {
@@ -467,10 +484,9 @@ fn preparse_precompile_nsbubble_eval(b:&mut Bencher) {
 
 #[bench]
 fn preparse_precompile_eval_1000x(b:&mut Bencher) {
-    let mut p = Parser::new();
     let mut slab = Slab::new();
     let mut ns = EvalNS::new(evalcb);
-    let expr_ref = p.parse(&mut slab.ps, EXPR).unwrap().from(&slab.ps);
+    let expr_ref = parse(&mut slab.ps, EXPR).unwrap().from(&slab.ps);
     let instr = expr_ref.compile(&slab.ps, &mut slab.cs);
 
     b.iter(|| {
@@ -487,10 +503,9 @@ fn preparse_precompile_eval_1000x(b:&mut Bencher) {
 // #[bench]
 // #[allow(non_snake_case)]
 // fn preparse_precompile_eval_100B(_:&mut Bencher) {
-//     let mut p = Parser::new();
 //     let mut slab = Slab::new();
 //     let mut ns = EvalNS::new(evalcb);
-//     let expr_ref = p.parse(&mut slab.ps, EXPR).unwrap().from(&slab.ps);
+//     let expr_ref = parse(&mut slab.ps, EXPR).unwrap().from(&slab.ps);
 //     let instr = expr_ref.compile(&slab.ps, &mut slab.cs);
 // 
 //     let start = std::time::Instant::now();

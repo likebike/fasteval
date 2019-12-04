@@ -1,34 +1,32 @@
-use al::{Parser, Compiler, Evaler, Slab, EvalNS, ExpressionI, InstructionI, VarName};
+use al::{parse, Compiler, Evaler, Slab, EvalNS, ExpressionI, InstructionI, VarName};
 use al::parser::{PrintFunc, ExpressionOrString::{EExpr, EStr}, EvalFunc, KWArg};
 use al::compiler::Instruction::{self, IConst, INeg, INot, IInv, IAdd, IMul, IMod, IExp, ILT, ILTE, IEQ, INE, IGTE, IGT, IAND, IOR, IVar, IFunc, IFuncInt, IFuncCeil, IFuncFloor, IFuncAbs, IFuncSign, IFuncLog, IFuncRound, IFuncMin, IFuncMax, IFuncSin, IFuncCos, IFuncTan, IFuncASin, IFuncACos, IFuncATan, IFuncSinH, IFuncCosH, IFuncTanH, IFuncASinH, IFuncACosH, IFuncATanH, IPrintFunc, IEvalFunc};
 use kerr::KErr;
 
 #[test]
 fn slab_overflow() {
-    let mut p = Parser::new();
     let mut slab = Slab::with_capacity(2);
-    assert_eq!(p.parse({slab.clear(); &mut slab.ps}, "1 + 2 + -3 + ( +4 )"), Ok(ExpressionI(1)));
+    assert_eq!(parse({slab.clear(); &mut slab.ps}, "1 + 2 + -3 + ( +4 )"), Ok(ExpressionI(1)));
     assert_eq!(format!("{:?}", slab),
 "Slab{ exprs:{ 0:Expression { first: EConstant(Constant(4.0)), pairs: [] }, 1:Expression { first: EConstant(Constant(1.0)), pairs: [ExprPair(EAdd, EConstant(Constant(2.0))), ExprPair(EAdd, EConstant(Constant(-3.0))), ExprPair(EAdd, EUnaryOp(EParentheses(ExpressionI(0))))] } }, vals:{}, instrs:{} }");
 
-    assert_eq!(p.parse({slab.clear(); &mut slab.ps}, "1 + 2 + -3 + ( ++4 )"), Ok(ExpressionI(1)));
+    assert_eq!(parse({slab.clear(); &mut slab.ps}, "1 + 2 + -3 + ( ++4 )"), Ok(ExpressionI(1)));
     assert_eq!(format!("{:?}", slab),
 "Slab{ exprs:{ 0:Expression { first: EUnaryOp(EPos(ValueI(0))), pairs: [] }, 1:Expression { first: EConstant(Constant(1.0)), pairs: [ExprPair(EAdd, EConstant(Constant(2.0))), ExprPair(EAdd, EConstant(Constant(-3.0))), ExprPair(EAdd, EUnaryOp(EParentheses(ExpressionI(0))))] } }, vals:{ 0:EConstant(Constant(4.0)) }, instrs:{} }");
 
-    assert_eq!(p.parse({slab.clear(); &mut slab.ps}, "1 + 2 + -3 + ( +++4 )"), Ok(ExpressionI(1)));
+    assert_eq!(parse({slab.clear(); &mut slab.ps}, "1 + 2 + -3 + ( +++4 )"), Ok(ExpressionI(1)));
     assert_eq!(format!("{:?}", slab),
 "Slab{ exprs:{ 0:Expression { first: EUnaryOp(EPos(ValueI(1))), pairs: [] }, 1:Expression { first: EConstant(Constant(1.0)), pairs: [ExprPair(EAdd, EConstant(Constant(2.0))), ExprPair(EAdd, EConstant(Constant(-3.0))), ExprPair(EAdd, EUnaryOp(EParentheses(ExpressionI(0))))] } }, vals:{ 0:EConstant(Constant(4.0)), 1:EUnaryOp(EPos(ValueI(0))) }, instrs:{} }");
 
-    assert_eq!(p.parse({slab.clear(); &mut slab.ps}, "1 + 2 + -3 + ( ++++4 )"), Err(KErr::new("slab val overflow")));
+    assert_eq!(parse({slab.clear(); &mut slab.ps}, "1 + 2 + -3 + ( ++++4 )"), Err(KErr::new("slab val overflow")));
 }
 
 #[test]
 fn basics() {
-    let mut p = Parser::new();
     let mut slab = Slab::new();
     let mut ns = EvalNS::new(|_,_| None);
 
-    let expr_i = p.parse({slab.clear(); &mut slab.ps}, "3*3-3/3+1").unwrap();
+    let expr_i = parse({slab.clear(); &mut slab.ps}, "3*3-3/3+1").unwrap();
     let expr_ref = slab.ps.get_expr(expr_i);
     let instr = expr_ref.compile(&slab.ps, &mut slab.cs);
     assert_eq!(instr, IConst(9.0));
@@ -40,16 +38,14 @@ fn basics() {
 
 
 fn comp(expr_str:&str) -> (Slab, Instruction) {
-    let mut p = Parser::new();
     let mut slab = Slab::new();
-    let instr = p.parse(&mut slab.ps, expr_str).unwrap().from(&slab.ps).compile(&slab.ps, &mut slab.cs);
+    let instr = parse(&mut slab.ps, expr_str).unwrap().from(&slab.ps).compile(&slab.ps, &mut slab.cs);
     (slab, instr)
 }
 
 fn comp_chk(expr_str:&str, expect_instr:Instruction, expect_fmt:&str, expect_eval:f64) {
-    let mut p = Parser::new();
     let mut slab = Slab::new();
-    let expr = p.parse(&mut slab.ps, expr_str).unwrap().from(&slab.ps);
+    let expr = parse(&mut slab.ps, expr_str).unwrap().from(&slab.ps);
     let instr = expr.compile(&slab.ps, &mut slab.cs);
 
     assert_eq!(instr, expect_instr);

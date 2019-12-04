@@ -1,4 +1,4 @@
-use al::{Parser, Compiler, Evaler, Slab, EvalNS};
+use al::{parse, Compiler, Evaler, Slab, EvalNS};
 use kerr::KErr;
 
 use std::str::from_utf8;
@@ -17,9 +17,8 @@ fn evalns_cb(name:&str, args:Vec<f64>) -> Option<f64> {
 }
 
 fn chk_ok(expr_str:&str, expect_compile_str:&str, expect_slab_str:&str, expect_eval:f64) {
-    let mut parser = Parser::new();
     let mut slab = Slab::new();
-    let expr = parser.parse(&mut slab.ps, expr_str).unwrap().from(&slab.ps);
+    let expr = parse(&mut slab.ps, expr_str).unwrap().from(&slab.ps);
     let instr = expr.compile(&slab.ps, &mut slab.cs);
 
     assert_eq!(format!("{:?}",instr), expect_compile_str);
@@ -33,16 +32,14 @@ fn chk_ok(expr_str:&str, expect_compile_str:&str, expect_slab_str:&str, expect_e
 }
 
 fn chk_perr(expr_str:&str, expect_err:&str) {
-    let mut parser = Parser::new();
     let mut slab = Slab::new();
-    let res = parser.parse(&mut slab.ps, expr_str);
+    let res = parse(&mut slab.ps, expr_str);
     assert_eq!(res, Err(KErr::new(expect_err)));
 }
 
 fn chk_eerr(expr_str:&str, expect_err:&str) {
-    let mut parser = Parser::new();
     let mut slab = Slab::new();
-    let expr = parser.parse(&mut slab.ps, expr_str).unwrap().from(&slab.ps);
+    let expr = parse(&mut slab.ps, expr_str).unwrap().from(&slab.ps);
     let instr = expr.compile(&slab.ps, &mut slab.cs);
     let mut ns = EvalNS::new(evalns_cb);
     assert_eq!(instr.eval(&slab, &mut ns), Err(KErr::new(expect_err)));

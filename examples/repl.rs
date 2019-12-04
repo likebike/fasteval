@@ -1,6 +1,6 @@
 // usage: rlwrap cargo run --release --example repl
 
-use al::{Parser, Slab, EvalNS};
+use al::{parse, Slab, EvalNS};
 
 use std::collections::BTreeMap;
 use std::io::{self, BufRead, Write};
@@ -11,7 +11,6 @@ fn main() {
 }
 
 fn repl() {
-    let mut parser = Parser::new();
     let mut slab = Slab::new();
     let ns_map = RefCell::new(BTreeMap::new());
     let mut ns = EvalNS::new(|name, _args| {
@@ -43,7 +42,7 @@ fn repl() {
             line = pieces[3..].join(" ");
         }
 
-        let expr_ref = match parser.parse(&mut slab.ps, &line) {
+        let expr_ref = match parse(&mut slab.ps, &line) {
             Ok(expr_i) => slab.ps.get_expr(expr_i),
             Err(err) => {
                 eprintln!("parse error: {}", err);

@@ -1,4 +1,4 @@
-use crate::parser::Parser;
+use crate::parser::parse;
 use crate::slab::Slab;
 use crate::evalns::EvalNS;
 use crate::evaler::Evaler;
@@ -8,17 +8,16 @@ use kerr::KErr;
 use std::collections::BTreeMap;
 
 pub fn ez_eval(expr_str:&str, vars:&BTreeMap<String,f64>) -> Result<f64,KErr> {
-    let mut parser = Parser::new();
     let mut slab = Slab::new();           // A big block of memory, so we don't need to perform many tiny (and slow!) allocations.
     let mut ns = EvalNS::new(|name, _args| vars.get(name).copied());   // An evaluation namespace, with a default closure that reads variables from the given map.
 
     // Here is a one-liner that performs the entire parse-and-eval process:
-    // parser.parse(&mut slab.ps, expr_str)?.from(&slab).eval(&slab, &mut ns)
+    // parse(&mut slab.ps, expr_str)?.from(&slab).eval(&slab, &mut ns)
 
     // Here is the same process, broken into steps:
 
     // First, parse the string:
-    let expr_i = parser.parse(&mut slab.ps, expr_str)?;
+    let expr_i = parse(&mut slab.ps, expr_str)?;
 
     // 'expr_i' is an index into the Slab.  You can extract the Expression object with either of these:
     //     slab.get_expr(expr_i)  ...OR...  expr_i.from(&slab)
