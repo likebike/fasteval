@@ -84,7 +84,13 @@ fn aaa_basics() {
         parse({slab.clear(); &mut slab.ps}, "1 and 2").unwrap().from(&slab.ps).eval(&slab, &mut ns),
         Ok(2.0));
     assert_eq!(
+        parse({slab.clear(); &mut slab.ps}, "1 && 2").unwrap().from(&slab.ps).eval(&slab, &mut ns),
+        Ok(2.0));
+    assert_eq!(
         parse({slab.clear(); &mut slab.ps}, "2 or 0").unwrap().from(&slab.ps).eval(&slab, &mut ns),
+        Ok(2.0));
+    assert_eq!(
+        parse({slab.clear(); &mut slab.ps}, "2 || 0").unwrap().from(&slab.ps).eval(&slab, &mut ns),
         Ok(2.0));
     assert_eq!(
         parse({slab.clear(); &mut slab.ps}, "1 > 0").unwrap().from(&slab.ps).eval(&slab, &mut ns),

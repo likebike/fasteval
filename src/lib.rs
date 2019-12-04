@@ -7,7 +7,7 @@
 //   [x] optimize after parse
 //   [x] custom functions  (i.e. Variables With Arguments)
 //   [x] REPL Example with Variables
-//   [ ] Copy smart tests from other libs.
+//   [x] Copy smart tests from other libs.
 //   [ ] Readme
 //   [ ] Documentation
 //

@@ -242,23 +242,23 @@ fn aaa_test_i() {
     assert_eq!(do_eval("3>=2^2"), 0.0);
     assert_eq!(do_eval("3>2"), 1.0);
     assert_eq!(do_eval("3>2^2"), 0.0);
-    assert_eq!(do_eval("1 or 1"), 1.0);
-    assert_eq!(do_eval("1 or 0"), 1.0);
-    assert_eq!(do_eval("0 or 1"), 1.0);
-    assert_eq!(do_eval("0 or 0"), 0.0);
-    assert_eq!(do_eval("0 and 0"), 0.0);
-    assert_eq!(do_eval("0 and 1"), 0.0);
-    assert_eq!(do_eval("1 and 0"), 0.0);
-    assert_eq!(do_eval("1 and 1"), 1.0);
-    assert_eq!(do_eval("(2k*1k==2M and 3/2<2 or 0^2) and !(1-1)"), 1.0);
+    assert_eq!(do_eval("1 or 1"), 1.0); assert_eq!(do_eval("1 || 1"), 1.0);
+    assert_eq!(do_eval("1 or 0"), 1.0); assert_eq!(do_eval("1 || 0"), 1.0);
+    assert_eq!(do_eval("0 or 1"), 1.0); assert_eq!(do_eval("0 || 1"), 1.0);
+    assert_eq!(do_eval("0 or 0"), 0.0); assert_eq!(do_eval("0 || 0"), 0.0);
+    assert_eq!(do_eval("0 and 0"), 0.0); assert_eq!(do_eval("0 && 0"), 0.0);
+    assert_eq!(do_eval("0 and 1"), 0.0); assert_eq!(do_eval("0 && 1"), 0.0);
+    assert_eq!(do_eval("1 and 0"), 0.0); assert_eq!(do_eval("1 && 0"), 0.0);
+    assert_eq!(do_eval("1 and 1"), 1.0); assert_eq!(do_eval("1 && 1"), 1.0);
+    assert_eq!(do_eval("(2k*1k==2M and 3/2<2 or 0^2) and !(1-1)"), 1.0); assert_eq!(do_eval("(2k*1k==2M && 3/2<2 || 0^2) && !(1-1)"), 1.0);
 
     // Ternary ability:
-    assert_eq!(do_eval("2 and 3"), 3.0);
-    assert_eq!(do_eval("2 or 3"), 2.0);
-    assert_eq!(do_eval("2 and 3 or 4"), 3.0);
-    assert_eq!(do_eval("0 and 3 or 4"), 4.0);
-    assert_eq!(do_eval("2 and 0 or 4"), 4.0);
-    assert_eq!(do_eval("0 and 3 or 0 and 5 or 6"), 6.0);
+    assert_eq!(do_eval("2 and 3"), 3.0); assert_eq!(do_eval("2 && 3"), 3.0);
+    assert_eq!(do_eval("2 or 3"), 2.0); assert_eq!(do_eval("2 || 3"), 2.0);
+    assert_eq!(do_eval("2 and 3 or 4"), 3.0); assert_eq!(do_eval("2 && 3 || 4"), 3.0);
+    assert_eq!(do_eval("0 and 3 or 4"), 4.0); assert_eq!(do_eval("0 && 3 || 4"), 4.0);
+    assert_eq!(do_eval("2 and 0 or 4"), 4.0); assert_eq!(do_eval("2 && 0 || 4"), 4.0);
+    assert_eq!(do_eval("0 and 3 or 0 and 5 or 6"), 6.0); assert_eq!(do_eval("0 && 3 || 0 && 5 || 6"), 6.0);
 }
 
 #[test]

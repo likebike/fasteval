@@ -225,21 +225,21 @@ fn all_instrs() {
     comp_chk("3 > 2 > 1", IConst(0.0), "CompileSlab{ instrs:{} }", 0.0);
 
     // IAND:
-    comp_chk("2 and 3", IConst(3.0), "CompileSlab{ instrs:{} }", 3.0);
-    comp_chk("2 and 3 and 4", IConst(4.0), "CompileSlab{ instrs:{} }", 4.0);
-    comp_chk("0 and 1 and 2", IConst(0.0), "CompileSlab{ instrs:{} }", 0.0);
-    comp_chk("1 and 0 and 2", IConst(0.0), "CompileSlab{ instrs:{} }", 0.0);
-    comp_chk("1 and 2 and 0", IConst(0.0), "CompileSlab{ instrs:{} }", 0.0);
+    comp_chk("2 and 3", IConst(3.0), "CompileSlab{ instrs:{} }", 3.0); comp_chk("2 && 3", IConst(3.0), "CompileSlab{ instrs:{} }", 3.0);
+    comp_chk("2 and 3 and 4", IConst(4.0), "CompileSlab{ instrs:{} }", 4.0); comp_chk("2 && 3 && 4", IConst(4.0), "CompileSlab{ instrs:{} }", 4.0);
+    comp_chk("0 and 1 and 2", IConst(0.0), "CompileSlab{ instrs:{} }", 0.0); comp_chk("0 && 1 && 2", IConst(0.0), "CompileSlab{ instrs:{} }", 0.0);
+    comp_chk("1 and 0 and 2", IConst(0.0), "CompileSlab{ instrs:{} }", 0.0); comp_chk("1 && 0 && 2", IConst(0.0), "CompileSlab{ instrs:{} }", 0.0);
+    comp_chk("1 and 2 and 0", IConst(0.0), "CompileSlab{ instrs:{} }", 0.0); comp_chk("1 && 2 && 0", IConst(0.0), "CompileSlab{ instrs:{} }", 0.0);
     comp_chk("x and 2", IAND(InstructionI(0), InstructionI(1)), "CompileSlab{ instrs:{ 0:IVar(VarName(`x`)), 1:IConst(2.0) } }", 2.0);
     comp_chk("0 and x", IConst(0.0), "CompileSlab{ instrs:{} }", 0.0);
     comp_chk("w and x", IAND(InstructionI(0), InstructionI(1)), "CompileSlab{ instrs:{ 0:IVar(VarName(`w`)), 1:IVar(VarName(`x`)) } }", 0.0);
     
     // IOR:
-    comp_chk("2 or 3", IConst(2.0), "CompileSlab{ instrs:{} }", 2.0);
-    comp_chk("2 or 3 or 4", IConst(2.0), "CompileSlab{ instrs:{} }", 2.0);
-    comp_chk("0 or 1 or 2", IConst(1.0), "CompileSlab{ instrs:{} }", 1.0);
-    comp_chk("1 or 0 or 2", IConst(1.0), "CompileSlab{ instrs:{} }", 1.0);
-    comp_chk("1 or 2 or 0", IConst(1.0), "CompileSlab{ instrs:{} }", 1.0);
+    comp_chk("2 or 3", IConst(2.0), "CompileSlab{ instrs:{} }", 2.0); comp_chk("2 || 3", IConst(2.0), "CompileSlab{ instrs:{} }", 2.0);
+    comp_chk("2 or 3 or 4", IConst(2.0), "CompileSlab{ instrs:{} }", 2.0); comp_chk("2 || 3 || 4", IConst(2.0), "CompileSlab{ instrs:{} }", 2.0);
+    comp_chk("0 or 1 or 2", IConst(1.0), "CompileSlab{ instrs:{} }", 1.0); comp_chk("0 || 1 || 2", IConst(1.0), "CompileSlab{ instrs:{} }", 1.0);
+    comp_chk("1 or 0 or 2", IConst(1.0), "CompileSlab{ instrs:{} }", 1.0); comp_chk("1 || 0 || 2", IConst(1.0), "CompileSlab{ instrs:{} }", 1.0);
+    comp_chk("1 or 2 or 0", IConst(1.0), "CompileSlab{ instrs:{} }", 1.0); comp_chk("1 || 2 || 0", IConst(1.0), "CompileSlab{ instrs:{} }", 1.0);
     comp_chk("x or 2", IOR(InstructionI(0), InstructionI(1)), "CompileSlab{ instrs:{ 0:IVar(VarName(`x`)), 1:IConst(2.0) } }", 1.0);
     comp_chk("0 or x", IVar(VarName("x".to_string())), "CompileSlab{ instrs:{} }", 1.0);
     comp_chk("w or x", IOR(InstructionI(0), InstructionI(1)), "CompileSlab{ instrs:{ 0:IVar(VarName(`w`)), 1:IVar(VarName(`x`)) } }", 1.0);

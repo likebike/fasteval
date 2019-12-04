@@ -13,3 +13,7 @@ kerr = "0.1"
 [profile.bench]
 debug = true
 
+[features]
+default = ["alpha-keywords"]
+alpha-keywords = []  # Enable 'NaN', 'inf', 'and', 'or'
+

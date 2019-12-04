@@ -10,11 +10,11 @@ use std::str::{from_utf8, from_utf8_unchecked};
 //
 // Value: Constant || UnaryOp || Callable
 //
-// Constant: [+-]?[0-9]*(\.[0-9]+)?( ([eE][+-]?[0-9]+) || [pnuµmkKMGT] )?
+// Constant: [+-]?[0-9]*(\.[0-9]+)?( ([eE][+-]?[0-9]+) || [pnuµmkKMGT] )?  || [+-]?(NaN || inf)
 //
 // UnaryOp: +Value || -Value || (Expression) || !Value
 //
-// BinaryOp: + || - || * || / || % || ^ || < || <= || == || != || >= || > || or || and
+// BinaryOp: + || - || * || / || % || ^ || < || <= || == || != || >= || > || (or || '||') || (and || '&&')
 //
 // Callable: PrintFunc || EvalFunc || StdFunc
 //
@@ -340,9 +340,12 @@ impl Parser {
                 sign_ok = true;
                 toklen += 1;
             } else if specials_ok && ( b==b'N' && peek_is(bs,toklen+1,b'a') && peek_is(bs,toklen+2,b'N')  ||  b==b'i' && peek_is(bs,toklen+1,b'n') && peek_is(bs,toklen+2,b'f') ) {
-                saw_val = true;
-                suffix_ok = false;
-                toklen += 3;
+                #[cfg(feature="alpha-keywords")]
+                {
+                    saw_val = true;
+                    suffix_ok = false;
+                    toklen += 3;
+                }
                 break;
             } else {
                 break;
@@ -530,10 +533,16 @@ impl Parser {
                                                 Ok(Bite(EEQ)) }
                 b'!' if peek_is(bs,1,b'=') => { skip_n(bs,2)?;
                                                 Ok(Bite(ENE)) }
+                #[cfg(feature="alpha-keywords")]
                 b'o' if peek_is(bs,1,b'r') => { skip_n(bs,2)?;
                                                 Ok(Bite(EOR)) }
+                b'|' if peek_is(bs,1,b'|') => { skip_n(bs,2)?;
+                                                Ok(Bite(EOR)) }
+                #[cfg(feature="alpha-keywords")]
                 b'a' if peek_is(bs,1,b'n') && peek_is(bs,2,b'd') => { skip_n(bs,3)?;
                                                                       Ok(Bite(EAND)) }
+                b'&' if peek_is(bs,1,b'&') => { skip_n(bs,2)?;
+                                                Ok(Bite(EAND)) }
                 _ => Ok(Pass),
             }
         }
