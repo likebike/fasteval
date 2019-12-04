@@ -188,7 +188,7 @@
 //     test preparse_precompile_eval_1000x ... bench:       4,418 ns/iter (+/- 429)
 //
 //
-// tinyexpr:
+// tinyexpr-rs:
 //     "(3 * (3 + 3) / 3)"
 //     test bench_interp ... bench:       1,171 ns/iter (+/- 120)
 //
@@ -200,6 +200,40 @@
 //
 //     "((((87))) - 73) + (97 + (((15 / 55 * ((31)) + 35))) + (15 - (9)) - (39 / 26) / 20 / 91 + 27 / (33 * 26 + 28 - (7) / 10 + 66 * 6) + 60 / 35 - ((29) - (69) / 44 / (92)) / (89) + 2 + 87 / 47 * ((2)) * 83 / 98 * 42 / (((67)) * ((97))) / (34 / 89 + 77) - 29 + 70 * (20)) + ((((((92))) + 23 * (98) / (95) + (((99) * (41))) + (5 + 41) + 10) - (36) / (6 + 80 * 52 + (90))))"
 //     test bench_interp ... bench:      38,422 ns/iter (+/- 6,510)
+//
+//
+// tinyexpr-c:
+//     "(3 * (3 + 3) / 3)"
+//     te_interp  :  748 ns/iter
+//     parse_compile_eval  :  762 ns/iter
+//     preparse_precompile_eval  :  2.8 ns/iter
+//
+//     "3 * 3 - 3 / 3"
+//     te_interp  :  615 ns/iter
+//     parse_compile_eval  :  630 ns/iter
+//     preparse_precompile_eval  :  2.8 ns/iter
+//
+//     "2 ^ (3 ^ 4)"  = 2417851639229258349412352.000000
+//     te_interp  :  585 ns/iter
+//     parse_compile_eval  :  580 ns/iter
+//     preparse_precompile_eval  :  2.8 ns/iter
+//
+//     "x * 2"
+//     parse_compile_eval  :  221 ns/iter
+//     preparse_precompile_eval  :  9.4 ns/iter
+//
+//     "sin(x)"
+//     parse_compile_eval  :  249 ns/iter
+//     preparse_precompile_eval  :  21.4 ns/iter
+//
+//     "(-z + sqrt(z^2 - 4*x*y)) / (2*x)"
+//     parse_compile_eval  :  1507 ns/iter
+//     preparse_precompile_eval  :  117 ns/iter
+//
+//     "((((87))) - 73) + (97 + (((15 / 55 * ((31)) + 35))) + (15 - (9)) - (39 / 26) / 20 / 91 + 27 / (33 * 26 + 28 - (7) / 10 + 66 * 6) + 60 / 35 - ((29) - (69) / 44 / (92)) / (89) + 2 + 87 / 47 * ((2)) * 83 / 98 * 42 / (((67)) * ((97))) / (34 / 89 + 77) - 29 + 70 * (20)) + ((((((92))) + 23 * (98) / (95) + (((99) * (41))) + (5 + 41) + 10) - (36) / (6 + 80 * 52 + (90))))"
+//     te_interp  :  12,423 ns/iter
+//     parse_compile_eval  :  12,222 ns/iter
+//     preparse_precompile_eval  :  2.8 ns/iter
 //
 //
 // calc:
