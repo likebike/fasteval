@@ -1,5 +1,7 @@
-use al::{Parser, Compiler, Evaler, Slab, EvalNS, IConst};
+use al::{Parser, Compiler, Evaler, Slab, EvalNS};
 use kerr::KErr;
+
+use std::str::from_utf8;
 
 fn evalns_cb(name:&str, args:Vec<f64>) -> Option<f64> {
     match name {
@@ -85,5 +87,23 @@ fn meval() {
 
 
 
+}
+
+#[test]
+fn overflow_stack() {
+    chk_perr(from_utf8(&[b'('; 1]).unwrap(), "invalid value");
+    chk_perr(from_utf8(&[b'('; 2]).unwrap(), "invalid value");
+    chk_perr(from_utf8(&[b'('; 4]).unwrap(), "invalid value");
+    chk_perr(from_utf8(&[b'('; 8]).unwrap(), "invalid value");
+    chk_perr(from_utf8(&[b'('; 16]).unwrap(), "invalid value");
+    chk_perr(from_utf8(&[b'('; 32]).unwrap(), "too deep");
+    chk_perr(from_utf8(&[b'('; 64]).unwrap(), "too deep");
+    chk_perr(from_utf8(&[b'('; 128]).unwrap(), "too deep");
+    chk_perr(from_utf8(&[b'('; 256]).unwrap(), "too deep");
+    chk_perr(from_utf8(&[b'('; 512]).unwrap(), "too deep");
+    chk_perr(from_utf8(&[b'('; 1024]).unwrap(), "too deep");
+    chk_perr(from_utf8(&[b'('; 2048]).unwrap(), "too deep");
+    chk_perr(from_utf8(&[b'('; 4096]).unwrap(), "too deep");
+    chk_perr(from_utf8(&[b'('; 8192]).unwrap(), "expression string is too long");
 }
 

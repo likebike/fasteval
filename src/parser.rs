@@ -250,6 +250,11 @@ fn spaces(bs:&mut &[u8]) {
 }
 
 
+pub fn parse(slab:&mut ParseSlab, s:&str) -> Result<ExpressionI, KErr> {
+    let mut parser = Parser::new();
+    parser.parse(slab, s)
+}
+
 
 pub struct Parser {
     char_buf:String,
@@ -262,10 +267,10 @@ impl Parser {
 
     #[inline]
     fn is_varname_byte(b:u8, i:usize) -> bool {
-        (b'A'<=b && b<=b'Z') || (b'a'<=b && b<=b'z') || b==b'_' || (i>0 && ( b'0'<=b && b<=b'9' ))  // I was considering adding square brackets to the list of var chars so that index operations could be simulated, but I decided not to do that until we have a real-life need for it.
+        (b'A'<=b && b<=b'Z') || (b'a'<=b && b<=b'z') || b==b'_' || (i>0 && ( b'0'<=b && b<=b'9' ))
     }
     #[inline]
-    fn is_varname_byte_opt(&self, bo:Option<u8>, i:usize) -> bool {
+    fn is_varname_byte_opt(bo:Option<u8>, i:usize) -> bool {
         match bo {
             Some(b) => Self::is_varname_byte(b,i),
             None => false,
@@ -277,17 +282,19 @@ impl Parser {
     pub fn parse(&mut self, slab:&mut ParseSlab, s:&str) -> Result<ExpressionI, KErr> {
         if s.len()>4096 { return Err(KErr::new("expression string is too long")); }  // Restrict length for safety
         let mut bs = s.as_bytes();
-        self.read_expression(slab, &mut bs, true)
+        self.read_expression(slab, &mut bs, 0, true)
     }
 
-    fn read_expression(&mut self, slab:&mut ParseSlab, bs:&mut &[u8], expect_eof:bool) -> Result<ExpressionI, KErr> {
-        let first = self.read_value(slab,bs).map_err(|e| e.pre("read_value"))?;
+    fn read_expression(&mut self, slab:&mut ParseSlab, bs:&mut &[u8], depth:usize, expect_eof:bool) -> Result<ExpressionI, KErr> {
+        if depth>=32 { return Err(KErr::new("too deep")) }
+
+        let first = self.read_value(slab,bs,depth).map_err(|e| e.pre("read_value"))?;
         let mut pairs = Vec::<ExprPair>::with_capacity(8);
         loop {
             match self.read_binaryop(bs).map_err(|e| e.pre("read_binaryop"))? {
                 Pass => break,
                 Bite(bop) => {
-                    let val = self.read_value(slab,bs).map_err(|e| e.pre("read_value"))?;
+                    let val = self.read_value(slab,bs,depth).map_err(|e| e.pre("read_value"))?;
                     pairs.push(ExprPair(bop,val));
                 }
             }
@@ -300,16 +307,18 @@ impl Parser {
         Ok(slab.push_expr(Expression{first, pairs})?)
     }
 
-    fn read_value(&mut self, slab:&mut ParseSlab, bs:&mut &[u8]) -> Result<Value, KErr> {
+    fn read_value(&mut self, slab:&mut ParseSlab, bs:&mut &[u8], depth:usize) -> Result<Value, KErr> {
+        if depth>=32 { return Err(KErr::new("too deep")) }
+
         match self.read_const(bs)? {
             Pass => {}
             Bite(c) => return Ok(EConstant(c)),
         }
-        match self.read_unaryop(slab,bs)? {
+        match self.read_unaryop(slab,bs,depth)? {
             Pass => {}
             Bite(u) => return Ok(EUnaryOp(u)),
         }
-        match self.read_callable(slab,bs)? {
+        match self.read_callable(slab,bs,depth)? {
             Pass => {}
             Bite(c) => return Ok(ECallable(c)),
         }
@@ -471,31 +480,31 @@ impl Parser {
     //     Ok(Bite(Constant(val)))
     // }
 
-    fn read_unaryop(&mut self, slab:&mut ParseSlab, bs:&mut &[u8]) -> Result<Tok<UnaryOp>, KErr> {
+    fn read_unaryop(&mut self, slab:&mut ParseSlab, bs:&mut &[u8], depth:usize) -> Result<Tok<UnaryOp>, KErr> {
         spaces(bs);
         match peek(bs) {
             None => Ok(Pass),  // Err(KErr::new("EOF at UnaryOp position")), -- Instead of erroring, let the higher level decide what to do.
             Some(b) => match b {
                 b'+' => {
                     skip(bs)?;
-                    let v = self.read_value(slab,bs)?;
+                    let v = self.read_value(slab,bs,depth+1)?;
                     Ok(Bite(EPos(slab.push_val(v)?)))
                 }
                 b'-' => {
                     skip(bs)?;
-                    let v = self.read_value(slab,bs)?;
+                    let v = self.read_value(slab,bs,depth+1)?;
                     Ok(Bite(ENeg(slab.push_val(v)?)))
                 }
                 b'(' => {
                     skip(bs)?;
-                    let xi = self.read_expression(slab,bs,false)?;
+                    let xi = self.read_expression(slab,bs,depth+1,false)?;
                     spaces(bs);
                     if read(bs)? != b')' { return Err(KErr::new("Expected ')'")) }
                     Ok(Bite(EParentheses(xi)))
                 }
                 b'!' => {
                     skip(bs)?;
-                    let v = self.read_value(slab,bs)?;
+                    let v = self.read_value(slab,bs,depth+1)?;
                     Ok(Bite(ENot(slab.push_val(v)?)))
                 }
                 _ => Ok(Pass),
@@ -533,7 +542,7 @@ impl Parser {
         }
     }
 
-    fn read_callable(&mut self, slab:&mut ParseSlab, bs:&mut &[u8]) -> Result<Tok<Callable>, KErr> {
+    fn read_callable(&mut self, slab:&mut ParseSlab, bs:&mut &[u8], depth:usize) -> Result<Tok<Callable>, KErr> {
         match self.read_varname(bs)? {
             Pass => Ok(Pass),
             Bite(varname) => {
@@ -545,9 +554,9 @@ impl Parser {
                     Bite(_) => {
                         // VarNames with Parenthesis are first matched against builtins, then custom.
                         match varname.0.as_ref() {
-                            "print" => Ok(Bite(EPrintFunc(self.read_printfunc(slab,bs)?))),
-                            "eval" => Ok(Bite(EEvalFunc(self.read_evalfunc(slab,bs)?))),
-                            _ => Ok(Bite(EStdFunc(self.read_func(varname,slab,bs)?))),
+                            "print" => Ok(Bite(EPrintFunc(self.read_printfunc(slab,bs,depth)?))),
+                            "eval" => Ok(Bite(EEvalFunc(self.read_evalfunc(slab,bs,depth)?))),
+                            _ => Ok(Bite(EStdFunc(self.read_func(varname,slab,bs,depth)?))),
                         }
                     }
                 }
@@ -559,7 +568,7 @@ impl Parser {
         spaces(bs);
 
         let mut toklen = 0;
-        while self.is_varname_byte_opt(peek_n(bs,toklen),toklen) { toklen+=1; }
+        while Self::is_varname_byte_opt(peek_n(bs,toklen),toklen) { toklen+=1; }
 
         if toklen==0 { return Ok(Pass); }
 
@@ -578,7 +587,7 @@ impl Parser {
         Ok(Pass)
     }
 
-    fn read_func(&mut self, fname:VarName, slab:&mut ParseSlab, bs:&mut &[u8]) -> Result<StdFunc, KErr> {
+    fn read_func(&mut self, fname:VarName, slab:&mut ParseSlab, bs:&mut &[u8], depth:usize) -> Result<StdFunc, KErr> {
         let mut args = Vec::<ExpressionI>::with_capacity(4);
         loop {
             spaces(bs);
@@ -599,7 +608,7 @@ impl Parser {
                     _ => return Err(KErr::new("expected ',' or ';'")),
                 }
             }
-            args.push(self.read_expression(slab,bs,false).map_err(|e| e.pre("read_expression"))?);
+            args.push(self.read_expression(slab,bs,depth+1,false).map_err(|e| e.pre("read_expression"))?);
         }
 
         match fname.0.as_str() {
@@ -712,7 +721,7 @@ impl Parser {
         }
     }
 
-    fn read_printfunc(&mut self, slab:&mut ParseSlab, bs:&mut &[u8]) -> Result<PrintFunc, KErr> {
+    fn read_printfunc(&mut self, slab:&mut ParseSlab, bs:&mut &[u8], depth:usize) -> Result<PrintFunc, KErr> {
         let mut args = Vec::<ExpressionOrString>::with_capacity(8);
         loop {
             spaces(bs);
@@ -731,14 +740,14 @@ impl Parser {
                     _ => { return Err(KErr::new("expected ',' or ';'")) }
                 }
             }
-            args.push(self.read_expressionorstring(slab,bs)?);
+            args.push(self.read_expressionorstring(slab,bs,depth+1)?);
         }
 
         Ok(PrintFunc(args))
     }
 
-    fn read_evalfunc(&mut self, slab:&mut ParseSlab, bs:&mut &[u8]) -> Result<EvalFunc, KErr> {
-        let eval_expr = self.read_expression(slab,bs,false)?;
+    fn read_evalfunc(&mut self, slab:&mut ParseSlab, bs:&mut &[u8], depth:usize) -> Result<EvalFunc, KErr> {
+        let eval_expr = self.read_expression(slab,bs,depth+1,false)?;
         let mut kwargs = Vec::<KWArg>::with_capacity(8);
         fn kwargs_has(kwargs:&[KWArg], name:&VarName) -> bool {
             for kwarg in kwargs {
@@ -772,7 +781,7 @@ impl Parser {
             spaces(bs);
             if let Ok(b'=') = read(bs) {
             } else { return Err(KErr::new("expected '='")) }
-            let expr = self.read_expression(slab,bs,false)?;
+            let expr = self.read_expression(slab,bs,depth+1,false)?;
 
             if kwargs_has(&kwargs,&name) { return Err(KErr::new(&format!("already defined: {}",name))) }
             kwargs.push(KWArg{name, expr});
@@ -781,12 +790,12 @@ impl Parser {
         Ok(EvalFunc{expr:eval_expr, kwargs})
     }
 
-    fn read_expressionorstring(&mut self, slab:&mut ParseSlab, bs:&mut &[u8]) -> Result<ExpressionOrString, KErr> {
+    fn read_expressionorstring(&mut self, slab:&mut ParseSlab, bs:&mut &[u8], depth:usize) -> Result<ExpressionOrString, KErr> {
         match self.read_string(bs)? {
             Pass => {}
             Bite(s) => return Ok(EStr(s)),
         }
-        Ok(EExpr(self.read_expression(slab,bs,false)?))
+        Ok(EExpr(self.read_expression(slab,bs,depth+1,false)?))
     }
 
     fn read_string(&mut self, bs:&mut &[u8]) -> Result<Tok<String>,KErr> {
@@ -798,14 +807,20 @@ impl Parser {
             Some(_) => { return Ok(Pass) }
         }
 
-        self.char_buf.clear();
-        loop {
-            let b = read(bs)?;
-            if b==b'"' { break; }
-            self.char_buf.push(b as char);
-        }
+        let mut toklen = 0;
+        while match peek_n(bs,toklen) {
+            None => false,
+            Some(b'"') => false,
+            Some(_) => true,
+        } { toklen+=1; }
 
-        Ok(Bite(self.char_buf.clone()))
+        let out = from_utf8(&bs[..toklen]).map_err(|_| KErr::new("Utf8Error while reading string"))?;
+        skip_n(bs, toklen)?;
+        match read(bs) {
+            Err(e) => Err(e.pre("error while searching for closing double-quote")),
+            Ok(b'"') => Ok(Bite(out.to_string())),
+            Ok(_) => unreachable!(),
+        }
     }
 }
 impl Default for Parser {
@@ -868,14 +883,14 @@ mod internal_tests {
     #[test]
     fn priv_tests() {
         let mut p = Parser::new();
-        assert!(p.is_varname_byte_opt(Some(b'a'),0));
+        assert!(Parser::is_varname_byte_opt(Some(b'a'),0));
 
         let mut slab = Slab::new();
         
         {
             let bsarr = b"12.34";
             let bs = &mut &bsarr[..];
-            assert_eq!(p.read_value(&mut slab.ps, bs), Ok(EConstant(Constant(12.34))));
+            assert_eq!(p.read_value(&mut slab.ps, bs, 0), Ok(EConstant(Constant(12.34))));
         }
     }
 }
