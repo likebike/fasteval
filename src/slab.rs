@@ -6,6 +6,9 @@ use kerr::KErr;
 use std::fmt;
 use std::mem;
 
+#[cfg(feature="unsafe-vars")]
+use std::collections::BTreeMap;
+
 impl ExpressionI {
     #[inline]
     pub fn from(self, ps:&ParseSlab) -> &Expression {
@@ -20,13 +23,15 @@ impl ValueI {
 }
 
 pub struct Slab {
-    pub ps: ParseSlab,
-    pub cs: CompileSlab,
+    pub ps:ParseSlab,
+    pub cs:CompileSlab,
 }
 pub struct ParseSlab {
-        exprs:   Vec<Expression>,
-        vals:    Vec<Value>,
-    pub char_buf:String,
+               exprs      :Vec<Expression>,
+               vals       :Vec<Value>,
+    pub        char_buf   :String,
+    #[cfg(feature="unsafe-vars")]
+    pub(crate) unsafe_vars:BTreeMap<String, *const f64>,
 }
 pub struct CompileSlab {
     instrs:Vec<Instruction>,
@@ -53,6 +58,11 @@ impl ParseSlab {
         if i>=self.vals.capacity() { return Err(KErr::new("slab val overflow")); }
         self.vals.push(val);
         Ok(ValueI(i))
+    }
+
+    #[cfg(feature="unsafe-vars")]
+    pub unsafe fn add_unsafe_var(&mut self, name:String, ptr:&f64) {
+        self.unsafe_vars.insert(name, ptr as *const f64);
     }
 }
 impl CompileSlab {
@@ -83,11 +93,13 @@ impl Slab {
     pub fn with_capacity(cap:usize) -> Self {
         Self{
             ps:ParseSlab{
-                exprs:   Vec::with_capacity(cap),
-                vals:    Vec::with_capacity(cap),
-                char_buf:String::with_capacity(64),
+                exprs      :Vec::with_capacity(cap),
+                vals       :Vec::with_capacity(cap),
+                char_buf   :String::with_capacity(64),
+                #[cfg(feature="unsafe-vars")]
+                unsafe_vars:BTreeMap::new(),
             },
-            cs:CompileSlab{instrs:Vec::new()},  // Don't pre-allocation for compilation.
+            cs:CompileSlab{instrs:Vec::new()},  // Don't pre-allocate for compilation.
         }
     }
 

@@ -1,17 +1,19 @@
+use crate as al;
+
 use crate::slab::Slab;
 use crate::evalns::EvalNS;
 use crate::parser::{Expression,
-                    Value::{self, EConstant, EUnaryOp, ECallable},
+                    Value::{self, EConstant, EUnaryOp, EStdFunc, EPrintFunc},
                     Constant,
                     UnaryOp::{self, EPos, ENeg, ENot, EParentheses},
                     BinaryOp::{self, EAdd, ESub, EMul, EDiv, EMod, EExp, ELT, ELTE, EEQ, ENE, EGTE, EGT, EOR, EAND},
                     VarName,
-                    Callable::{self, EStdFunc, EPrintFunc, EEvalFunc},
                     StdFunc::{self, EVar, EFunc, EFuncInt, EFuncCeil, EFuncFloor, EFuncAbs, EFuncSign, EFuncLog, EFuncRound, EFuncMin, EFuncMax, EFuncE, EFuncPi, EFuncSin, EFuncCos, EFuncTan, EFuncASin, EFuncACos, EFuncATan, EFuncSinH, EFuncCosH, EFuncTanH, EFuncASinH, EFuncACosH, EFuncATanH},
                     PrintFunc,
-                    EvalFunc,
                     ExpressionOrString::{EExpr, EStr}};
-use crate::compiler::{log, f64_eq, f64_ne, Instruction::{self, IConst}};
+#[cfg(feature="unsafe-vars")]
+use crate::parser::StdFunc::EUnsafeVar;
+use crate::compiler::{log, f64_eq, f64_ne, Instruction};
 
 use kerr::KErr;
 
@@ -30,14 +32,14 @@ pub fn bool_to_f64(b:bool) -> f64 {
 pub trait Evaler : fmt::Debug {
     fn eval(&self, slab:&Slab, ns:&mut EvalNS) -> Result<f64,KErr>;
 
-    fn var_names(&self, slab:&Slab) -> Result<HashSet<String>,KErr> {
+    fn var_names(&self, slab:&Slab) -> Result<HashSet<String>,KErr> where Self:Sized {
         let mut set = HashSet::new();
         {
             let mut ns = EvalNS::new(|name:&str, _args:Vec<f64>| {
                 set.insert(name.to_string());
                 Some(0.0)
             });
-            self.eval(slab, &mut ns)?;
+            ns.eval(slab, self)?;
         }
         Ok(set)
     }
@@ -84,10 +86,10 @@ impl Evaler for Expression {
         // Code for new Expression data structure:
         let mut vals = Vec::<f64>::with_capacity(self.pairs.len()+1);
         let mut ops  = Vec::<BinaryOp>::with_capacity(self.pairs.len());
-        ns.eval(slab, &self.first).map(|f| vals.push(f))?;
+        vals.push(ns.eval(slab, &self.first)?);
         for pair in self.pairs.iter() {
             ops.push(pair.0);
-            ns.eval(slab, &pair.1).map(|f| vals.push(f))?;
+            vals.push(ns.eval(slab, &pair.1)?);
         }
 
 
@@ -103,62 +105,69 @@ impl Evaler for Expression {
         //     for i:=0; i<len(ops); i++ { if ops[i]==s { evalOp(i); goto loop } }  // Need to restart processing when modifying from the left.
         // }
 
-        // I am defining rtol and ltor as 'fn' rather than closures to make it extra-clear that they don't capture anything.
-        // I need to pass all those items around as args rather than just capturing because Rust doesn't like multiple closures to capture the same stuff when at least one of them mutates.
-        let mut eval_op = |ops:&mut Vec<BinaryOp>, i:usize| {
-            let result = ops[i].binaryop_eval(vals[i], vals[i+1]);
-            vals[i]=result; vals.remove(i+1);
-            ops.remove(i);
-        };
-        fn rtol(eval_op:&mut impl FnMut(&mut Vec<BinaryOp>,usize), ops:&mut Vec<BinaryOp>, search:BinaryOp) {
-            // for-loop structure:
-            let mut i = ops.len() as i64;
-            loop { i-=1; if i<0 { break }
+        #[inline(always)]
+        fn rtol(vals:&mut Vec<f64>, ops:&mut Vec<BinaryOp>, search:BinaryOp) {
+            let mut i : i64 = ops.len() as i64;
+            loop {
+                i-=1; if i<0 { break; }
                 let i = i as usize;
 
-                if ops[i]==search { eval_op(ops,i); }
+                let op = ops[i];
+                if op==search {
+                    vals[i] = op.binaryop_eval(vals[i], vals[i+1]);
+                    vals.remove(i+1);
+                    ops.remove(i);
+                }
             }
-        };
-        fn ltor(eval_op:&mut impl FnMut(&mut Vec<BinaryOp>,usize), ops:&mut Vec<BinaryOp>, search:BinaryOp) {
-            'outer: loop {
-                // for-loop structure:
-                let mut i : i64 = -1;
-                loop { i+=1; if i>=ops.len() as i64 { break 'outer; }
-                    let i = i as usize;
-
-                    if ops[i]==search {
-                        eval_op(ops,i);
-                        continue 'outer;  // Need to restart processing when modifying from the left.
+        }
+        #[inline(always)]
+        fn ltor(vals:&mut Vec<f64>, ops:&mut Vec<BinaryOp>, search:BinaryOp) {
+            let mut i = 0;
+            loop {
+                match ops.get(i) {
+                    None => break,
+                    Some(op) => {
+                        if *op==search {
+                            vals[i] = op.binaryop_eval(vals[i], vals[i+1]);
+                            vals.remove(i+1);
+                            ops.remove(i);
+                        } else {
+                            i+=1;
+                        }
                     }
                 }
             }
-        };
-        fn ltor_multi(eval_op:&mut impl FnMut(&mut Vec<BinaryOp>,usize), ops:&mut Vec<BinaryOp>, search:&[BinaryOp]) {
-            'outer: loop {
-                // for-loop structure:
-                let mut i : i64 = -1;
-                loop { i+=1; if i>=ops.len() as i64 { break 'outer; }
-                    let i = i as usize;
-
-                    if search.contains(&ops[i]) {
-                        eval_op(ops,i);
-                        continue 'outer;  // Need to restart processing when modifying from the left.
+        }
+        #[inline(always)]
+        fn ltor_multi(vals:&mut Vec<f64>, ops:&mut Vec<BinaryOp>, search:&[BinaryOp]) {
+            let mut i = 0;
+            loop {
+                match ops.get(i) {
+                    None => break,
+                    Some(op) => {
+                        if search.contains(op) {
+                            vals[i] = op.binaryop_eval(vals[i], vals[i+1]);
+                            vals.remove(i+1);
+                            ops.remove(i);
+                        } else {
+                            i+=1;
+                        }
                     }
                 }
             }
         }
 
         // Keep the order of these statements in-sync with parser.rs BinaryOp priority values:
-        rtol(&mut eval_op, &mut ops, EExp);  // https://codeplea.com/exponentiation-associativity-options
-        ltor(&mut eval_op, &mut ops, EMod);
-        ltor(&mut eval_op, &mut ops, EDiv);
-        rtol(&mut eval_op, &mut ops, EMul);
-        ltor(&mut eval_op, &mut ops, ESub);
-        rtol(&mut eval_op, &mut ops, EAdd);
-        ltor_multi(&mut eval_op, &mut ops, &[ELT, EGT, ELTE, EGTE]);  // TODO: Implement Python-style a<b<c ternary comparison... might as well generalize to N comparisons.
-        ltor_multi(&mut eval_op, &mut ops, &[EEQ, ENE]);
-        ltor(&mut eval_op, &mut ops, EAND);
-        ltor(&mut eval_op, &mut ops, EOR);
+        rtol(&mut vals, &mut ops, EExp);  // https://codeplea.com/exponentiation-associativity-options
+        ltor(&mut vals, &mut ops, EMod);
+        ltor(&mut vals, &mut ops, EDiv);
+        rtol(&mut vals, &mut ops, EMul);
+        ltor(&mut vals, &mut ops, ESub);
+        rtol(&mut vals, &mut ops, EAdd);
+        ltor_multi(&mut vals, &mut ops, &[ELT, EGT, ELTE, EGTE]);  // TODO: Implement Python-style a<b<c ternary comparison... might as well generalize to N comparisons.
+        ltor_multi(&mut vals, &mut ops, &[EEQ, ENE]);
+        ltor(&mut vals, &mut ops, EAND);
+        ltor(&mut vals, &mut ops, EOR);
 
         if !ops.is_empty() { return Err(KErr::new("Unhandled Expression ops")); }
         if vals.len()!=1 { return Err(KErr::new("More than one final Expression value")); }
@@ -169,9 +178,10 @@ impl Evaler for Expression {
 impl Evaler for Value {
     fn eval(&self, slab:&Slab, ns:&mut EvalNS) -> Result<f64,KErr> {
         match self {
-            EConstant(c) => c.eval(slab, ns),
-            EUnaryOp(u) => u.eval(slab, ns),
-            ECallable(c) => c.eval(slab, ns),
+            EConstant(c) => ns.eval(slab, c),
+            EUnaryOp(u) => ns.eval(slab, u),
+            EStdFunc(f) => ns.eval(slab, f),
+            EPrintFunc(f) => ns.eval(slab, f),
         }
     }
 }
@@ -222,19 +232,12 @@ fn eval_var(ns:&mut EvalNS, name:&VarName, args:Vec<f64>) -> Result<f64,KErr> {
     }
 }
 
-impl Evaler for Callable {
-    fn eval(&self, slab:&Slab, ns:&mut EvalNS) -> Result<f64,KErr> {
-        match self {
-            EStdFunc(f) => ns.eval(slab, f),
-            EEvalFunc(f) => ns.eval(slab, f),
-            EPrintFunc(f) => ns.eval(slab, f),
-        }
-    }
-}
-
 impl Evaler for StdFunc {
     fn eval(&self, slab:&Slab, ns:&mut EvalNS) -> Result<f64,KErr> {
         match self {
+            #[cfg(feature="unsafe-vars")]
+            EUnsafeVar{name:_,ptr} => unsafe { Ok(**ptr) },
+
             EVar(name) => eval_var(ns, name, Vec::new()),
             EFunc{name, args:xis} => {
                 let mut args = Vec::with_capacity(xis.len());
@@ -339,38 +342,14 @@ impl Evaler for PrintFunc {
     }
 }
 
-impl Evaler for EvalFunc {
-    fn eval(&self, slab:&Slab, ns:&mut EvalNS) -> Result<f64,KErr> {
-        // Don't affect the external namespace:
-        // If you do, you get some surprising behavior:
-        //     var a=0
-        //     var b=eval(1,a=9)
-        //     var _=print(a,b)   // "0 1"
-        //     var _=print(b,a)   // "1 9"
-        ns.push_eval(true)?;
-        // This is my 'defer ns.pop();' structure:
-        let res = (|| -> Result<f64,KErr> {
-
-            for kw in self.kwargs.iter() {
-                let val = ns.eval_bubble(slab, slab.ps.get_expr(kw.expr))?;
-                ns.create(kw.name.0.clone(), val)?;  // Should we delay the 'create' until after evaluating all the kwargs, so they don't affect each other?
-            }
-
-            ns.start_reeval_mode();
-            let res = ns.eval(slab, slab.ps.get_expr(self.expr));
-            ns.end_reeval_mode();
-            res
-        })();
-        ns.pop();
-        res
-    }
-}
-
 impl Evaler for Instruction {
     #[inline]
     fn eval(&self, slab:&Slab, ns:&mut EvalNS) -> Result<f64,KErr> {
         match self {
             Instruction::IConst(c) => Ok(*c),
+
+            #[cfg(feature="unsafe-vars")]
+            Instruction::IUnsafeVar{name:_,ptr} => unsafe { Ok(**ptr) },
 
             Instruction::INeg(i) => Ok(-eval_instr_ref!(slab.cs.get_instr(*i), slab, ns)),
             Instruction::INot(i) => Ok(bool_to_f64(f64_eq(eval_instr_ref!(slab.cs.get_instr(*i), slab, ns),0.0))),
@@ -469,8 +448,7 @@ impl Evaler for Instruction {
             Instruction::IFuncACosH(i) => Ok( eval_instr_ref!(slab.cs.get_instr(*i), slab, ns).acosh() ),
             Instruction::IFuncATanH(i) => Ok( eval_instr_ref!(slab.cs.get_instr(*i), slab, ns).atanh() ),
 
-            Instruction::IPrintFunc(pf) => pf.eval(slab,ns),
-            Instruction::IEvalFunc(ef) => ef.eval(slab,ns),
+            Instruction::IPrintFunc(pf) => ns.eval(slab,pf),
         }
     }
 }

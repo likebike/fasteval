@@ -22,18 +22,6 @@ fn eval() {
     assert_eq!(parse(&mut slab.ps,"x+y+z").unwrap().from(&slab.ps).eval(&slab, &mut ns).unwrap(), 6.0);
 
     assert_eq!(parse(&mut slab.ps,"x+y+z+a").unwrap().from(&slab.ps).eval(&slab, &mut ns), Err(KErr::new("variable undefined: a")));
-
-    assert_eq!(parse(&mut slab.ps,"x+eval(x)+x").unwrap().from(&slab.ps).eval(&slab, &mut ns).unwrap(), 3.0);
-    
-    assert_eq!(parse(&mut slab.ps,"x+eval(x, x=10)+x").unwrap().from(&slab.ps).eval(&slab, &mut ns).unwrap(), 12.0);
-
-    assert_eq!(parse(&mut slab.ps,"x+eval(y, x=10, y=x+1)+x").unwrap().from(&slab.ps).eval(&slab, &mut ns).unwrap(), 13.0);
-
-    assert_eq!(parse(&mut slab.ps,"x+eval(y, y=x+1, x=10)+x").unwrap().from(&slab.ps).eval(&slab, &mut ns).unwrap(), 4.0);
-
-    assert_eq!(parse(&mut slab.ps,"x+eval(x, x=10)+eval(x, x=20)+x").unwrap().from(&slab.ps).eval(&slab, &mut ns).unwrap(), 32.0);
-
-    assert_eq!(parse(&mut slab.ps,"x+eval( eval(x, x=10)+eval(x, x=20), x=30 )+x").unwrap().from(&slab.ps).eval(&slab, &mut ns).unwrap(), 62.0);
 }
 
 #[test]
@@ -186,10 +174,6 @@ fn aaa_basics() {
         Ok(66.66));
 
     assert_eq!(
-        parse({slab.clear(); &mut slab.ps}, r#"12.34 + eval ( x + 43.21 - y, x=2.5, y = 2.5 ) + 11.11"#).unwrap().from(&slab.ps).eval(&slab, &mut ns),
-        Ok(66.66));
-
-    assert_eq!(
         parse({slab.clear(); &mut slab.ps}, "e()").unwrap().from(&slab.ps).eval(&slab, &mut ns),
         Ok(2.718281828459045));
     assert_eq!(
@@ -244,19 +228,6 @@ fn aaa_evalns_basics() {
     assert_eq!(ns.eval_bubble(&slab, &TestEvaler{}).unwrap(), 5.4321);
     ns.create("x".to_string(),1.111).unwrap();
     assert_eq!(ns.eval_bubble(&slab, &TestEvaler{}).unwrap(), 1.111);
-    
-    assert_eq!(ns.is_reeval(), false);
-    ns.start_reeval_mode();
-        assert_eq!(ns.is_reeval(), true);
-
-        ns.start_reeval_mode();
-            assert_eq!(ns.is_reeval(), true);
-            assert_eq!(ns.eval_bubble(&slab, &TestEvaler{}).unwrap(), 1.111);
-        ns.end_reeval_mode();
-
-        assert_eq!(ns.is_reeval(), true);
-    ns.end_reeval_mode();
-    assert_eq!(ns.is_reeval(), false);
 }
 
 #[test]
@@ -356,5 +327,32 @@ fn custom_func() {
     assert_eq!(
         format!("{:?}", parse({slab.clear(); &mut slab.ps}, "bar(1.23)").unwrap().from(&slab.ps).eval(&slab, {ns.clear(); &mut ns})),
         "Ok(NaN)");
+}
+
+#[test]
+#[cfg(feature="unsafe-vars")]
+fn unsafe_var() {
+    let mut slab = Slab::new();
+
+    let mut ua = 1.23;
+    let mut ub = 4.56;
+    unsafe {
+        slab.ps.add_unsafe_var("ua".to_string(), &ua);
+        slab.ps.add_unsafe_var("ub".to_string(), &ub);
+    }
+
+    let mut ns = EvalNS::new(|_,_| None);
+
+    assert_eq!(
+        parse({slab.clear(); &mut slab.ps}, "ua + ub + 5").unwrap().from(&slab.ps).eval(&slab, {ns.clear(); &mut ns}),
+        Ok(10.79));
+
+    ua+=1.0;
+    ub+=2.0;
+    assert_eq!(
+        parse({slab.clear(); &mut slab.ps}, "ua + ub + 5").unwrap().from(&slab.ps).eval(&slab, {ns.clear(); &mut ns}),
+        Ok(13.79));
+
+    let _ = (ua,ub);  // Silence compiler warnings about variables not being read.
 }
 

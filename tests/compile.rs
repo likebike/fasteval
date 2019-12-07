@@ -1,6 +1,10 @@
-use al::{parse, Compiler, Evaler, Slab, EvalNS, ExpressionI, InstructionI, VarName};
-use al::parser::{PrintFunc, ExpressionOrString::{EExpr, EStr}, EvalFunc, KWArg};
-use al::compiler::Instruction::{self, IConst, INeg, INot, IInv, IAdd, IMul, IMod, IExp, ILT, ILTE, IEQ, INE, IGTE, IGT, IAND, IOR, IVar, IFunc, IFuncInt, IFuncCeil, IFuncFloor, IFuncAbs, IFuncSign, IFuncLog, IFuncRound, IFuncMin, IFuncMax, IFuncSin, IFuncCos, IFuncTan, IFuncASin, IFuncACos, IFuncATan, IFuncSinH, IFuncCosH, IFuncTanH, IFuncASinH, IFuncACosH, IFuncATanH, IPrintFunc, IEvalFunc};
+use al::{parse, Compiler, Evaler, Slab, EvalNS, ExpressionI, InstructionI, VarName, eval_instr, eval_instr_ref, eval_instr_ref_or_panic};
+use al::parser::{PrintFunc, ExpressionOrString::{EExpr, EStr}};
+#[cfg(feature="eval-builtin")]
+use al::parser::{EvalFunc, KWArg};
+use al::compiler::Instruction::{self, IConst, INeg, INot, IInv, IAdd, IMul, IMod, IExp, ILT, ILTE, IEQ, INE, IGTE, IGT, IAND, IOR, IVar, IFunc, IFuncInt, IFuncCeil, IFuncFloor, IFuncAbs, IFuncSign, IFuncLog, IFuncRound, IFuncMin, IFuncMax, IFuncSin, IFuncCos, IFuncTan, IFuncASin, IFuncACos, IFuncATan, IFuncSinH, IFuncCosH, IFuncTanH, IFuncASinH, IFuncACosH, IFuncATanH, IPrintFunc};
+#[cfg(feature="eval-builtin")]
+use al::compiler::Instruction::IEvalFunc;
 use kerr::KErr;
 
 #[test]
@@ -63,6 +67,61 @@ fn comp_chk(expr_str:&str, expect_instr:Instruction, expect_fmt:&str, expect_eva
             _ => None,
         }
     });
+    assert_eq!(instr.eval(&slab, &mut ns).unwrap(), expect_eval);
+
+    // Make sure Instruction eval matches normal eval:
+    assert_eq!(instr.eval(&slab, &mut ns).unwrap(), expr.eval(&slab, &mut ns).unwrap());
+}
+#[cfg(feature="unsafe-vars")]
+fn unsafe_comp_chk(expr_str:&str, expect_fmt:&str, expect_eval:f64) {
+    fn replace_addrs(mut s:String) -> String {
+        let mut start=0;
+        loop {
+            match s[start..].find(" 0x") {
+                None => break,
+                Some(i) => {
+                    let v = unsafe { s.as_mut_vec() };
+
+                    start = start+i+3;
+                    loop {
+                        match v.get(start) {
+                            None => break,
+                            Some(&b) => {
+                                if (b'0'<=b && b<=b'9') || (b'a'<=b && b<=b'f') {
+                                    v[start]=b'?';
+                                    start+=1;
+                                } else {
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            };
+        }
+        s
+    }
+
+    let mut slab = Slab::new();
+    let w = 0.0;
+    let x = 1.0;
+    let y = 2.0;
+    let y7 = 2.7;
+    let z = 3.0;
+    unsafe {
+        slab.ps.add_unsafe_var("w".to_string(), &w);
+        slab.ps.add_unsafe_var("x".to_string(), &x);
+        slab.ps.add_unsafe_var("y".to_string(), &y);
+        slab.ps.add_unsafe_var("y7".to_string(), &y7);
+        slab.ps.add_unsafe_var("z".to_string(), &z);
+    }
+
+    let expr = parse(&mut slab.ps, expr_str).unwrap().from(&slab.ps);
+    let instr = expr.compile(&slab.ps, &mut slab.cs);
+
+    assert_eq!(replace_addrs(format!("{:?}",slab.cs)), expect_fmt);
+
+    let mut ns = EvalNS::new(|_,_| None);
     assert_eq!(instr.eval(&slab, &mut ns).unwrap(), expect_eval);
 
     // Make sure Instruction eval matches normal eval:
@@ -258,6 +317,15 @@ fn all_instrs() {
         assert_eq!(i, IVar(VarName("eval".to_string())));
     }
 
+    // IUnsafeVar
+    #[cfg(feature="unsafe-vars")]
+    {
+        unsafe_comp_chk("x", "CompileSlab{ instrs:{} }", 1.0);
+        unsafe_comp_chk("x + y", "CompileSlab{ instrs:{ 0:IUnsafeVar { name: VarName(`x`), ptr: 0x???????????? }, 1:IUnsafeVar { name: VarName(`y`), ptr: 0x???????????? } } }", 3.0);
+        unsafe_comp_chk("x() + y", "CompileSlab{ instrs:{ 0:IUnsafeVar { name: VarName(`x`), ptr: 0x???????????? }, 1:IUnsafeVar { name: VarName(`y`), ptr: 0x???????????? } } }", 3.0);
+        unsafe_comp_chk("x(x,y,z) + y", "CompileSlab{ instrs:{ 0:IUnsafeVar { name: VarName(`x`), ptr: 0x???????????? }, 1:IUnsafeVar { name: VarName(`y`), ptr: 0x???????????? } } }", 3.0);
+    }
+
     // IFunc
     comp_chk("foo(2.7)", IFunc { name: VarName("foo".to_string()), args:vec![InstructionI(0)] }, "CompileSlab{ instrs:{ 0:IConst(2.7) } }", 27.0);
     comp_chk("foo(2.7, 3.4)", IFunc { name: VarName("foo".to_string()), args:vec![InstructionI(0), InstructionI(1)] }, "CompileSlab{ instrs:{ 0:IConst(2.7), 1:IConst(3.4) } }", 27.0);
@@ -377,12 +445,6 @@ fn all_instrs() {
 
     // IPrintFunc
     comp_chk(r#"print("test",1.23)"#, IPrintFunc(PrintFunc(vec![EStr("test".to_string()), EExpr(ExpressionI(0))])), "CompileSlab{ instrs:{} }", 1.23);
-
-    // IEvalFunc
-    comp_chk("eval(1 + 2)", IEvalFunc(EvalFunc { expr: ExpressionI(0), kwargs: vec![] }), "CompileSlab{ instrs:{} }", 3.0);
-    comp_chk("eval(x + 2)", IEvalFunc(EvalFunc { expr: ExpressionI(0), kwargs: vec![] }), "CompileSlab{ instrs:{} }", 3.0);
-    comp_chk("eval(x + 2, x=5)", IEvalFunc(EvalFunc { expr: ExpressionI(0), kwargs: vec![KWArg { name: VarName("x".to_string()), expr: ExpressionI(1) }] }), "CompileSlab{ instrs:{} }", 7.0);
-    
 }
 
 #[test]
@@ -394,5 +456,34 @@ fn custom_func() {
     comp_chk("x(1,2,3) + 1", IAdd(InstructionI(3), InstructionI(4)), "CompileSlab{ instrs:{ 0:IConst(1.0), 1:IConst(2.0), 2:IConst(3.0), 3:IFunc { name: VarName(`x`), args: [InstructionI(0), InstructionI(1), InstructionI(2)] }, 4:IConst(1.0) } }", 2.0);
 
     comp_chk("x(1, 1+1, 1+1+1) + 1", IAdd(InstructionI(3), InstructionI(4)), "CompileSlab{ instrs:{ 0:IConst(1.0), 1:IConst(2.0), 2:IConst(3.0), 3:IFunc { name: VarName(`x`), args: [InstructionI(0), InstructionI(1), InstructionI(2)] }, 4:IConst(1.0) } }", 2.0);
+}
+
+#[test]
+fn eval_macro() {
+    fn wrapped() -> Result<(),KErr> {
+        let mut ns = EvalNS::new(|_,_| None);
+        let mut slab = Slab::new();
+
+        let expr = parse(&mut slab.ps, "5").unwrap().from(&slab.ps);
+        let instr = expr.compile(&slab.ps, &mut slab.cs);
+        assert_eq!(eval_instr_ref!(&instr, &slab, &mut ns), 5.0);
+        assert_eq!(eval_instr_ref_or_panic!(&instr, &slab, &mut ns), 5.0);
+        assert_eq!(eval_instr!(instr, &slab, &mut ns), 5.0);
+
+        #[cfg(feature="unsafe-vars")]
+        {
+            let x = 1.0;
+            unsafe { slab.ps.add_unsafe_var("x".to_string(), &x) }
+            let expr = parse({slab.clear(); &mut slab.ps}, "x").unwrap().from(&slab.ps);
+            let instr = expr.compile(&slab.ps, &mut slab.cs);
+            assert_eq!(eval_instr_ref!(&instr, &slab, &mut ns), 1.0);
+            assert_eq!(eval_instr_ref_or_panic!(&instr, &slab, &mut ns), 1.0);
+            assert_eq!(eval_instr!(instr, &slab, &mut ns), 1.0);
+        }
+
+        Ok(())
+    }
+
+    wrapped().unwrap();
 }
 

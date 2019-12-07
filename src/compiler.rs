@@ -1,5 +1,7 @@
 use crate::slab::{ParseSlab, CompileSlab};
-use crate::parser::{Expression, ExprPair, Value, UnaryOp::{self, EPos, ENeg, ENot, EParentheses}, BinaryOp::{self, EOR, EAND, ENE, EEQ, EGTE, ELTE, EGT, ELT, EAdd, ESub, EMul, EDiv, EMod, EExp}, VarName, Callable::{self, EStdFunc, EPrintFunc, EEvalFunc}, StdFunc::{EVar, EFunc, EFuncInt, EFuncCeil, EFuncFloor, EFuncAbs, EFuncSign, EFuncLog, EFuncRound, EFuncMin, EFuncMax, EFuncE, EFuncPi, EFuncSin, EFuncCos, EFuncTan, EFuncASin, EFuncACos, EFuncATan, EFuncSinH, EFuncCosH, EFuncTanH, EFuncASinH, EFuncACosH, EFuncATanH}, PrintFunc, EvalFunc};
+use crate::parser::{Expression, ExprPair, Value, UnaryOp::{self, EPos, ENeg, ENot, EParentheses}, BinaryOp::{self, EOR, EAND, ENE, EEQ, EGTE, ELTE, EGT, ELT, EAdd, ESub, EMul, EDiv, EMod, EExp}, VarName, StdFunc::{self, EVar, EFunc, EFuncInt, EFuncCeil, EFuncFloor, EFuncAbs, EFuncSign, EFuncLog, EFuncRound, EFuncMin, EFuncMax, EFuncE, EFuncPi, EFuncSin, EFuncCos, EFuncTan, EFuncASin, EFuncACos, EFuncATan, EFuncSinH, EFuncCosH, EFuncTanH, EFuncASinH, EFuncACosH, EFuncATanH}, PrintFunc};
+#[cfg(feature="unsafe-vars")]
+use crate::parser::StdFunc::EUnsafeVar;
 use crate::evaler::bool_to_f64;
 
 #[derive(Debug, PartialEq, Copy, Clone)]
@@ -39,6 +41,8 @@ pub enum Instruction {
 
     //---- Callables:
     IVar(VarName),
+    #[cfg(feature="unsafe-vars")]
+    IUnsafeVar{name:VarName, ptr:*const f64},
     IFunc{name:VarName, args:Vec<InstructionI>},
 
     IFuncInt(InstructionI),
@@ -65,9 +69,10 @@ pub enum Instruction {
     IFuncATanH(InstructionI),
 
     IPrintFunc(PrintFunc),  // Not optimized (it would be pointless because of i/o bottleneck).
-    IEvalFunc(EvalFunc),    // Eval *could* be optimized, but I'll wait until I need to.
 }
-use Instruction::{IConst, INeg, INot, IInv, IAdd, IMul, IMod, IExp, ILT, ILTE, IEQ, INE, IGTE, IGT, IOR, IAND, IVar, IFunc, IFuncInt, IFuncCeil, IFuncFloor, IFuncAbs, IFuncSign, IFuncLog, IFuncRound, IFuncMin, IFuncMax, IFuncSin, IFuncCos, IFuncTan, IFuncASin, IFuncACos, IFuncATan, IFuncSinH, IFuncCosH, IFuncTanH, IFuncASinH, IFuncACosH, IFuncATanH, IPrintFunc, IEvalFunc};
+use Instruction::{IConst, INeg, INot, IInv, IAdd, IMul, IMod, IExp, ILT, ILTE, IEQ, INE, IGTE, IGT, IOR, IAND, IVar, IFunc, IFuncInt, IFuncCeil, IFuncFloor, IFuncAbs, IFuncSign, IFuncLog, IFuncRound, IFuncMin, IFuncMax, IFuncSin, IFuncCos, IFuncTan, IFuncASin, IFuncACos, IFuncATan, IFuncSinH, IFuncCosH, IFuncTanH, IFuncASinH, IFuncACosH, IFuncATanH, IPrintFunc};
+#[cfg(feature="unsafe-vars")]
+use Instruction::IUnsafeVar;
 
 
 
@@ -534,7 +539,8 @@ impl Compiler for Value {
         match self {
             Value::EConstant(c) => IConst(c.0),
             Value::EUnaryOp(u) => u.compile(pslab,cslab),
-            Value::ECallable(c) => c.compile(pslab,cslab),
+            Value::EStdFunc(f) => f.compile(pslab,cslab),
+            Value::EPrintFunc(pf) => IPrintFunc(pf.clone()),
         }
     }
 }
@@ -564,271 +570,269 @@ impl Compiler for UnaryOp {
     }
 }
 
-impl Compiler for Callable {
+impl Compiler for StdFunc {
     fn compile(&self, pslab:&ParseSlab, cslab:&mut CompileSlab) -> Instruction {
         match self {
-            EStdFunc(f) => match f {
-                EVar(name) => IVar(VarName(name.0.clone())),
-                EFunc{name, args:xis} => {
-                    let mut args = Vec::<InstructionI>::with_capacity(xis.len());
-                    for xi in xis {
-                        let instr = pslab.get_expr(*xi).compile(pslab,cslab);
-                        args.push(cslab.push_instr(instr));
-                    }
-                    IFunc{name:VarName(name.0.clone()), args}
+            EVar(name) => IVar(VarName(name.0.clone())),
+            #[cfg(feature="unsafe-vars")]
+            EUnsafeVar{name,ptr} => IUnsafeVar{name:VarName(name.0.clone()), ptr:*ptr},
+            EFunc{name, args:xis} => {
+                let mut args = Vec::<InstructionI>::with_capacity(xis.len());
+                for xi in xis {
+                    let instr = pslab.get_expr(*xi).compile(pslab,cslab);
+                    args.push(cslab.push_instr(instr));
                 }
+                IFunc{name:VarName(name.0.clone()), args}
+            }
 
-                EFuncInt(i) => {
-                    let instr = pslab.get_expr(*i).compile(pslab,cslab);
-                    if let IConst(c) = instr {
-                        IConst(c.trunc())
-                    } else {
-                        IFuncInt(cslab.push_instr(instr))
-                    }
-                }
-                EFuncCeil(i) => {
-                    let instr = pslab.get_expr(*i).compile(pslab,cslab);
-                    if let IConst(c) = instr {
-                        IConst(c.ceil())
-                    } else {
-                        IFuncCeil(cslab.push_instr(instr))
-                    }
-                }
-                EFuncFloor(i) => {
-                    let instr = pslab.get_expr(*i).compile(pslab,cslab);
-                    if let IConst(c) = instr {
-                        IConst(c.floor())
-                    } else {
-                        IFuncFloor(cslab.push_instr(instr))
-                    }
-                }
-                EFuncAbs(i) => {
-                    let instr = pslab.get_expr(*i).compile(pslab,cslab);
-                    if let IConst(c) = instr {
-                        IConst(c.abs())
-                    } else {
-                        IFuncAbs(cslab.push_instr(instr))
-                    }
-                }
-                EFuncSign(i) => {
-                    let instr = pslab.get_expr(*i).compile(pslab,cslab);
-                    if let IConst(c) = instr {
-                        IConst(c.signum())
-                    } else {
-                        IFuncSign(cslab.push_instr(instr))
-                    }
-                }
-                EFuncLog{base:baseopt, expr:i} => {
-                    let base = match baseopt {
-                        Some(bi) => pslab.get_expr(*bi).compile(pslab,cslab),
-                        None => IConst(10.0),
-                    };
-                    let instr = pslab.get_expr(*i).compile(pslab,cslab);
-                    if let IConst(b) = base {
-                        if let IConst(n) = instr {
-                            return IConst(log(b,n));
-                        }
-                    }
-                    IFuncLog{base:cslab.push_instr(base), of:cslab.push_instr(instr)}
-                }
-                EFuncRound{modulus:modopt, expr:i} => {
-                    let modulus = match modopt {
-                        Some(mi) => pslab.get_expr(*mi).compile(pslab,cslab),
-                        None => IConst(1.0),
-                    };
-                    let instr = pslab.get_expr(*i).compile(pslab,cslab);
-                    if let IConst(m) = modulus {
-                        if let IConst(n) = instr {
-                            return IConst( (n/m).round() * m );
-                        }
-                    }
-                    IFuncRound{modulus:cslab.push_instr(modulus), of:cslab.push_instr(instr)}
-                }
-                EFuncMin{first:fi, rest:is} => {
-                    let first = pslab.get_expr(*fi).compile(pslab,cslab);
-                    let mut rest = Vec::<Instruction>::with_capacity(is.len());
-                    for i in is { rest.push(pslab.get_expr(*i).compile(pslab,cslab)); }
-                    let mut out = IConst(0.0); let mut out_set = false;
-                    let mut const_min = 0.0; let mut const_min_set = false;
-                    if let IConst(f) = first {
-                        const_min = f;
-                        const_min_set = true;
-                    } else {
-                        out = first;
-                        out_set = true;
-                    }
-                    for instr in rest {
-                        if let IConst(f) = instr {
-                            if const_min_set {
-                                if f<const_min { const_min=f; }
-                            } else {
-                                const_min = f;
-                                const_min_set = true;
-                            }
-                        } else {
-                            if out_set {
-                                out = IFuncMin(cslab.push_instr(out), cslab.push_instr(instr));
-                            } else {
-                                out = instr;
-                                out_set = true;
-                            }
-                        }
-                    }
-                    if const_min_set {
-                        if out_set {
-                            out = IFuncMin(cslab.push_instr(out), cslab.push_instr(IConst(const_min)));
-                        } else {
-                            out = IConst(const_min);
-                            out_set = true;
-                        }
-                    }
-                    assert!(out_set);
-                    out
-                }
-                EFuncMax{first:fi, rest:is} => {
-                    let first = pslab.get_expr(*fi).compile(pslab,cslab);
-                    let mut rest = Vec::<Instruction>::with_capacity(is.len());
-                    for i in is { rest.push(pslab.get_expr(*i).compile(pslab,cslab)); }
-                    let mut out = IConst(0.0); let mut out_set = false;
-                    let mut const_max = 0.0; let mut const_max_set = false;
-                    if let IConst(f) = first {
-                        const_max = f;
-                        const_max_set = true;
-                    } else {
-                        out = first;
-                        out_set = true;
-                    }
-                    for instr in rest {
-                        if let IConst(f) = instr {
-                            if const_max_set {
-                                if f>const_max { const_max=f; }
-                            } else {
-                                const_max = f;
-                                const_max_set = true;
-                            }
-                        } else {
-                            if out_set {
-                                out = IFuncMax(cslab.push_instr(out), cslab.push_instr(instr));
-                            } else {
-                                out = instr;
-                                out_set = true;
-                            }
-                        }
-                    }
-                    if const_max_set {
-                        if out_set {
-                            out = IFuncMax(cslab.push_instr(out), cslab.push_instr(IConst(const_max)));
-                        } else {
-                            out = IConst(const_max);
-                            out_set = true;
-                        }
-                    }
-                    assert!(out_set);
-                    out
-                }
-
-                EFuncE => IConst(std::f64::consts::E),
-                EFuncPi => IConst(std::f64::consts::PI),
-
-                EFuncSin(i) => {
-                    let instr = pslab.get_expr(*i).compile(pslab,cslab);
-                    if let IConst(c) = instr {
-                        IConst(c.sin())
-                    } else {
-                        IFuncSin(cslab.push_instr(instr))
-                    }
-                }
-                EFuncCos(i) => {
-                    let instr = pslab.get_expr(*i).compile(pslab,cslab);
-                    if let IConst(c) = instr {
-                        IConst(c.cos())
-                    } else {
-                        IFuncCos(cslab.push_instr(instr))
-                    }
-                }
-                EFuncTan(i) => {
-                    let instr = pslab.get_expr(*i).compile(pslab,cslab);
-                    if let IConst(c) = instr {
-                        IConst(c.tan())
-                    } else {
-                        IFuncTan(cslab.push_instr(instr))
-                    }
-                }
-                EFuncASin(i) => {
-                    let instr = pslab.get_expr(*i).compile(pslab,cslab);
-                    if let IConst(c) = instr {
-                        IConst(c.asin())
-                    } else {
-                        IFuncASin(cslab.push_instr(instr))
-                    }
-                }
-                EFuncACos(i) => {
-                    let instr = pslab.get_expr(*i).compile(pslab,cslab);
-                    if let IConst(c) = instr {
-                        IConst(c.acos())
-                    } else {
-                        IFuncACos(cslab.push_instr(instr))
-                    }
-                }
-                EFuncATan(i) => {
-                    let instr = pslab.get_expr(*i).compile(pslab,cslab);
-                    if let IConst(c) = instr {
-                        IConst(c.atan())
-                    } else {
-                        IFuncATan(cslab.push_instr(instr))
-                    }
-                }
-                EFuncSinH(i) => {
-                    let instr = pslab.get_expr(*i).compile(pslab,cslab);
-                    if let IConst(c) = instr {
-                        IConst(c.sinh())
-                    } else {
-                        IFuncSinH(cslab.push_instr(instr))
-                    }
-                }
-                EFuncCosH(i) => {
-                    let instr = pslab.get_expr(*i).compile(pslab,cslab);
-                    if let IConst(c) = instr {
-                        IConst(c.cosh())
-                    } else {
-                        IFuncCosH(cslab.push_instr(instr))
-                    }
-                }
-                EFuncTanH(i) => {
-                    let instr = pslab.get_expr(*i).compile(pslab,cslab);
-                    if let IConst(c) = instr {
-                        IConst(c.tanh())
-                    } else {
-                        IFuncTanH(cslab.push_instr(instr))
-                    }
-                }
-                EFuncASinH(i) => {
-                    let instr = pslab.get_expr(*i).compile(pslab,cslab);
-                    if let IConst(c) = instr {
-                        IConst(c.asinh())
-                    } else {
-                        IFuncASinH(cslab.push_instr(instr))
-                    }
-                }
-                EFuncACosH(i) => {
-                    let instr = pslab.get_expr(*i).compile(pslab,cslab);
-                    if let IConst(c) = instr {
-                        IConst(c.acosh())
-                    } else {
-                        IFuncACosH(cslab.push_instr(instr))
-                    }
-                }
-                EFuncATanH(i) => {
-                    let instr = pslab.get_expr(*i).compile(pslab,cslab);
-                    if let IConst(c) = instr {
-                        IConst(c.atanh())
-                    } else {
-                        IFuncATanH(cslab.push_instr(instr))
-                    }
+            EFuncInt(i) => {
+                let instr = pslab.get_expr(*i).compile(pslab,cslab);
+                if let IConst(c) = instr {
+                    IConst(c.trunc())
+                } else {
+                    IFuncInt(cslab.push_instr(instr))
                 }
             }
-            EPrintFunc(pf) => IPrintFunc(pf.clone()),
-            EEvalFunc(ef) => IEvalFunc(ef.clone()),
+            EFuncCeil(i) => {
+                let instr = pslab.get_expr(*i).compile(pslab,cslab);
+                if let IConst(c) = instr {
+                    IConst(c.ceil())
+                } else {
+                    IFuncCeil(cslab.push_instr(instr))
+                }
+            }
+            EFuncFloor(i) => {
+                let instr = pslab.get_expr(*i).compile(pslab,cslab);
+                if let IConst(c) = instr {
+                    IConst(c.floor())
+                } else {
+                    IFuncFloor(cslab.push_instr(instr))
+                }
+            }
+            EFuncAbs(i) => {
+                let instr = pslab.get_expr(*i).compile(pslab,cslab);
+                if let IConst(c) = instr {
+                    IConst(c.abs())
+                } else {
+                    IFuncAbs(cslab.push_instr(instr))
+                }
+            }
+            EFuncSign(i) => {
+                let instr = pslab.get_expr(*i).compile(pslab,cslab);
+                if let IConst(c) = instr {
+                    IConst(c.signum())
+                } else {
+                    IFuncSign(cslab.push_instr(instr))
+                }
+            }
+            EFuncLog{base:baseopt, expr:i} => {
+                let base = match baseopt {
+                    Some(bi) => pslab.get_expr(*bi).compile(pslab,cslab),
+                    None => IConst(10.0),
+                };
+                let instr = pslab.get_expr(*i).compile(pslab,cslab);
+                if let IConst(b) = base {
+                    if let IConst(n) = instr {
+                        return IConst(log(b,n));
+                    }
+                }
+                IFuncLog{base:cslab.push_instr(base), of:cslab.push_instr(instr)}
+            }
+            EFuncRound{modulus:modopt, expr:i} => {
+                let modulus = match modopt {
+                    Some(mi) => pslab.get_expr(*mi).compile(pslab,cslab),
+                    None => IConst(1.0),
+                };
+                let instr = pslab.get_expr(*i).compile(pslab,cslab);
+                if let IConst(m) = modulus {
+                    if let IConst(n) = instr {
+                        return IConst( (n/m).round() * m );
+                    }
+                }
+                IFuncRound{modulus:cslab.push_instr(modulus), of:cslab.push_instr(instr)}
+            }
+            EFuncMin{first:fi, rest:is} => {
+                let first = pslab.get_expr(*fi).compile(pslab,cslab);
+                let mut rest = Vec::<Instruction>::with_capacity(is.len());
+                for i in is { rest.push(pslab.get_expr(*i).compile(pslab,cslab)); }
+                let mut out = IConst(0.0); let mut out_set = false;
+                let mut const_min = 0.0; let mut const_min_set = false;
+                if let IConst(f) = first {
+                    const_min = f;
+                    const_min_set = true;
+                } else {
+                    out = first;
+                    out_set = true;
+                }
+                for instr in rest {
+                    if let IConst(f) = instr {
+                        if const_min_set {
+                            if f<const_min { const_min=f; }
+                        } else {
+                            const_min = f;
+                            const_min_set = true;
+                        }
+                    } else {
+                        if out_set {
+                            out = IFuncMin(cslab.push_instr(out), cslab.push_instr(instr));
+                        } else {
+                            out = instr;
+                            out_set = true;
+                        }
+                    }
+                }
+                if const_min_set {
+                    if out_set {
+                        out = IFuncMin(cslab.push_instr(out), cslab.push_instr(IConst(const_min)));
+                    } else {
+                        out = IConst(const_min);
+                        out_set = true;
+                    }
+                }
+                assert!(out_set);
+                out
+            }
+            EFuncMax{first:fi, rest:is} => {
+                let first = pslab.get_expr(*fi).compile(pslab,cslab);
+                let mut rest = Vec::<Instruction>::with_capacity(is.len());
+                for i in is { rest.push(pslab.get_expr(*i).compile(pslab,cslab)); }
+                let mut out = IConst(0.0); let mut out_set = false;
+                let mut const_max = 0.0; let mut const_max_set = false;
+                if let IConst(f) = first {
+                    const_max = f;
+                    const_max_set = true;
+                } else {
+                    out = first;
+                    out_set = true;
+                }
+                for instr in rest {
+                    if let IConst(f) = instr {
+                        if const_max_set {
+                            if f>const_max { const_max=f; }
+                        } else {
+                            const_max = f;
+                            const_max_set = true;
+                        }
+                    } else {
+                        if out_set {
+                            out = IFuncMax(cslab.push_instr(out), cslab.push_instr(instr));
+                        } else {
+                            out = instr;
+                            out_set = true;
+                        }
+                    }
+                }
+                if const_max_set {
+                    if out_set {
+                        out = IFuncMax(cslab.push_instr(out), cslab.push_instr(IConst(const_max)));
+                    } else {
+                        out = IConst(const_max);
+                        out_set = true;
+                    }
+                }
+                assert!(out_set);
+                out
+            }
+
+            EFuncE => IConst(std::f64::consts::E),
+            EFuncPi => IConst(std::f64::consts::PI),
+
+            EFuncSin(i) => {
+                let instr = pslab.get_expr(*i).compile(pslab,cslab);
+                if let IConst(c) = instr {
+                    IConst(c.sin())
+                } else {
+                    IFuncSin(cslab.push_instr(instr))
+                }
+            }
+            EFuncCos(i) => {
+                let instr = pslab.get_expr(*i).compile(pslab,cslab);
+                if let IConst(c) = instr {
+                    IConst(c.cos())
+                } else {
+                    IFuncCos(cslab.push_instr(instr))
+                }
+            }
+            EFuncTan(i) => {
+                let instr = pslab.get_expr(*i).compile(pslab,cslab);
+                if let IConst(c) = instr {
+                    IConst(c.tan())
+                } else {
+                    IFuncTan(cslab.push_instr(instr))
+                }
+            }
+            EFuncASin(i) => {
+                let instr = pslab.get_expr(*i).compile(pslab,cslab);
+                if let IConst(c) = instr {
+                    IConst(c.asin())
+                } else {
+                    IFuncASin(cslab.push_instr(instr))
+                }
+            }
+            EFuncACos(i) => {
+                let instr = pslab.get_expr(*i).compile(pslab,cslab);
+                if let IConst(c) = instr {
+                    IConst(c.acos())
+                } else {
+                    IFuncACos(cslab.push_instr(instr))
+                }
+            }
+            EFuncATan(i) => {
+                let instr = pslab.get_expr(*i).compile(pslab,cslab);
+                if let IConst(c) = instr {
+                    IConst(c.atan())
+                } else {
+                    IFuncATan(cslab.push_instr(instr))
+                }
+            }
+            EFuncSinH(i) => {
+                let instr = pslab.get_expr(*i).compile(pslab,cslab);
+                if let IConst(c) = instr {
+                    IConst(c.sinh())
+                } else {
+                    IFuncSinH(cslab.push_instr(instr))
+                }
+            }
+            EFuncCosH(i) => {
+                let instr = pslab.get_expr(*i).compile(pslab,cslab);
+                if let IConst(c) = instr {
+                    IConst(c.cosh())
+                } else {
+                    IFuncCosH(cslab.push_instr(instr))
+                }
+            }
+            EFuncTanH(i) => {
+                let instr = pslab.get_expr(*i).compile(pslab,cslab);
+                if let IConst(c) = instr {
+                    IConst(c.tanh())
+                } else {
+                    IFuncTanH(cslab.push_instr(instr))
+                }
+            }
+            EFuncASinH(i) => {
+                let instr = pslab.get_expr(*i).compile(pslab,cslab);
+                if let IConst(c) = instr {
+                    IConst(c.asinh())
+                } else {
+                    IFuncASinH(cslab.push_instr(instr))
+                }
+            }
+            EFuncACosH(i) => {
+                let instr = pslab.get_expr(*i).compile(pslab,cslab);
+                if let IConst(c) = instr {
+                    IConst(c.acosh())
+                } else {
+                    IFuncACosH(cslab.push_instr(instr))
+                }
+            }
+            EFuncATanH(i) => {
+                let instr = pslab.get_expr(*i).compile(pslab,cslab);
+                if let IConst(c) = instr {
+                    IConst(c.atanh())
+                } else {
+                    IFuncATanH(cslab.push_instr(instr))
+                }
+            }
         }
     }
 }

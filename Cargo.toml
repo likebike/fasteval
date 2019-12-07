@@ -16,4 +16,5 @@ debug = true
 [features]
 default = ["alpha-keywords"]
 alpha-keywords = []  # Enable 'NaN', 'inf', 'and', 'or'
+unsafe-vars = []  # tinyexpr-style pointer-based variables.
 

@@ -100,16 +100,16 @@ fn aaa_test_c0() {
 
     ok_parse({slab.clear(); &mut slab}, "3+5-xyz");
     assert_eq!(format!("{:?}",&slab),
-"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(3.0)), pairs: [ExprPair(EAdd, EConstant(Constant(5.0))), ExprPair(ESub, ECallable(EStdFunc(EVar(VarName(`xyz`)))))] } }, vals:{}, instrs:{} }");
+"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(3.0)), pairs: [ExprPair(EAdd, EConstant(Constant(5.0))), ExprPair(ESub, EStdFunc(EVar(VarName(`xyz`))))] } }, vals:{}, instrs:{} }");
     ok_parse({slab.clear(); &mut slab}, "3+5-xyz_abc_def123");
     assert_eq!(format!("{:?}",&slab),
-"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(3.0)), pairs: [ExprPair(EAdd, EConstant(Constant(5.0))), ExprPair(ESub, ECallable(EStdFunc(EVar(VarName(`xyz_abc_def123`)))))] } }, vals:{}, instrs:{} }");
+"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(3.0)), pairs: [ExprPair(EAdd, EConstant(Constant(5.0))), ExprPair(ESub, EStdFunc(EVar(VarName(`xyz_abc_def123`))))] } }, vals:{}, instrs:{} }");
     ok_parse({slab.clear(); &mut slab}, "3+5-XYZ_abc_def123");
     assert_eq!(format!("{:?}",&slab),
-"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(3.0)), pairs: [ExprPair(EAdd, EConstant(Constant(5.0))), ExprPair(ESub, ECallable(EStdFunc(EVar(VarName(`XYZ_abc_def123`)))))] } }, vals:{}, instrs:{} }");
+"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(3.0)), pairs: [ExprPair(EAdd, EConstant(Constant(5.0))), ExprPair(ESub, EStdFunc(EVar(VarName(`XYZ_abc_def123`))))] } }, vals:{}, instrs:{} }");
     ok_parse({slab.clear(); &mut slab}, "3+5-XYZ_ab*c_def123");
     assert_eq!(format!("{:?}",&slab),
-"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(3.0)), pairs: [ExprPair(EAdd, EConstant(Constant(5.0))), ExprPair(ESub, ECallable(EStdFunc(EVar(VarName(`XYZ_ab`))))), ExprPair(EMul, ECallable(EStdFunc(EVar(VarName(`c_def123`)))))] } }, vals:{}, instrs:{} }");
+"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(3.0)), pairs: [ExprPair(EAdd, EConstant(Constant(5.0))), ExprPair(ESub, EStdFunc(EVar(VarName(`XYZ_ab`)))), ExprPair(EMul, EStdFunc(EVar(VarName(`c_def123`))))] } }, vals:{}, instrs:{} }");
 }
 
 #[test]
@@ -135,7 +135,7 @@ fn aaa_test_d0() {
 "Slab{ exprs:{ 0:Expression { first: EConstant(Constant(3.0)), pairs: [ExprPair(EAdd, EConstant(Constant(5.0)))] } }, vals:{}, instrs:{} }");
     ok_parse({slab.clear(); &mut slab}, " 3 + ( -x + y ) ");
     assert_eq!(format!("{:?}",&slab),
-"Slab{ exprs:{ 0:Expression { first: EUnaryOp(ENeg(ValueI(0))), pairs: [ExprPair(EAdd, ECallable(EStdFunc(EVar(VarName(`y`)))))] }, 1:Expression { first: EConstant(Constant(3.0)), pairs: [ExprPair(EAdd, EUnaryOp(EParentheses(ExpressionI(0))))] } }, vals:{ 0:ECallable(EStdFunc(EVar(VarName(`x`)))) }, instrs:{} }");
+"Slab{ exprs:{ 0:Expression { first: EUnaryOp(ENeg(ValueI(0))), pairs: [ExprPair(EAdd, EStdFunc(EVar(VarName(`y`))))] }, 1:Expression { first: EConstant(Constant(3.0)), pairs: [ExprPair(EAdd, EUnaryOp(EParentheses(ExpressionI(0))))] } }, vals:{ 0:EStdFunc(EVar(VarName(`x`))) }, instrs:{} }");
 }
 
 #[test]
@@ -271,17 +271,6 @@ fn aaa_test_j() {
 
 #[test]
 fn aaa_test_k() {
-    let mut slab = Slab::new();
-
-    assert_eq!(do_eval("eval(one, one=1)"), 1.0);
-    assert_eq!(do_eval("eval(one+one, one=1)"), 2.0);
-    assert_eq!(do_eval("eval(one+one*one/one, one=1)"), 2.0);
-    assert_eq!(format!("{:?}",ok_parse({slab.clear(); &mut slab}, "eval(one+two, one=1)").from(&slab.ps).var_names(&slab).unwrap()), r#"{"two"}"#);
-
-    assert_eq!(parse_raw({slab.clear(); &mut slab}, "eval(one, one=1, one=2)"), Err(KErr::new("already defined: one")));
-
-    assert_eq!(do_eval("eval(eval(eval(a*2,a=3),a=2),a=1)"), 2.0);  // 'eval()' processes from-outside-to-in (opposite of normal convention).
-
     do_eval(r#"print("a",print("b",print("c",5,"C"),"B"),"A")"#);
 
 // TODO: Capture -- i bet i can re-use rust's existing test-output capturing feature:
