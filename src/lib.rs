@@ -8,6 +8,8 @@
 //   [x] custom functions  (i.e. Variables With Arguments)
 //   [x] REPL Example with Variables
 //   [x] Copy smart tests from other libs.
+//   [x] Reduce work: Parser obj --> functions.  EvalNS --> BTreeMap.
+//   [x] #[inline] last, using profile as a guide.
 //   [ ] More examples:  UnsafeVar.  Mini Language.
 //   [ ] Readme
 //   [ ] Documentation
@@ -103,15 +105,14 @@ pub mod compiler;
 pub mod evaler;
 pub mod slab;
 pub mod evalns;
-pub mod display;
 pub mod ez;
 
-pub use self::parser::{parse, Parser, Expression, ExpressionI, Value, ValueI, VarName};
+pub use self::parser::{parse, Parser, Expression, ExpressionI, Value, ValueI};
 pub use self::compiler::{Compiler, Instruction::{self, IConst}, InstructionI};
 #[cfg(feature="unsafe-vars")]
 pub use self::compiler::Instruction::IUnsafeVar;
 pub use self::evaler::Evaler;
 pub use self::slab::Slab;
-pub use self::evalns::EvalNS;
+pub use self::evalns::{EvalNamespace, EmptyNamespace, FlatNamespace, ScopedNamespace};
 pub use self::ez::ez_eval;
 

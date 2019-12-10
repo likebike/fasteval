@@ -1,10 +1,9 @@
 // usage: rlwrap cargo run --release --example repl
 
-use al::{parse, Slab, EvalNS};
+use al::{parse, Slab, EvalNamespace};
 
 use std::collections::BTreeMap;
 use std::io::{self, BufRead, Write};
-use std::cell::RefCell;
 
 fn main() {
     repl();
@@ -12,10 +11,7 @@ fn main() {
 
 fn repl() {
     let mut slab = Slab::new();
-    let ns_map = RefCell::new(BTreeMap::new());
-    let mut ns = EvalNS::new(|name, _args| {
-        ns_map.borrow().get(name).cloned()
-    });
+    let mut ns_stack = vec![BTreeMap::new()];
 
     let stdin = io::stdin();
     let mut lines = stdin.lock().lines();
@@ -37,9 +33,28 @@ fn repl() {
                 eprintln!("incorrect 'let' syntax.  Should be: let x = ...");
                 continue;
             }
-
             ans_key = pieces[1].to_string();
             line = pieces[3..].join(" ");
+        } else if pieces[0] == "push" {
+            ns_stack.push(BTreeMap::new());
+            eprintln!("Entered scope #{}", ns_stack.len());
+            continue;
+        } else if pieces[0] == "pop" {
+            let mut return_value = std::f64::NAN;  let mut has_return_value = false;
+            if let Some(v) = ns_stack.last().unwrap().get(&ans_key) {
+                return_value = *v;
+                has_return_value = true;
+            }
+
+            ns_stack.pop();
+            eprintln!("Exited scope #{}", ns_stack.len()+1);
+            if ns_stack.is_empty() { ns_stack.push(BTreeMap::new()); }  // All scopes have been removed.  Add a new one.
+
+            if has_return_value {
+                ns_stack.last_mut().unwrap().insert(ans_key, return_value);
+            }
+
+            continue;
         }
 
         let expr_ref = match parse(&mut slab.ps, &line) {
@@ -50,7 +65,7 @@ fn repl() {
             }
         };
 
-        let ans = match ns.eval_bubble(&slab, expr_ref) {
+        let ans = match ns_stack.eval(&slab, expr_ref) {
             Ok(val) => val,
             Err(err) => {
                 eprintln!("eval error: {}", err);
@@ -59,10 +74,7 @@ fn repl() {
         };
 
         println!("{}", ans);
-        {
-            let mut ns_map = ns_map.borrow_mut();
-            ns_map.insert(ans_key, ans);
-        }
+        ns_stack.last_mut().unwrap().insert(ans_key, ans);
     }
 
     println!();

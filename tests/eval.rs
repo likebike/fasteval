@@ -1,20 +1,18 @@
-use al::{Slab, parse, EvalNS, Evaler};
+use al::{Evaler, Slab, EvalNamespace, EmptyNamespace, FlatNamespace, ScopedNamespace, parse};
 use al::evaler::bool_to_f64;
 
 use kerr::KErr;
 
 use std::mem;
-use std::collections::HashSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 #[test]
 fn eval() {
     let mut slab = Slab::new();
-    let mut ns = EvalNS::new(|n,_| match n {
-        "x" => Some(1.0),
-        "y" => Some(2.0),
-        "z" => Some(3.0),
-        _ => None,
-    });
+    let mut ns = BTreeMap::<String,f64>::new();
+    ns.insert("x".to_string(), 1.0);
+    ns.insert("y".to_string(), 2.0);
+    ns.insert("z".to_string(), 3.0);
 
     // Sanity check:
     assert_eq!(parse(&mut slab.ps,"3+3-3/3").unwrap().from(&slab.ps).eval(&slab, &mut ns).unwrap(), 5.0);
@@ -40,7 +38,7 @@ fn aaa_aaa_sizes() {
 #[test]
 fn aaa_aab_single() {
     let mut slab = Slab::new();
-    let mut ns = EvalNS::new(|_,_| None);
+    let mut ns = EmptyNamespace;
     assert_eq!(parse(&mut slab.ps, "123.456").unwrap().from(&slab.ps).eval(&slab, &mut ns).unwrap(), 123.456f64);
 }
 
@@ -49,10 +47,10 @@ fn aaa_basics() {
     let mut slab = Slab::new();
 
     assert_eq!(
-        parse({slab.clear(); &mut slab.ps}, "12.34 + 43.21 + 11.11").unwrap().from(&slab.ps).var_names(&slab).unwrap(),
-        HashSet::new());
+        parse({slab.clear(); &mut slab.ps}, "12.34 + 43.21 + 11.11").unwrap().from(&slab.ps).var_names(&slab),
+        BTreeSet::new());
 
-    let mut ns = EvalNS::new(|_,_| None);
+    let mut ns = EmptyNamespace;
     assert_eq!(
         parse({slab.clear(); &mut slab.ps}, "12.34 + 43.21 + 11.11").unwrap().from(&slab.ps).eval(&slab, &mut ns),
         Ok(66.66));
@@ -117,7 +115,7 @@ fn aaa_basics() {
         parse({slab.clear(); &mut slab.ps}, "x + 1").unwrap().from(&slab.ps).eval(&slab, &mut ns),
         Err(KErr::new("variable undefined: x")));
 
-    let mut ns = EvalNS::new(|_,_| Some(3.0));
+    let mut ns = FlatNamespace::new(|_,_| Some(3.0));
     assert_eq!(
         parse({slab.clear(); &mut slab.ps}, "x + 1").unwrap().from(&slab.ps).eval(&slab, &mut ns),
         Ok(4.0));
@@ -213,8 +211,9 @@ fn aaa_basics() {
 #[derive(Debug)]
 struct TestEvaler;
 impl Evaler for TestEvaler {
-    fn eval(&self, _slab:&Slab, ns:&mut EvalNS) -> Result<f64,KErr> {
-        match ns.get("x",vec![]) {
+    fn _var_names(&self, _slab:&Slab, _dst:&mut BTreeSet<String>) {}
+    fn eval(&self, _slab:&Slab, ns:&mut impl EvalNamespace) -> Result<f64,KErr> {
+        match ns.get_cached("x",vec![]) {
             Some(v) => Ok(v),
             None => Ok(1.23),
         }
@@ -224,16 +223,16 @@ impl Evaler for TestEvaler {
 #[test]
 fn aaa_evalns_basics() {
     let slab = Slab::new();
-    let mut ns = EvalNS::new(|_,_| Some(5.4321));
+    let mut ns = ScopedNamespace::new(|_,_| Some(5.4321));
     assert_eq!(ns.eval_bubble(&slab, &TestEvaler{}).unwrap(), 5.4321);
-    ns.create("x".to_string(),1.111).unwrap();
+    ns.create_cached("x".to_string(),1.111).unwrap();
     assert_eq!(ns.eval_bubble(&slab, &TestEvaler{}).unwrap(), 1.111);
 }
 
 #[test]
 fn corners() {
     let mut slab = Slab::new();
-    let mut ns = EvalNS::new(|_,_| None);
+    let mut ns = EmptyNamespace;
     assert_eq!(
         format!("{:?}", parse({slab.clear(); &mut slab.ps}, "(-1) ^ 0.5").unwrap().from(&slab.ps).eval(&slab, &mut ns)),
         "Ok(NaN)");
@@ -242,26 +241,26 @@ fn corners() {
 fn my_evalns_cb_function(_:&str, _:Vec<f64>) -> Option<f64> { None }
 #[test]
 fn evalns_cb_ownership() {
-    let _ns = EvalNS::new(my_evalns_cb_function);
-    let _ns = EvalNS::new(my_evalns_cb_function);
+    let _ns = FlatNamespace::new(my_evalns_cb_function);
+    let _ns = FlatNamespace::new(my_evalns_cb_function);
     // Conclusion: You can pass a function pointer into a function that receives ownership.
 
     let closure = |_:&str, _:Vec<f64>| None;
-    let _ns = EvalNS::new(closure);
-    let _ns = EvalNS::new(closure);
+    let _ns = FlatNamespace::new(closure);
+    let _ns = FlatNamespace::new(closure);
 
     let x = 1.0;
     let closure = |_:&str, _:Vec<f64>| Some(x);
-    let _ns = EvalNS::new(closure);
-    let _ns = EvalNS::new(closure);
+    let _ns = FlatNamespace::new(closure);
+    let _ns = FlatNamespace::new(closure);
 
     let mut x = 1.0;
     let closure = |_:&str, _:Vec<f64>| {
         x+=1.0;
         Some(x)
     };
-    let _ns = EvalNS::new(closure);
-    //let _ns = EvalNS::new(closure);  // Not allowed.
+    let _ns = FlatNamespace::new(closure);
+    //let _ns = FlatNamespace::new(closure);  // Not allowed.
 
     // Conclusion: Functions and Closures that don't mutate state are effectively Copy.
     //             Closures that mutate state aren't Copy.
@@ -272,7 +271,7 @@ fn evalns_cb_ownership() {
 #[test]
 fn custom_func() {
     let mut slab = Slab::new();
-    let mut ns = EvalNS::new(|name,args| {
+    let mut ns = FlatNamespace::new(|name,args| {
         eprintln!("In CB: {}",name);
         match name {
             "x" => Some(1.0),
@@ -288,44 +287,44 @@ fn custom_func() {
         }
     });
     assert_eq!(
-        parse({slab.clear(); &mut slab.ps}, "x + 1.5").unwrap().from(&slab.ps).eval(&slab, {ns.clear(); &mut ns}),
+        parse({slab.clear(); &mut slab.ps}, "x + 1.5").unwrap().from(&slab.ps).eval(&slab, {ns.clear_cached(); &mut ns}),
         Ok(2.5));
 
     assert_eq!(
-        parse({slab.clear(); &mut slab.ps}, "x() + 1.5").unwrap().from(&slab.ps).eval(&slab, {ns.clear(); &mut ns}),
+        parse({slab.clear(); &mut slab.ps}, "x() + 1.5").unwrap().from(&slab.ps).eval(&slab, {ns.clear_cached(); &mut ns}),
         Ok(2.5));
 
     assert_eq!(
-        parse({slab.clear(); &mut slab.ps}, "x(1,2,3) + 1.5").unwrap().from(&slab.ps).eval(&slab, {ns.clear(); &mut ns}),
+        parse({slab.clear(); &mut slab.ps}, "x(1,2,3) + 1.5").unwrap().from(&slab.ps).eval(&slab, {ns.clear_cached(); &mut ns}),
         Ok(2.5));
 
     eprintln!("I should see TWO x lookups, 1 y, and 1 z:");
     assert_eq!(
-        parse({slab.clear(); &mut slab.ps}, "x(x,y,z) + 1.5").unwrap().from(&slab.ps).eval(&slab, {ns.clear(); &mut ns}),
+        parse({slab.clear(); &mut slab.ps}, "x(x,y,z) + 1.5").unwrap().from(&slab.ps).eval(&slab, {ns.clear_cached(); &mut ns}),
         Ok(2.5));
 
     eprintln!("I should see TWO x lookups:");
     assert_eq!(
-        parse({slab.clear(); &mut slab.ps}, "x(x,x,x) + 1.5").unwrap().from(&slab.ps).eval(&slab, {ns.clear(); &mut ns}),
+        parse({slab.clear(); &mut slab.ps}, "x(x,x,x) + 1.5").unwrap().from(&slab.ps).eval(&slab, {ns.clear_cached(); &mut ns}),
         Ok(2.5));
 
     eprintln!("I should see TWO x lookups:");
     assert_eq!(
-        parse({slab.clear(); &mut slab.ps}, "x(1.0) + x(1.1) + x(1.0) + x(1.1)").unwrap().from(&slab.ps).eval(&slab, {ns.clear(); &mut ns}),
+        parse({slab.clear(); &mut slab.ps}, "x(1.0) + x(1.1) + x(1.0) + x(1.1)").unwrap().from(&slab.ps).eval(&slab, {ns.clear_cached(); &mut ns}),
         Ok(4.0));
 
     eprintln!("---------------------------");
 
     assert_eq!(
-        parse({slab.clear(); &mut slab.ps}, "foo(1.23)").unwrap().from(&slab.ps).eval(&slab, {ns.clear(); &mut ns}),
+        parse({slab.clear(); &mut slab.ps}, "foo(1.23)").unwrap().from(&slab.ps).eval(&slab, {ns.clear_cached(); &mut ns}),
         Ok(12.3));
 
     assert_eq!(
-        parse({slab.clear(); &mut slab.ps}, "bar(1.23, 3.21)").unwrap().from(&slab.ps).eval(&slab, {ns.clear(); &mut ns}),
+        parse({slab.clear(); &mut slab.ps}, "bar(1.23, 3.21)").unwrap().from(&slab.ps).eval(&slab, {ns.clear_cached(); &mut ns}),
         Ok(4.4399999999999995));
 
     assert_eq!(
-        format!("{:?}", parse({slab.clear(); &mut slab.ps}, "bar(1.23)").unwrap().from(&slab.ps).eval(&slab, {ns.clear(); &mut ns})),
+        format!("{:?}", parse({slab.clear(); &mut slab.ps}, "bar(1.23)").unwrap().from(&slab.ps).eval(&slab, {ns.clear_cached(); &mut ns})),
         "Ok(NaN)");
 }
 
@@ -341,16 +340,16 @@ fn unsafe_var() {
         slab.ps.add_unsafe_var("ub".to_string(), &ub);
     }
 
-    let mut ns = EvalNS::new(|_,_| None);
+    let mut ns = EmptyNamespace;
 
     assert_eq!(
-        parse({slab.clear(); &mut slab.ps}, "ua + ub + 5").unwrap().from(&slab.ps).eval(&slab, {ns.clear(); &mut ns}),
+        parse({slab.clear(); &mut slab.ps}, "ua + ub + 5").unwrap().from(&slab.ps).eval(&slab, {ns.clear_cached(); &mut ns}),
         Ok(10.79));
 
     ua+=1.0;
     ub+=2.0;
     assert_eq!(
-        parse({slab.clear(); &mut slab.ps}, "ua + ub + 5").unwrap().from(&slab.ps).eval(&slab, {ns.clear(); &mut ns}),
+        parse({slab.clear(); &mut slab.ps}, "ua + ub + 5").unwrap().from(&slab.ps).eval(&slab, {ns.clear_cached(); &mut ns}),
         Ok(13.79));
 
     let _ = (ua,ub);  // Silence compiler warnings about variables not being read.

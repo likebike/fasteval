@@ -1,4 +1,4 @@
-use al::{parse, Compiler, Evaler, Slab, EvalNS};
+use al::{parse, Compiler, Evaler, Slab, FlatNamespace};
 use kerr::KErr;
 
 use std::str::from_utf8;
@@ -24,7 +24,7 @@ fn chk_ok(expr_str:&str, expect_compile_str:&str, expect_slab_str:&str, expect_e
     assert_eq!(format!("{:?}",instr), expect_compile_str);
     assert_eq!(format!("{:?}",slab), expect_slab_str);
 
-    let mut ns = EvalNS::new(evalns_cb);
+    let mut ns = FlatNamespace::new(evalns_cb);
     assert_eq!(instr.eval(&slab, &mut ns).unwrap(), expect_eval);
     
     // Make sure Instruction eval matches normal eval:
@@ -41,7 +41,7 @@ fn chk_eerr(expr_str:&str, expect_err:&str) {
     let mut slab = Slab::new();
     let expr = parse(&mut slab.ps, expr_str).unwrap().from(&slab.ps);
     let instr = expr.compile(&slab.ps, &mut slab.cs);
-    let mut ns = EvalNS::new(evalns_cb);
+    let mut ns = FlatNamespace::new(evalns_cb);
     assert_eq!(instr.eval(&slab, &mut ns), Err(KErr::new(expect_err)));
 }
 
@@ -62,22 +62,22 @@ fn meval() {
 
     chk_ok("round(sin (pi()) * cos(0))",
 "IConst(0.0)",
-"Slab{ exprs:{ 0:Expression { first: EStdFunc(EFuncPi), pairs: [] }, 1:Expression { first: EConstant(Constant(0.0)), pairs: [] }, 2:Expression { first: EStdFunc(EFuncSin(ExpressionI(0))), pairs: [ExprPair(EMul, EStdFunc(EFuncCos(ExpressionI(1))))] }, 3:Expression { first: EStdFunc(EFuncRound { modulus: None, expr: ExpressionI(2) }), pairs: [] } }, vals:{}, instrs:{} }",
+"Slab{ exprs:{ 0:Expression { first: EStdFunc(EFuncPi), pairs: [] }, 1:Expression { first: EConstant(0.0), pairs: [] }, 2:Expression { first: EStdFunc(EFuncSin(ExpressionI(0))), pairs: [ExprPair(EMul, EStdFunc(EFuncCos(ExpressionI(1))))] }, 3:Expression { first: EStdFunc(EFuncRound { modulus: None, expr: ExpressionI(2) }), pairs: [] } }, vals:{}, instrs:{} }",
 0.0);
 
     chk_ok("max(1.)",
 "IConst(1.0)",
-"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(1.0)), pairs: [] }, 1:Expression { first: EStdFunc(EFuncMax { first: ExpressionI(0), rest: [] }), pairs: [] } }, vals:{}, instrs:{} }",
+"Slab{ exprs:{ 0:Expression { first: EConstant(1.0), pairs: [] }, 1:Expression { first: EStdFunc(EFuncMax { first: ExpressionI(0), rest: [] }), pairs: [] } }, vals:{}, instrs:{} }",
 1.0);
 
     chk_ok("max(1., 2., -1)",
 "IConst(2.0)",
-"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(1.0)), pairs: [] }, 1:Expression { first: EConstant(Constant(2.0)), pairs: [] }, 2:Expression { first: EConstant(Constant(-1.0)), pairs: [] }, 3:Expression { first: EStdFunc(EFuncMax { first: ExpressionI(0), rest: [ExpressionI(1), ExpressionI(2)] }), pairs: [] } }, vals:{}, instrs:{} }",
+"Slab{ exprs:{ 0:Expression { first: EConstant(1.0), pairs: [] }, 1:Expression { first: EConstant(2.0), pairs: [] }, 2:Expression { first: EConstant(-1.0), pairs: [] }, 3:Expression { first: EStdFunc(EFuncMax { first: ExpressionI(0), rest: [ExpressionI(1), ExpressionI(2)] }), pairs: [] } }, vals:{}, instrs:{} }",
 2.0);
 
     chk_ok("sin(1.) + cos(2.)",
 "IConst(0.4253241482607541)",
-"Slab{ exprs:{ 0:Expression { first: EConstant(Constant(1.0)), pairs: [] }, 1:Expression { first: EConstant(Constant(2.0)), pairs: [] }, 2:Expression { first: EStdFunc(EFuncSin(ExpressionI(0))), pairs: [ExprPair(EAdd, EStdFunc(EFuncCos(ExpressionI(1))))] } }, vals:{}, instrs:{} }",
+"Slab{ exprs:{ 0:Expression { first: EConstant(1.0), pairs: [] }, 1:Expression { first: EConstant(2.0), pairs: [] }, 2:Expression { first: EStdFunc(EFuncSin(ExpressionI(0))), pairs: [ExprPair(EAdd, EStdFunc(EFuncCos(ExpressionI(1))))] } }, vals:{}, instrs:{} }",
 (1f64).sin() + (2f64).cos());
 
 

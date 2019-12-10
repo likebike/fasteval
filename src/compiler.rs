@@ -1,5 +1,5 @@
 use crate::slab::{ParseSlab, CompileSlab};
-use crate::parser::{Expression, ExprPair, Value, UnaryOp::{self, EPos, ENeg, ENot, EParentheses}, BinaryOp::{self, EOR, EAND, ENE, EEQ, EGTE, ELTE, EGT, ELT, EAdd, ESub, EMul, EDiv, EMod, EExp}, VarName, StdFunc::{self, EVar, EFunc, EFuncInt, EFuncCeil, EFuncFloor, EFuncAbs, EFuncSign, EFuncLog, EFuncRound, EFuncMin, EFuncMax, EFuncE, EFuncPi, EFuncSin, EFuncCos, EFuncTan, EFuncASin, EFuncACos, EFuncATan, EFuncSinH, EFuncCosH, EFuncTanH, EFuncASinH, EFuncACosH, EFuncATanH}, PrintFunc};
+use crate::parser::{Expression, ExprPair, Value, UnaryOp::{self, EPos, ENeg, ENot, EParentheses}, BinaryOp::{self, EOR, EAND, ENE, EEQ, EGTE, ELTE, EGT, ELT, EAdd, ESub, EMul, EDiv, EMod, EExp}, StdFunc::{self, EVar, EFunc, EFuncInt, EFuncCeil, EFuncFloor, EFuncAbs, EFuncSign, EFuncLog, EFuncRound, EFuncMin, EFuncMax, EFuncE, EFuncPi, EFuncSin, EFuncCos, EFuncTan, EFuncASin, EFuncACos, EFuncATan, EFuncSinH, EFuncCosH, EFuncTanH, EFuncASinH, EFuncACosH, EFuncATanH}, PrintFunc};
 #[cfg(feature="unsafe-vars")]
 use crate::parser::StdFunc::EUnsafeVar;
 use crate::evaler::bool_to_f64;
@@ -40,10 +40,10 @@ pub enum Instruction {
     IAND(InstructionI, InstructionI),
 
     //---- Callables:
-    IVar(VarName),
+    IVar(String),
     #[cfg(feature="unsafe-vars")]
-    IUnsafeVar{name:VarName, ptr:*const f64},
-    IFunc{name:VarName, args:Vec<InstructionI>},
+    IUnsafeVar{name:String, ptr:*const f64},
+    IFunc{name:String, args:Vec<InstructionI>},
 
     IFuncInt(InstructionI),
     IFuncCeil(InstructionI),
@@ -129,7 +129,6 @@ impl<'s> ExprSlice<'s> {
 pub fn f64_eq(l:f64, r:f64) -> bool { (l-r).abs() <= 8.0*std::f64::EPSILON }
 #[inline]
 pub fn f64_ne(l:f64, r:f64) -> bool { (l-r).abs() > 8.0*std::f64::EPSILON }
-#[inline]
 fn neg_wrap(instr:Instruction, cslab:&mut CompileSlab) -> Instruction {
     if let IConst(c) = instr {
         IConst(-c)
@@ -139,7 +138,6 @@ fn neg_wrap(instr:Instruction, cslab:&mut CompileSlab) -> Instruction {
         INeg(cslab.push_instr(instr))
     }
 }
-#[inline]
 fn not_wrap(instr:Instruction, cslab:&mut CompileSlab) -> Instruction {
     if let IConst(c) = instr {
         IConst(bool_to_f64(f64_eq(c,0.0)))
@@ -149,7 +147,6 @@ fn not_wrap(instr:Instruction, cslab:&mut CompileSlab) -> Instruction {
         INot(cslab.push_instr(instr))
     }
 }
-#[inline]
 fn inv_wrap(instr:Instruction, cslab:&mut CompileSlab) -> Instruction {
     if let IConst(c) = instr {
         IConst(1.0/c)
@@ -183,8 +180,7 @@ fn compile_mul(instrs:Vec<Instruction>, cslab:&mut CompileSlab) -> Instruction {
     }
     out
 }
-#[inline]
-pub fn log(base:f64, n:f64) -> f64 {
+pub(crate) fn log(base:f64, n:f64) -> f64 {
     // Can't use floating point in 'match' patterns.  :(
     if f64_eq(base,2.0) { return n.log2(); }
     if f64_eq(base,10.0) { return n.log10(); }
@@ -537,7 +533,7 @@ impl Compiler for Expression {
 impl Compiler for Value {
     fn compile(&self, pslab:&ParseSlab, cslab:&mut CompileSlab) -> Instruction {
         match self {
-            Value::EConstant(c) => IConst(c.0),
+            Value::EConstant(c) => IConst(*c),
             Value::EUnaryOp(u) => u.compile(pslab,cslab),
             Value::EStdFunc(f) => f.compile(pslab,cslab),
             Value::EPrintFunc(pf) => IPrintFunc(pf.clone()),
@@ -573,16 +569,16 @@ impl Compiler for UnaryOp {
 impl Compiler for StdFunc {
     fn compile(&self, pslab:&ParseSlab, cslab:&mut CompileSlab) -> Instruction {
         match self {
-            EVar(name) => IVar(VarName(name.0.clone())),
+            EVar(name) => IVar(name.clone()),
             #[cfg(feature="unsafe-vars")]
-            EUnsafeVar{name,ptr} => IUnsafeVar{name:VarName(name.0.clone()), ptr:*ptr},
+            EUnsafeVar{name,ptr} => IUnsafeVar{name:name.clone(), ptr:*ptr},
             EFunc{name, args:xis} => {
                 let mut args = Vec::<InstructionI>::with_capacity(xis.len());
                 for xi in xis {
                     let instr = pslab.get_expr(*xi).compile(pslab,cslab);
                     args.push(cslab.push_instr(instr));
                 }
-                IFunc{name:VarName(name.0.clone()), args}
+                IFunc{name:name.clone(), args}
             }
 
             EFuncInt(i) => {

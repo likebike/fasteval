@@ -46,14 +46,14 @@ impl ParseSlab {
         &self.vals[val_i.0]
     }
     #[inline]
-    pub fn push_expr(&mut self, expr:Expression) -> Result<ExpressionI,KErr> {
+    pub(crate) fn push_expr(&mut self, expr:Expression) -> Result<ExpressionI,KErr> {
         let i = self.exprs.len();
         if i>=self.exprs.capacity() { return Err(KErr::new("slab expr overflow")); }
         self.exprs.push(expr);
         Ok(ExpressionI(i))
     }
     #[inline]
-    pub fn push_val(&mut self, val:Value) -> Result<ValueI,KErr> {
+    pub(crate) fn push_val(&mut self, val:Value) -> Result<ValueI,KErr> {
         let i = self.vals.len();
         if i>=self.vals.capacity() { return Err(KErr::new("slab val overflow")); }
         self.vals.push(val);
@@ -70,15 +70,13 @@ impl CompileSlab {
     pub fn get_instr(&self, i:InstructionI) -> &Instruction {
         &self.instrs[i.0]
     }
-    #[inline]
-    pub fn push_instr(&mut self, instr:Instruction) -> InstructionI {
+    pub(crate) fn push_instr(&mut self, instr:Instruction) -> InstructionI {
         if self.instrs.capacity()==0 { self.instrs.reserve(32); }
         let i = self.instrs.len();
         self.instrs.push(instr);
         InstructionI(i)
     }
-    #[inline]
-    pub fn take_instr(&mut self, i:InstructionI) -> Instruction {
+    pub(crate) fn take_instr(&mut self, i:InstructionI) -> Instruction {
         if i.0==self.instrs.len()-1 {
             self.instrs.pop().unwrap()
         } else {
@@ -103,6 +101,7 @@ impl Slab {
         }
     }
 
+    #[inline]
     pub fn clear(&mut self) {
         self.ps.exprs.clear();
         self.ps.vals.clear();

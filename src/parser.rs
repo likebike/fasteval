@@ -12,13 +12,13 @@ use std::str::{from_utf8, from_utf8_unchecked};
 //
 // Constant: [+-]?[0-9]*(\.[0-9]+)?( ([eE][+-]?[0-9]+) || [pnuµmkKMGT] )?  || [+-]?(NaN || inf)
 //
-// UnaryOp: +Value || -Value || (Expression) || !Value
+// UnaryOp: +Value || -Value || (Expression) || [Expression] || !Value
 //
 // BinaryOp: + || - || * || / || % || ^ || < || <= || == || != || >= || > || (or || '||') || (and || '&&')
 //
 // VarName: [a-zA-Z_][a-zA-Z_0-9]*
 //
-// StdFunc: VarName((Expression,)*)?
+// StdFunc: VarName((Expression,)*)?  ||  VarName[(Expression,)*]?
 //
 // PrintFunc: print(ExpressionOrString,*)
 //
@@ -45,18 +45,12 @@ pub struct ExprPair(pub BinaryOp, pub Value);
 
 #[derive(Debug, PartialEq)]
 pub enum Value {
-    EConstant(Constant),
+    EConstant(f64),
     EUnaryOp(UnaryOp),
     EStdFunc(StdFunc),
     EPrintFunc(PrintFunc),
 }
 use Value::{EConstant, EUnaryOp, EStdFunc, EPrintFunc};
-
-#[derive(Debug, PartialEq)]
-pub struct Constant(pub f64);
-
-#[derive(PartialEq)]
-pub struct VarName(pub String);
 
 #[derive(Debug, PartialEq)]
 pub enum UnaryOp {
@@ -90,10 +84,10 @@ use BinaryOp::{EAdd, ESub, EMul, EDiv, EMod, EExp, ELT, ELTE, EEQ, ENE, EGTE, EG
 
 #[derive(Debug, PartialEq)]
 pub enum StdFunc {
-    EVar(VarName),
+    EVar(String),
     #[cfg(feature="unsafe-vars")]
-    EUnsafeVar{name:VarName, ptr:*const f64},
-    EFunc{name:VarName, args:Vec<ExpressionI>},  // cap=4
+    EUnsafeVar{name:String, ptr:*const f64},
+    EFunc{name:String, args:Vec<ExpressionI>},  // cap=4
 
     EFuncInt(ExpressionI),
     EFuncCeil(ExpressionI),
@@ -158,21 +152,16 @@ enum Tok<T> {
 }
 use Tok::{Pass, Bite};
 
-
-#[inline]
 fn peek(bs:&[u8]) -> Option<u8> {
     if !bs.is_empty() { Some(bs[0]) }
     else { None }
 }
-#[inline]
 fn peek_n(bs:&[u8], skip:usize) -> Option<u8> {
     // This is slightly different than slice.get(i) because we return a u8, not a ref.
     if bs.len()>skip { Some(bs[skip]) }
     else { None }
 }
-#[inline]
 fn is_at_eof(bs:&[u8]) -> bool { bs.is_empty() }
-#[inline]
 fn peek_is(bs:&[u8], skip:usize, val:u8) -> bool {
     match peek_n(bs,skip) {
         Some(b) => b==val,
@@ -180,7 +169,6 @@ fn peek_is(bs:&[u8], skip:usize, val:u8) -> bool {
     }
 }
 
-#[inline]
 fn read(bs:&mut &[u8]) -> Result<u8, KErr> {
     if !bs.is_empty() {
         let b = bs[0];
@@ -189,30 +177,17 @@ fn read(bs:&mut &[u8]) -> Result<u8, KErr> {
     } else { Err(KErr::new("EOF")) }
 }
 
-#[inline]
-fn skip(bs:&mut &[u8]) -> Result<(), KErr> {
-    if !bs.is_empty() {
-        *bs = &bs[1..];
-        Ok(())
-    } else { Err(KErr::new("EOF")) }
-}
-#[inline]
-fn skip_n(bs:&mut &[u8], n:usize) -> Result<(), KErr> {
-    if bs.len()>=n {
-        *bs = &bs[n..];
-        Ok(())
-    } else { Err(KErr::new("EOF")) }
-}
+fn skip(bs:&mut &[u8]) { *bs = &bs[1..]; }
+fn skip_n(bs:&mut &[u8], n:usize) { *bs = &bs[n..]; }
 
-#[inline]
 fn is_space(b:u8) -> bool {
+    if b>b' ' { return false; }
     b==b' ' || b==b'\n' || b==b'\t' || b==b'\r'
 }
-#[inline]
 fn spaces(bs:&mut &[u8]) {
     while let Some(b) = peek(bs) {
         if !is_space(b) { break }
-        skip(bs).unwrap();  // We normally don't have long strings of whitespace, so it is more efficient to put this single-skip inside this loop rather than a skip_n afterwards.
+        skip(bs);  // We normally don't have long strings of whitespace, so it is more efficient to put this single-skip inside this loop rather than a skip_n afterwards.
     }
 }
 
@@ -229,11 +204,9 @@ impl Parser {
     #[inline]
     pub fn new() -> Self { Self }
 
-    #[inline]
     fn is_varname_byte(b:u8, i:usize) -> bool {
         (b'A'<=b && b<=b'Z') || (b'a'<=b && b<=b'z') || b==b'_' || (i>0 && ( b'0'<=b && b<=b'9' ))
     }
-    #[inline]
     fn is_varname_byte_opt(bo:Option<u8>, i:usize) -> bool {
         match bo {
             Some(b) => Self::is_varname_byte(b,i),
@@ -243,22 +216,23 @@ impl Parser {
 
 
     // I cannot return Result<&Expression> because it would prolong the mut:
+    #[inline]
     pub fn parse(&self, slab:&mut ParseSlab, s:&str) -> Result<ExpressionI, KErr> {
         if s.len()>4096 { return Err(KErr::new("expression string is too long")); }  // Restrict length for safety
         let mut bs = s.as_bytes();
-        self.read_expression(slab, &mut bs, 0, true)
+        Self::read_expression(slab, &mut bs, 0, true)
     }
 
-    fn read_expression(&self, slab:&mut ParseSlab, bs:&mut &[u8], depth:usize, expect_eof:bool) -> Result<ExpressionI, KErr> {
+    fn read_expression(slab:&mut ParseSlab, bs:&mut &[u8], depth:usize, expect_eof:bool) -> Result<ExpressionI, KErr> {
         if depth>=32 { return Err(KErr::new("too deep")) }
 
-        let first = self.read_value(slab,bs,depth).map_err(|e| e.pre("read_value"))?;
+        let first = Self::read_value(slab,bs,depth).map_err(|e| e.pre("read_value"))?;
         let mut pairs = Vec::<ExprPair>::with_capacity(8);
         loop {
-            match self.read_binaryop(bs).map_err(|e| e.pre("read_binaryop"))? {
+            match Self::read_binaryop(bs).map_err(|e| e.pre("read_binaryop"))? {
                 Pass => break,
                 Bite(bop) => {
-                    let val = self.read_value(slab,bs,depth).map_err(|e| e.pre("read_value"))?;
+                    let val = Self::read_value(slab,bs,depth).map_err(|e| e.pre("read_value"))?;
                     pairs.push(ExprPair(bop,val));
                 }
             }
@@ -271,26 +245,25 @@ impl Parser {
         Ok(slab.push_expr(Expression{first, pairs})?)
     }
 
-    fn read_value(&self, slab:&mut ParseSlab, bs:&mut &[u8], depth:usize) -> Result<Value, KErr> {
+    fn read_value(slab:&mut ParseSlab, bs:&mut &[u8], depth:usize) -> Result<Value, KErr> {
         if depth>=32 { return Err(KErr::new("too deep")) }
 
-        match self.read_const(slab,bs)? {
+        match Self::read_const(slab,bs)? {
             Pass => {}
             Bite(c) => return Ok(EConstant(c)),
         }
-        match self.read_unaryop(slab,bs,depth)? {
+        match Self::read_unaryop(slab,bs,depth)? {
             Pass => {}
             Bite(u) => return Ok(EUnaryOp(u)),
         }
-        match self.read_callable(slab,bs,depth)? {
+        match Self::read_callable(slab,bs,depth)? {
             Pass => {}
             Bite(c) => return Ok(c),
         }
         Err(KErr::new("invalid value"))
     }
 
-    #[inline]
-    fn read_const(&self, slab:&mut ParseSlab, bs:&mut &[u8]) -> Result<Tok<Constant>, KErr> {
+    fn read_const(slab:&mut ParseSlab, bs:&mut &[u8]) -> Result<Tok<f64>, KErr> {
         spaces(bs);
 
         let mut toklen=0;  let mut sign_ok=true;  let mut specials_ok=true;  let mut suffix_ok=true;  let mut saw_val=false;
@@ -353,9 +326,9 @@ impl Parser {
         }
 
         let val = tok.parse::<f64>().map_err(|_| { KErr::new("parse<f64> error").pre(tok) })?;
-        skip_n(bs,toklen)?;
+        skip_n(bs,toklen);
 
-        Ok(Bite(Constant(val)))
+        Ok(Bite(val))
     }
 
     // // This implementation is beautiful and correct, but it is slow due to the fact that I am first parsing everything,
@@ -369,17 +342,15 @@ impl Parser {
     // //
     // // As a side-note, It's surprising how similar these algorithms are (which I created from scratch at 3am with no reference),
     // // compared to the dec2flt::parse module.
-    // fn read_const(&mut self, bs:&mut &[u8]) -> Result<Tok<Constant>, KErr> {
+    // fn read_const(&mut self, bs:&mut &[u8]) -> Result<Tok<f64>, KErr> {
     //     spaces(bs);
     //
     //     // Grammar: [+-]?[0-9]*(\.[0-9]+)?( ([eE][+-]?[0-9]+) || [pnuµmkKMGT] )?
-    //     #[inline]
     //     fn peek_digits(bs:&[u8]) -> usize {
     //         let mut i = 0;
     //         while i<bs.len() && b'0'<=bs[i] && bs[i]<=b'9' { i+=1; }
     //         i
     //     }
-    //     #[inline]
     //     fn peek_exp(bs:&[u8]) -> Result<usize, KErr> {
     //         if bs.is_empty() { return Err(KErr::new("peek_exp empty")); }
     //         let mut i = 0;
@@ -388,7 +359,6 @@ impl Parser {
     //         if digits==0 { return Err(KErr::new("peek_exp no digits")); }
     //         Ok(i+digits)
     //     }
-    //     #[inline]
     //     fn peek_tail(bs:&[u8]) -> Result<(/*read:*/usize, /*skip:*/usize, /*exp:*/i32), KErr> {
     //         if bs.is_empty() { return Ok((0,0,0)); }
     //         match bs[0] {
@@ -445,35 +415,41 @@ impl Parser {
     //     let val = self.char_buf.parse::<f64>().map_err(|_| {
     //         KErr::new("parse<f64> error").pre(&self.char_buf)
     //     })?;
-    //     Ok(Bite(Constant(val)))
+    //     Ok(Bite(val))
     // }
 
-    #[inline]
-    fn read_unaryop(&self, slab:&mut ParseSlab, bs:&mut &[u8], depth:usize) -> Result<Tok<UnaryOp>, KErr> {
+    fn read_unaryop(slab:&mut ParseSlab, bs:&mut &[u8], depth:usize) -> Result<Tok<UnaryOp>, KErr> {
         spaces(bs);
         match peek(bs) {
             None => Ok(Pass),  // Err(KErr::new("EOF at UnaryOp position")), -- Instead of erroring, let the higher level decide what to do.
             Some(b) => match b {
                 b'+' => {
-                    skip(bs)?;
-                    let v = self.read_value(slab,bs,depth+1)?;
+                    skip(bs);
+                    let v = Self::read_value(slab,bs,depth+1)?;
                     Ok(Bite(EPos(slab.push_val(v)?)))
                 }
                 b'-' => {
-                    skip(bs)?;
-                    let v = self.read_value(slab,bs,depth+1)?;
+                    skip(bs);
+                    let v = Self::read_value(slab,bs,depth+1)?;
                     Ok(Bite(ENeg(slab.push_val(v)?)))
                 }
                 b'(' => {
-                    skip(bs)?;
-                    let xi = self.read_expression(slab,bs,depth+1,false)?;
+                    skip(bs);
+                    let xi = Self::read_expression(slab,bs,depth+1,false)?;
                     spaces(bs);
                     if read(bs)? != b')' { return Err(KErr::new("Expected ')'")) }
                     Ok(Bite(EParentheses(xi)))
                 }
+                b'[' => {
+                    skip(bs);
+                    let xi = Self::read_expression(slab,bs,depth+1,false)?;
+                    spaces(bs);
+                    if read(bs)? != b']' { return Err(KErr::new("Expected ']'")) }
+                    Ok(Bite(EParentheses(xi)))
+                }
                 b'!' => {
-                    skip(bs)?;
-                    let v = self.read_value(slab,bs,depth+1)?;
+                    skip(bs);
+                    let v = Self::read_value(slab,bs,depth+1)?;
                     Ok(Bite(ENot(slab.push_val(v)?)))
                 }
                 _ => Ok(Pass),
@@ -481,54 +457,52 @@ impl Parser {
         }
     }
 
-    #[inline]
-    fn read_binaryop(&self, bs:&mut &[u8]) -> Result<Tok<BinaryOp>, KErr> {
+    fn read_binaryop(bs:&mut &[u8]) -> Result<Tok<BinaryOp>, KErr> {
         spaces(bs);
         match peek(bs) {
             None => Ok(Pass), // Err(KErr::new("EOF")), -- EOF is usually OK in a BinaryOp position.
             Some(b) => match b {
-                b'+' => { skip(bs)?; Ok(Bite(EAdd)) }
-                b'-' => { skip(bs)?; Ok(Bite(ESub)) }
-                b'*' => { skip(bs)?; Ok(Bite(EMul)) }
-                b'/' => { skip(bs)?; Ok(Bite(EDiv)) }
-                b'%' => { skip(bs)?; Ok(Bite(EMod)) }
-                b'^' => { skip(bs)?; Ok(Bite(EExp)) }
-                b'<' => { skip(bs)?;
-                          if peek_is(bs,0,b'=') { skip(bs)?; Ok(Bite(ELTE)) }
+                b'+' => { skip(bs); Ok(Bite(EAdd)) }
+                b'-' => { skip(bs); Ok(Bite(ESub)) }
+                b'*' => { skip(bs); Ok(Bite(EMul)) }
+                b'/' => { skip(bs); Ok(Bite(EDiv)) }
+                b'%' => { skip(bs); Ok(Bite(EMod)) }
+                b'^' => { skip(bs); Ok(Bite(EExp)) }
+                b'<' => { skip(bs);
+                          if peek_is(bs,0,b'=') { skip(bs); Ok(Bite(ELTE)) }
                           else { Ok(Bite(ELT)) } }
-                b'>' => { skip(bs)?;
-                          if peek_is(bs,0,b'=') { skip(bs)?; Ok(Bite(EGTE)) }
+                b'>' => { skip(bs);
+                          if peek_is(bs,0,b'=') { skip(bs); Ok(Bite(EGTE)) }
                           else { Ok(Bite(EGT)) } }
-                b'=' if peek_is(bs,1,b'=') => { skip_n(bs,2)?;
+                b'=' if peek_is(bs,1,b'=') => { skip_n(bs,2);
                                                 Ok(Bite(EEQ)) }
-                b'!' if peek_is(bs,1,b'=') => { skip_n(bs,2)?;
+                b'!' if peek_is(bs,1,b'=') => { skip_n(bs,2);
                                                 Ok(Bite(ENE)) }
                 #[cfg(feature="alpha-keywords")]
-                b'o' if peek_is(bs,1,b'r') => { skip_n(bs,2)?;
+                b'o' if peek_is(bs,1,b'r') => { skip_n(bs,2);
                                                 Ok(Bite(EOR)) }
-                b'|' if peek_is(bs,1,b'|') => { skip_n(bs,2)?;
+                b'|' if peek_is(bs,1,b'|') => { skip_n(bs,2);
                                                 Ok(Bite(EOR)) }
                 #[cfg(feature="alpha-keywords")]
-                b'a' if peek_is(bs,1,b'n') && peek_is(bs,2,b'd') => { skip_n(bs,3)?;
+                b'a' if peek_is(bs,1,b'n') && peek_is(bs,2,b'd') => { skip_n(bs,3);
                                                                       Ok(Bite(EAND)) }
-                b'&' if peek_is(bs,1,b'&') => { skip_n(bs,2)?;
+                b'&' if peek_is(bs,1,b'&') => { skip_n(bs,2);
                                                 Ok(Bite(EAND)) }
                 _ => Ok(Pass),
             }
         }
     }
 
-    #[inline]
-    fn read_callable(&self, slab:&mut ParseSlab, bs:&mut &[u8], depth:usize) -> Result<Tok<Value>, KErr> {
-        match self.read_varname(bs)? {
+    fn read_callable(slab:&mut ParseSlab, bs:&mut &[u8], depth:usize) -> Result<Tok<Value>, KErr> {
+        match Self::read_varname(bs)? {
             Pass => Ok(Pass),
             Bite(varname) => {
-                match self.read_open_parenthesis(bs)? {
+                match Self::read_open_parenthesis(bs)? {
                     Pass => {
                         // VarNames without Parenthesis are always treated as custom 0-arg functions.
 
                         #[cfg(feature="unsafe-vars")]
-                        match slab.unsafe_vars.get(&varname.0) {
+                        match slab.unsafe_vars.get(&varname) {
                             None => Ok(Bite(EStdFunc(EVar(varname)))),
                             Some(&ptr) => Ok(Bite(EStdFunc(EUnsafeVar{name:varname, ptr})))
                         }
@@ -536,11 +510,11 @@ impl Parser {
                         #[cfg(not(feature="unsafe-vars"))]
                         Ok(Bite(EStdFunc(EVar(varname))))
                     }
-                    Bite(_) => {
+                    Bite(open_parenth) => {
                         // VarNames with Parenthesis are first matched against builtins, then custom.
-                        match varname.0.as_ref() {
-                            "print" => Ok(Bite(EPrintFunc(self.read_printfunc(slab,bs,depth)?))),
-                            _ => Ok(Bite(EStdFunc(self.read_func(varname,slab,bs,depth)?))),
+                        match varname.as_ref() {
+                            "print" => Ok(Bite(EPrintFunc(Self::read_printfunc(slab,bs,depth,open_parenth)?))),
+                            _ => Ok(Bite(EStdFunc(Self::read_func(varname,slab,bs,depth,open_parenth)?))),
                         }
                     }
                 }
@@ -548,7 +522,7 @@ impl Parser {
         }
     }
 
-    fn read_varname(&self, bs:&mut &[u8]) -> Result<Tok<VarName>, KErr> {
+    fn read_varname(bs:&mut &[u8]) -> Result<Tok<String>, KErr> {
         spaces(bs);
 
         let mut toklen = 0;
@@ -557,28 +531,32 @@ impl Parser {
         if toklen==0 { return Ok(Pass); }
 
         let out = unsafe { from_utf8_unchecked(&bs[..toklen]) }.to_string();
-        skip_n(bs, toklen)?;
-        Ok(Bite(VarName(out)))
+        skip_n(bs, toklen);
+        Ok(Bite(out))
     }
 
-    fn read_open_parenthesis(&self, bs:&mut &[u8]) -> Result<Tok<()>, KErr> {
+    fn read_open_parenthesis(bs:&mut &[u8]) -> Result<Tok<u8>, KErr> {
         spaces(bs);
 
-        if peek_is(bs,0,b'(') {
-            skip(bs)?;
-            return Ok(Bite(()));
+        match peek(bs) {
+            Some(b'(') | Some(b'[') => Ok(Bite(read(bs).unwrap())),
+            _ => Ok(Pass),
         }
-        Ok(Pass)
     }
 
-    fn read_func(&self, fname:VarName, slab:&mut ParseSlab, bs:&mut &[u8], depth:usize) -> Result<StdFunc, KErr> {
+    fn read_func(fname:String, slab:&mut ParseSlab, bs:&mut &[u8], depth:usize, open_parenth:u8) -> Result<StdFunc, KErr> {
+        let close_parenth = match open_parenth {
+            b'(' => b')',
+            b'[' => b']',
+            _ => unreachable!(),
+        };
         let mut args = Vec::<ExpressionI>::with_capacity(4);
         loop {
             spaces(bs);
             match peek(bs) {
                 Some(b) => {
-                    if b==b')' {
-                        skip(bs)?;
+                    if b==close_parenth {
+                        skip(bs);
                         break;
                     }
                 }
@@ -592,10 +570,10 @@ impl Parser {
                     _ => return Err(KErr::new("expected ',' or ';'")),
                 }
             }
-            args.push(self.read_expression(slab,bs,depth+1,false).map_err(|e| e.pre("read_expression"))?);
+            args.push(Self::read_expression(slab,bs,depth+1,false).map_err(|e| e.pre("read_expression"))?);
         }
 
-        let fname_str = fname.0.as_str();
+        let fname_str = fname.as_str();
         match fname_str {
             "int" => {
                 if args.len()==1 { Ok(EFuncInt(args.pop().unwrap()))
@@ -715,14 +693,19 @@ impl Parser {
         }
     }
 
-    fn read_printfunc(&self, slab:&mut ParseSlab, bs:&mut &[u8], depth:usize) -> Result<PrintFunc, KErr> {
+    fn read_printfunc(slab:&mut ParseSlab, bs:&mut &[u8], depth:usize, open_parenth:u8) -> Result<PrintFunc, KErr> {
+        let close_parenth = match open_parenth {
+            b'(' => b')',
+            b'[' => b']',
+            _ => unreachable!(),
+        };
         let mut args = Vec::<ExpressionOrString>::with_capacity(8);
         loop {
             spaces(bs);
             match peek(bs) {
                 Some(b) => {
-                    if b==b')' {
-                        skip(bs)?;
+                    if b==close_parenth {
+                        skip(bs);
                         break;
                     }
                 }
@@ -734,26 +717,26 @@ impl Parser {
                     _ => { return Err(KErr::new("expected ',' or ';'")) }
                 }
             }
-            args.push(self.read_expressionorstring(slab,bs,depth+1)?);
+            args.push(Self::read_expressionorstring(slab,bs,depth+1)?);
         }
 
         Ok(PrintFunc(args))
     }
 
-    fn read_expressionorstring(&self, slab:&mut ParseSlab, bs:&mut &[u8], depth:usize) -> Result<ExpressionOrString, KErr> {
-        match self.read_string(bs)? {
+    fn read_expressionorstring(slab:&mut ParseSlab, bs:&mut &[u8], depth:usize) -> Result<ExpressionOrString, KErr> {
+        match Self::read_string(bs)? {
             Pass => {}
             Bite(s) => return Ok(EStr(s)),
         }
-        Ok(EExpr(self.read_expression(slab,bs,depth+1,false)?))
+        Ok(EExpr(Self::read_expression(slab,bs,depth+1,false)?))
     }
 
-    fn read_string(&self, bs:&mut &[u8]) -> Result<Tok<String>,KErr> {
+    fn read_string(bs:&mut &[u8]) -> Result<Tok<String>,KErr> {
         spaces(bs);
 
         match peek(bs) {
             None => return Err(KErr::new("EOF while reading opening quote of string")),
-            Some(b'"') => { skip(bs)?; }
+            Some(b'"') => { skip(bs); }
             Some(_) => { return Ok(Pass) }
         }
 
@@ -765,7 +748,7 @@ impl Parser {
         } { toklen+=1; }
 
         let out = from_utf8(&bs[..toklen]).map_err(|_| KErr::new("Utf8Error while reading string"))?;
-        skip_n(bs, toklen)?;
+        skip_n(bs, toklen);
         match read(bs) {
             Err(e) => Err(e.pre("error while searching for closing double-quote")),
             Ok(b'"') => Ok(Bite(out.to_string())),
@@ -794,7 +777,7 @@ mod internal_tests {
             assert_eq!(peek_n(bs,3), None);
 
             assert_eq!(read(bs)?, 1);
-            skip(bs)?;
+            skip(bs);
             assert_eq!(read(bs)?, 3);
             match read(bs).err() {
                 Some(KErr{..}) => {}  // Can I improve this so I can match the "EOF" ?
@@ -832,7 +815,6 @@ mod internal_tests {
 
     #[test]
     fn priv_tests() {
-        let p = Parser::new();
         assert!(Parser::is_varname_byte_opt(Some(b'a'),0));
 
         let mut slab = Slab::new();
@@ -840,8 +822,37 @@ mod internal_tests {
         {
             let bsarr = b"12.34";
             let bs = &mut &bsarr[..];
-            assert_eq!(p.read_value(&mut slab.ps, bs, 0), Ok(EConstant(Constant(12.34))));
+            assert_eq!(Parser::read_value(&mut slab.ps, bs, 0), Ok(EConstant(12.34)));
         }
     }
+
+    // #[bench]
+    // #[allow(non_snake_case)]
+    // fn spaces_1M(bencher:&mut Bencher) {
+    //     let zero = "abc".as_bytes();
+    //     let one = " abc".as_bytes();
+    //     let two = "  abc".as_bytes();
+    //     bencher.iter(|| {
+    //         for _ in 0..1000 {
+    //             let (z1,z2,z3,z4) = (&mut &zero[..], &mut &zero[..], &mut &zero[..], &mut &zero[..]);
+    //             let (o1,o2) = (&mut &one[..], &mut &one[..]);
+    //             let t1 = &mut &two[..];
+    //             spaces(z1);
+    //             spaces(z2);
+    //             spaces(z3);
+    //             spaces(z4);
+    //             spaces(o1);
+    //             spaces(o2);
+    //             spaces(t1);
+    //             black_box(z1);
+    //             black_box(z2);
+    //             black_box(z3);
+    //             black_box(z4);
+    //             black_box(o1);
+    //             black_box(o2);
+    //             black_box(t1);
+    //         }
+    //     });
+    // }
 }
 
