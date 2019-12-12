@@ -1,5 +1,4 @@
-use al::{parse, Compiler, Evaler, Slab, FlatNamespace};
-use kerr::KErr;
+use al::{parse, Compiler, Evaler, Error, Slab, FlatNamespace};
 
 use std::str::from_utf8;
 
@@ -31,34 +30,34 @@ fn chk_ok(expr_str:&str, expect_compile_str:&str, expect_slab_str:&str, expect_e
     assert_eq!(instr.eval(&slab, &mut ns).unwrap(), expr.eval(&slab, &mut ns).unwrap());
 }
 
-fn chk_perr(expr_str:&str, expect_err:&str) {
+fn chk_perr(expr_str:&str, expect_err:Error) {
     let mut slab = Slab::new();
     let res = parse(&mut slab.ps, expr_str);
-    assert_eq!(res, Err(KErr::new(expect_err)));
+    assert_eq!(res, Err(expect_err));
 }
 
-fn chk_eerr(expr_str:&str, expect_err:&str) {
+fn chk_eerr(expr_str:&str, expect_err:Error) {
     let mut slab = Slab::new();
     let expr = parse(&mut slab.ps, expr_str).unwrap().from(&slab.ps);
     let instr = expr.compile(&slab.ps, &mut slab.cs);
     let mut ns = FlatNamespace::new(evalns_cb);
-    assert_eq!(instr.eval(&slab, &mut ns), Err(KErr::new(expect_err)));
+    assert_eq!(instr.eval(&slab, &mut ns), Err(expect_err));
 }
 
 #[test]
 fn meval() {
-    chk_perr("", "invalid value");
-    chk_perr("(", "invalid value");
-    chk_perr("0(", "unparsed tokens remaining");
-    chk_eerr("e", "variable undefined: e");
-    chk_perr("1E", "parse<f64> error");
-    chk_perr("1e+", "parse<f64> error");
-    chk_perr("()", "invalid value");
-    chk_perr("2)", "unparsed tokens remaining");
-    chk_perr("2^", "invalid value");
-    chk_perr("(((2)", "EOF");
-    chk_perr("f(2,)", "invalid value");
-    chk_perr("f(,2)", "invalid value");
+    chk_perr("", Error::EofWhileParsing("value".to_string()));
+    chk_perr("(", Error::EofWhileParsing("value".to_string()));
+    chk_perr("0(", Error::UnparsedTokensRemaining("(".to_string()));
+    chk_eerr("e", Error::Undefined("e".to_string()));
+    chk_perr("1E", Error::ParseF64("1E".to_string()));
+    chk_perr("1e+", Error::ParseF64("1e+".to_string()));
+    chk_perr("()", Error::InvalidValue);
+    chk_perr("2)", Error::UnparsedTokensRemaining(")".to_string()));
+    chk_perr("2^", Error::EofWhileParsing("value".to_string()));
+    chk_perr("(((2)", Error::EofWhileParsing("parentheses".to_string()));
+    chk_perr("f(2,)", Error::InvalidValue);
+    chk_perr("f(,2)", Error::InvalidValue);
 
     chk_ok("round(sin (pi()) * cos(0))",
 "IConst(0.0)",
@@ -88,19 +87,19 @@ fn meval() {
 
 #[test]
 fn overflow_stack() {
-    chk_perr(from_utf8(&[b'('; 1]).unwrap(), "invalid value");
-    chk_perr(from_utf8(&[b'('; 2]).unwrap(), "invalid value");
-    chk_perr(from_utf8(&[b'('; 4]).unwrap(), "invalid value");
-    chk_perr(from_utf8(&[b'('; 8]).unwrap(), "invalid value");
-    chk_perr(from_utf8(&[b'('; 16]).unwrap(), "invalid value");
-    chk_perr(from_utf8(&[b'('; 32]).unwrap(), "too deep");
-    chk_perr(from_utf8(&[b'('; 64]).unwrap(), "too deep");
-    chk_perr(from_utf8(&[b'('; 128]).unwrap(), "too deep");
-    chk_perr(from_utf8(&[b'('; 256]).unwrap(), "too deep");
-    chk_perr(from_utf8(&[b'('; 512]).unwrap(), "too deep");
-    chk_perr(from_utf8(&[b'('; 1024]).unwrap(), "too deep");
-    chk_perr(from_utf8(&[b'('; 2048]).unwrap(), "too deep");
-    chk_perr(from_utf8(&[b'('; 4096]).unwrap(), "too deep");
-    chk_perr(from_utf8(&[b'('; 8192]).unwrap(), "expression string is too long");
+    chk_perr(from_utf8(&[b'('; 1]).unwrap(), Error::EofWhileParsing("value".to_string()));
+    chk_perr(from_utf8(&[b'('; 2]).unwrap(), Error::EofWhileParsing("value".to_string()));
+    chk_perr(from_utf8(&[b'('; 4]).unwrap(), Error::EofWhileParsing("value".to_string()));
+    chk_perr(from_utf8(&[b'('; 8]).unwrap(), Error::EofWhileParsing("value".to_string()));
+    chk_perr(from_utf8(&[b'('; 16]).unwrap(), Error::EofWhileParsing("value".to_string()));
+    chk_perr(from_utf8(&[b'('; 32]).unwrap(), Error::TooDeep);
+    chk_perr(from_utf8(&[b'('; 64]).unwrap(), Error::TooDeep);
+    chk_perr(from_utf8(&[b'('; 128]).unwrap(), Error::TooDeep);
+    chk_perr(from_utf8(&[b'('; 256]).unwrap(), Error::TooDeep);
+    chk_perr(from_utf8(&[b'('; 512]).unwrap(), Error::TooDeep);
+    chk_perr(from_utf8(&[b'('; 1024]).unwrap(), Error::TooDeep);
+    chk_perr(from_utf8(&[b'('; 2048]).unwrap(), Error::TooDeep);
+    chk_perr(from_utf8(&[b'('; 4096]).unwrap(), Error::TooDeep);
+    chk_perr(from_utf8(&[b'('; 8192]).unwrap(), Error::TooLong);
 }
 

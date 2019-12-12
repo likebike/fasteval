@@ -2,14 +2,12 @@
 // I know the test names suck, but I'm not going to change them because I want line-for-line compatibility with the Go tests.
 
 
-use al::{Evaler, ExpressionI, parse, Slab, EmptyNamespace, FlatNamespace};
-
-use kerr::KErr;
+use al::{Evaler, ExpressionI, parse, Error, Slab, EmptyNamespace, FlatNamespace};
 
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 
-fn parse_raw<'a>(slab:&'a mut Slab, s:&str) -> Result<ExpressionI, KErr> {
+fn parse_raw<'a>(slab:&'a mut Slab, s:&str) -> Result<ExpressionI,Error> {
     parse(&mut slab.ps,s)
 }
 fn ok_parse<'a>(slab:&'a mut Slab, s:&str) -> ExpressionI { parse_raw(slab,s).unwrap() }
@@ -64,7 +62,7 @@ fn aaa_test_b0() {
 "Slab{ exprs:{ 0:Expression { first: EConstant(3.14), pairs: [ExprPair(EAdd, EConstant(5.0))] } }, vals:{}, instrs:{} }");
     // Go can parse this, but not Rust:
     assert_eq!(parse_raw({slab.clear(); &mut slab}, "3.14 + 4.999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999"),
-Err(KErr::new("parse<f64> error")));
+Err(Error::ParseF64("4.999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999".to_string())));
     ok_parse({slab.clear(); &mut slab}, "3.14 + 0.9999");
     assert_eq!(format!("{:?}",&slab),
 "Slab{ exprs:{ 0:Expression { first: EConstant(3.14), pairs: [ExprPair(EAdd, EConstant(0.9999))] } }, vals:{}, instrs:{} }");
@@ -81,9 +79,9 @@ fn aaa_test_b1() {
     let mut slab = Slab::new();
 
     assert_eq!(parse_raw({slab.clear(); &mut slab}, "3.14 + 4.99999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999.9999"),
-Err(KErr::new("parse<f64> error")));
+Err(Error::ParseF64("4.99999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999.9999".to_string())));
     assert_eq!(parse_raw({slab.clear(); &mut slab}, "3.14 + 4.9999.9999"),
-Err(KErr::new("parse<f64> error")));
+Err(Error::ParseF64("4.9999.9999".to_string())));
 }
 
 #[test]
@@ -91,7 +89,7 @@ fn aaa_test_b2() {
     let mut slab = Slab::new();
 
     assert_eq!(parse_raw({slab.clear(); &mut slab}, "3.14 + ."),
-Err(KErr::new("parse<f64> error")));
+Err(Error::ParseF64(".".to_string())));
 }
 
 #[test]
@@ -117,7 +115,7 @@ fn aaa_test_c1() {
     let mut slab = Slab::new();
 
     assert_eq!(parse_raw({slab.clear(); &mut slab}, "3+5-XYZ_ab~c_def123"),
-Err(KErr::new("unparsed tokens remaining")));
+Err(Error::UnparsedTokensRemaining("~c_def123".to_string())));
 }
 
 #[test]
@@ -143,7 +141,7 @@ fn aaa_test_d1() {
     let mut slab = Slab::new();
 
     assert_eq!(parse_raw({slab.clear(); &mut slab}, " 3 + ( -x + y  "),
-Err(KErr::new("EOF")));
+Err(Error::EofWhileParsing("parentheses".to_string())));
 }
 
 #[test]

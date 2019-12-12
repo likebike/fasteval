@@ -1,5 +1,4 @@
-use al::{Slab, parse};
-use kerr::KErr;
+use al::{Error, Slab, parse};
 
 #[test]
 fn basics() {
@@ -50,9 +49,9 @@ fn consts() {
     assert_eq!(format!("{:?}",&slab),
 "Slab{ exprs:{ 0:Expression { first: EConstant(12.0), pairs: [] } }, vals:{}, instrs:{} }");
 
-    assert_eq!(parse({slab.clear(); &mut slab.ps}, "."), Err(KErr::new("parse<f64> error")));
+    assert_eq!(parse({slab.clear(); &mut slab.ps}, "."), Err(Error::ParseF64(".".to_string())));
 
-    assert_eq!(parse({slab.clear(); &mut slab.ps}, "12..34"), Err(KErr::new("parse<f64> error")));
+    assert_eq!(parse({slab.clear(); &mut slab.ps}, "12..34"), Err(Error::ParseF64("12..34".to_string())));
 
     parse({slab.clear(); &mut slab.ps}, "12.34k").unwrap();
     assert_eq!(format!("{:?}",&slab),
@@ -156,9 +155,9 @@ fn consts() {
 
 
 
-    assert_eq!(parse({slab.clear(); &mut slab.ps}, "-infK"), Err(KErr::new("unparsed tokens remaining")));
-    assert_eq!(parse({slab.clear(); &mut slab.ps}, "NaNK"), Err(KErr::new("unparsed tokens remaining")));
-    assert_eq!(parse({slab.clear(); &mut slab.ps}, "12.34e56K"), Err(KErr::new("unparsed tokens remaining")));
+    assert_eq!(parse({slab.clear(); &mut slab.ps}, "-infK"), Err(Error::UnparsedTokensRemaining("K".to_string())));
+    assert_eq!(parse({slab.clear(); &mut slab.ps}, "NaNK"), Err(Error::UnparsedTokensRemaining("K".to_string())));
+    assert_eq!(parse({slab.clear(); &mut slab.ps}, "12.34e56K"), Err(Error::UnparsedTokensRemaining("K".to_string())));
 
 }
 

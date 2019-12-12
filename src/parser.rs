@@ -1,5 +1,5 @@
+use crate::error::Error;
 use crate::slab::ParseSlab;
-use kerr::KErr;
 
 use std::str::{from_utf8, from_utf8_unchecked};
 
@@ -152,48 +152,92 @@ enum Tok<T> {
 }
 use Tok::{Pass, Bite};
 
-fn peek(bs:&[u8]) -> Option<u8> {
-    if !bs.is_empty() { Some(bs[0]) }
-    else { None }
+macro_rules! peek {
+    ($bs:ident) =>  {
+        if !$bs.is_empty() { Some($bs[0]) }
+        else { None }
+    };
 }
-fn peek_n(bs:&[u8], skip:usize) -> Option<u8> {
-    // This is slightly different than slice.get(i) because we return a u8, not a ref.
-    if bs.len()>skip { Some(bs[skip]) }
-    else { None }
+// This is slightly different than slice.get(i) because we return a u8, not a ref:
+macro_rules! peek_n {
+    ($bs:ident, $skip:literal) => {
+        if $bs.len()>$skip { Some($bs[$skip]) }
+        else { None }
+    };
+    ($bs:ident, $skip:ident) => {
+        if $bs.len()>$skip { Some($bs[$skip]) }
+        else { None }
+    };
 }
-fn is_at_eof(bs:&[u8]) -> bool { bs.is_empty() }
-fn peek_is(bs:&[u8], skip:usize, val:u8) -> bool {
-    match peek_n(bs,skip) {
-        Some(b) => b==val,
-        None => false,
-    }
+macro_rules! peek_is {
+    ($bs:ident, $skip:literal, $val:literal) => {
+        match peek_n!($bs,$skip) {
+            Some(b) => b==$val,
+            None => false,
+        }
+    };
+    ($bs:ident, $skip:expr, $val:literal) => {
+        {
+            let skip = $skip;
+            match peek_n!($bs,skip) {
+                Some(b) => b==$val,
+                None => false,
+            }
+        }
+    };
 }
 
-fn read(bs:&mut &[u8]) -> Result<u8, KErr> {
-    if !bs.is_empty() {
-        let b = bs[0];
-        *bs = &bs[1..];
-        Ok(b)
-    } else { Err(KErr::new("EOF")) }
+macro_rules! read {
+    ($bs:ident) => {
+        if !$bs.is_empty() {
+            let b = $bs[0];
+            *$bs = &$bs[1..];
+            Ok(b)
+        } else { Err(Error::EOF) }
+    };
+    ($bs:ident, $parsing:literal) => {
+        if !$bs.is_empty() {
+            let b = $bs[0];
+            *$bs = &$bs[1..];
+            Ok(b)
+        } else { Err(Error::EofWhileParsing($parsing.to_string())) }
+    };
 }
 
-fn skip(bs:&mut &[u8]) { *bs = &bs[1..]; }
-fn skip_n(bs:&mut &[u8], n:usize) { *bs = &bs[n..]; }
-
-fn is_space(b:u8) -> bool {
-    if b>b' ' { return false; }
-    b==b' ' || b==b'\n' || b==b'\t' || b==b'\r'
+macro_rules! skip {
+    ($bs:ident) => {
+        *$bs = &$bs[1..];
+    };
 }
-fn spaces(bs:&mut &[u8]) {
-    while let Some(b) = peek(bs) {
-        if !is_space(b) { break }
-        skip(bs);  // We normally don't have long strings of whitespace, so it is more efficient to put this single-skip inside this loop rather than a skip_n afterwards.
-    }
+macro_rules! skip_n {
+    ($bs:ident, $n:literal) => {
+        *$bs = &$bs[$n..];
+    };
+    ($bs:ident, $n:ident) => {
+        *$bs = &$bs[$n..];
+    };
+}
+
+macro_rules! is_space {
+    ($b:ident) => {
+        if $b>b' ' { false }
+        else {
+            $b==b' ' || $b==b'\n' || $b==b'\t' || $b==b'\r'
+        }
+    };
+}
+macro_rules! spaces {
+    ($bs:ident) => {
+        while let Some(b) = peek!($bs) {
+            if !is_space!(b) { break }
+            skip!($bs);  // We normally don't have long strings of whitespace, so it is more efficient to put this single-skip inside this loop rather than a skip_n afterwards.
+        }
+    };
 }
 
 
 #[inline]
-pub fn parse(slab:&mut ParseSlab, s:&str) -> Result<ExpressionI, KErr> {
+pub fn parse(slab:&mut ParseSlab, s:&str) -> Result<ExpressionI,Error> {
     Parser.parse(slab, s)
 }
 
@@ -217,36 +261,36 @@ impl Parser {
 
     // I cannot return Result<&Expression> because it would prolong the mut:
     #[inline]
-    pub fn parse(&self, slab:&mut ParseSlab, s:&str) -> Result<ExpressionI, KErr> {
-        if s.len()>4096 { return Err(KErr::new("expression string is too long")); }  // Restrict length for safety
+    pub fn parse(&self, slab:&mut ParseSlab, s:&str) -> Result<ExpressionI,Error> {
+        if s.len()>4096 { return Err(Error::TooLong); }  // Restrict length for safety
         let mut bs = s.as_bytes();
         Self::read_expression(slab, &mut bs, 0, true)
     }
 
-    fn read_expression(slab:&mut ParseSlab, bs:&mut &[u8], depth:usize, expect_eof:bool) -> Result<ExpressionI, KErr> {
-        if depth>=32 { return Err(KErr::new("too deep")) }
+    fn read_expression(slab:&mut ParseSlab, bs:&mut &[u8], depth:usize, expect_eof:bool) -> Result<ExpressionI,Error> {
+        if depth>=32 { return Err(Error::TooDeep); }
 
-        let first = Self::read_value(slab,bs,depth).map_err(|e| e.pre("read_value"))?;
+        let first = Self::read_value(slab,bs,depth)?;
         let mut pairs = Vec::<ExprPair>::with_capacity(8);
         loop {
-            match Self::read_binaryop(bs).map_err(|e| e.pre("read_binaryop"))? {
+            match Self::read_binaryop(bs)? {
                 Pass => break,
                 Bite(bop) => {
-                    let val = Self::read_value(slab,bs,depth).map_err(|e| e.pre("read_value"))?;
+                    let val = Self::read_value(slab,bs,depth)?;
                     pairs.push(ExprPair(bop,val));
                 }
             }
         }
-        spaces(bs);
-        if expect_eof && !is_at_eof(bs) {
-            let bs_str = from_utf8(bs).map_err(|_| KErr::new("Utf8Error while handling 'unparsed tokens remaining' error."))?;
-            return Err(KErr::new("unparsed tokens remaining").pre(bs_str));
+        spaces!(bs);
+        if expect_eof && !bs.is_empty() {
+            let bs_str = from_utf8(bs).unwrap_or("Utf8Error while handling UnparsedTokensRemaining error");
+            return Err(Error::UnparsedTokensRemaining(bs_str.to_string()));
         }
         Ok(slab.push_expr(Expression{first, pairs})?)
     }
 
-    fn read_value(slab:&mut ParseSlab, bs:&mut &[u8], depth:usize) -> Result<Value, KErr> {
-        if depth>=32 { return Err(KErr::new("too deep")) }
+    fn read_value(slab:&mut ParseSlab, bs:&mut &[u8], depth:usize) -> Result<Value,Error> {
+        if depth>=32 { return Err(Error::TooDeep) }
 
         match Self::read_const(slab,bs)? {
             Pass => {}
@@ -260,11 +304,15 @@ impl Parser {
             Pass => {}
             Bite(c) => return Ok(c),
         }
-        Err(KErr::new("invalid value"))
+
+        // Improve the precision of this error case:
+        if bs.is_empty() { return Err(Error::EofWhileParsing("value".to_string())); }
+
+        Err(Error::InvalidValue)
     }
 
-    fn read_const(slab:&mut ParseSlab, bs:&mut &[u8]) -> Result<Tok<f64>, KErr> {
-        spaces(bs);
+    fn read_const(slab:&mut ParseSlab, bs:&mut &[u8]) -> Result<Tok<f64>,Error> {
+        spaces!(bs);
 
         let mut toklen=0;  let mut sign_ok=true;  let mut specials_ok=true;  let mut suffix_ok=true;  let mut saw_val=false;
         while toklen<bs.len() {
@@ -280,7 +328,7 @@ impl Parser {
                 suffix_ok = false;
                 sign_ok = true;
                 toklen += 1;
-            } else if specials_ok && ( b==b'N' && peek_is(bs,toklen+1,b'a') && peek_is(bs,toklen+2,b'N')  ||  b==b'i' && peek_is(bs,toklen+1,b'n') && peek_is(bs,toklen+2,b'f') ) {
+            } else if specials_ok && ( b==b'N' && peek_is!(bs,toklen+1,b'a') && peek_is!(bs,toklen+2,b'N')  ||  b==b'i' && peek_is!(bs,toklen+1,b'n') && peek_is!(bs,toklen+2,b'f') ) {
                 #[cfg(feature="alpha-keywords")]
                 {
                     saw_val = true;
@@ -297,7 +345,7 @@ impl Parser {
 
         let mut tok = unsafe { from_utf8_unchecked(&bs[..toklen]) };
         if suffix_ok {
-            match peek_n(bs,toklen) {
+            match peek_n!(bs,toklen) {
                 None => (),
                 Some(b) => {
                     let (exp,suffixlen) = match b {
@@ -307,7 +355,7 @@ impl Parser {
                         b'T' => (12,1),
                         b'm' => (-3,1),
                         b'u' | b'\xb5' => (-6,1),  // ASCII-encoded 'µ'
-                        b'\xc2' if peek_is(bs,toklen+1,b'\xb5') => (-6,2),  // UTF8-encoded 'µ'
+                        b'\xc2' if peek_is!(bs,toklen+1,b'\xb5') => (-6,2),  // UTF8-encoded 'µ'
                         b'n' => (-9,1),
                         b'p' => (-12,1),
                         _ => (0,0),
@@ -325,8 +373,8 @@ impl Parser {
             }
         }
 
-        let val = tok.parse::<f64>().map_err(|_| { KErr::new("parse<f64> error").pre(tok) })?;
-        skip_n(bs,toklen);
+        let val = tok.parse::<f64>().map_err(|_| { Error::ParseF64(tok.to_string()) })?;
+        skip_n!(bs,toklen);
 
         Ok(Bite(val))
     }
@@ -343,7 +391,7 @@ impl Parser {
     // // As a side-note, It's surprising how similar these algorithms are (which I created from scratch at 3am with no reference),
     // // compared to the dec2flt::parse module.
     // fn read_const(&mut self, bs:&mut &[u8]) -> Result<Tok<f64>, KErr> {
-    //     spaces(bs);
+    //     spaces!(bs);
     //
     //     // Grammar: [+-]?[0-9]*(\.[0-9]+)?( ([eE][+-]?[0-9]+) || [pnuµmkKMGT] )?
     //     fn peek_digits(bs:&[u8]) -> usize {
@@ -418,37 +466,37 @@ impl Parser {
     //     Ok(Bite(val))
     // }
 
-    fn read_unaryop(slab:&mut ParseSlab, bs:&mut &[u8], depth:usize) -> Result<Tok<UnaryOp>, KErr> {
-        spaces(bs);
-        match peek(bs) {
+    fn read_unaryop(slab:&mut ParseSlab, bs:&mut &[u8], depth:usize) -> Result<Tok<UnaryOp>,Error> {
+        spaces!(bs);
+        match peek!(bs) {
             None => Ok(Pass),  // Err(KErr::new("EOF at UnaryOp position")), -- Instead of erroring, let the higher level decide what to do.
             Some(b) => match b {
                 b'+' => {
-                    skip(bs);
+                    skip!(bs);
                     let v = Self::read_value(slab,bs,depth+1)?;
                     Ok(Bite(EPos(slab.push_val(v)?)))
                 }
                 b'-' => {
-                    skip(bs);
+                    skip!(bs);
                     let v = Self::read_value(slab,bs,depth+1)?;
                     Ok(Bite(ENeg(slab.push_val(v)?)))
                 }
                 b'(' => {
-                    skip(bs);
+                    skip!(bs);
                     let xi = Self::read_expression(slab,bs,depth+1,false)?;
-                    spaces(bs);
-                    if read(bs)? != b')' { return Err(KErr::new("Expected ')'")) }
+                    spaces!(bs);
+                    if read!(bs,"parentheses")? != b')' { return Err(Error::Expected(")".to_string())); }
                     Ok(Bite(EParentheses(xi)))
                 }
                 b'[' => {
-                    skip(bs);
+                    skip!(bs);
                     let xi = Self::read_expression(slab,bs,depth+1,false)?;
-                    spaces(bs);
-                    if read(bs)? != b']' { return Err(KErr::new("Expected ']'")) }
+                    spaces!(bs);
+                    if read!(bs,"square brackets")? != b']' { return Err(Error::Expected("]".to_string())); }
                     Ok(Bite(EParentheses(xi)))
                 }
                 b'!' => {
-                    skip(bs);
+                    skip!(bs);
                     let v = Self::read_value(slab,bs,depth+1)?;
                     Ok(Bite(ENot(slab.push_val(v)?)))
                 }
@@ -457,43 +505,43 @@ impl Parser {
         }
     }
 
-    fn read_binaryop(bs:&mut &[u8]) -> Result<Tok<BinaryOp>, KErr> {
-        spaces(bs);
-        match peek(bs) {
+    fn read_binaryop(bs:&mut &[u8]) -> Result<Tok<BinaryOp>,Error> {
+        spaces!(bs);
+        match peek!(bs) {
             None => Ok(Pass), // Err(KErr::new("EOF")), -- EOF is usually OK in a BinaryOp position.
             Some(b) => match b {
-                b'+' => { skip(bs); Ok(Bite(EAdd)) }
-                b'-' => { skip(bs); Ok(Bite(ESub)) }
-                b'*' => { skip(bs); Ok(Bite(EMul)) }
-                b'/' => { skip(bs); Ok(Bite(EDiv)) }
-                b'%' => { skip(bs); Ok(Bite(EMod)) }
-                b'^' => { skip(bs); Ok(Bite(EExp)) }
-                b'<' => { skip(bs);
-                          if peek_is(bs,0,b'=') { skip(bs); Ok(Bite(ELTE)) }
+                b'+' => { skip!(bs); Ok(Bite(EAdd)) }
+                b'-' => { skip!(bs); Ok(Bite(ESub)) }
+                b'*' => { skip!(bs); Ok(Bite(EMul)) }
+                b'/' => { skip!(bs); Ok(Bite(EDiv)) }
+                b'%' => { skip!(bs); Ok(Bite(EMod)) }
+                b'^' => { skip!(bs); Ok(Bite(EExp)) }
+                b'<' => { skip!(bs);
+                          if peek_is!(bs,0,b'=') { skip!(bs); Ok(Bite(ELTE)) }
                           else { Ok(Bite(ELT)) } }
-                b'>' => { skip(bs);
-                          if peek_is(bs,0,b'=') { skip(bs); Ok(Bite(EGTE)) }
+                b'>' => { skip!(bs);
+                          if peek_is!(bs,0,b'=') { skip!(bs); Ok(Bite(EGTE)) }
                           else { Ok(Bite(EGT)) } }
-                b'=' if peek_is(bs,1,b'=') => { skip_n(bs,2);
+                b'=' if peek_is!(bs,1,b'=') => { skip_n!(bs,2);
                                                 Ok(Bite(EEQ)) }
-                b'!' if peek_is(bs,1,b'=') => { skip_n(bs,2);
+                b'!' if peek_is!(bs,1,b'=') => { skip_n!(bs,2);
                                                 Ok(Bite(ENE)) }
                 #[cfg(feature="alpha-keywords")]
-                b'o' if peek_is(bs,1,b'r') => { skip_n(bs,2);
+                b'o' if peek_is!(bs,1,b'r') => { skip_n!(bs,2);
                                                 Ok(Bite(EOR)) }
-                b'|' if peek_is(bs,1,b'|') => { skip_n(bs,2);
+                b'|' if peek_is!(bs,1,b'|') => { skip_n!(bs,2);
                                                 Ok(Bite(EOR)) }
                 #[cfg(feature="alpha-keywords")]
-                b'a' if peek_is(bs,1,b'n') && peek_is(bs,2,b'd') => { skip_n(bs,3);
+                b'a' if peek_is!(bs,1,b'n') && peek_is!(bs,2,b'd') => { skip_n!(bs,3);
                                                                       Ok(Bite(EAND)) }
-                b'&' if peek_is(bs,1,b'&') => { skip_n(bs,2);
+                b'&' if peek_is!(bs,1,b'&') => { skip_n!(bs,2);
                                                 Ok(Bite(EAND)) }
                 _ => Ok(Pass),
             }
         }
     }
 
-    fn read_callable(slab:&mut ParseSlab, bs:&mut &[u8], depth:usize) -> Result<Tok<Value>, KErr> {
+    fn read_callable(slab:&mut ParseSlab, bs:&mut &[u8], depth:usize) -> Result<Tok<Value>,Error> {
         match Self::read_varname(bs)? {
             Pass => Ok(Pass),
             Bite(varname) => {
@@ -522,29 +570,29 @@ impl Parser {
         }
     }
 
-    fn read_varname(bs:&mut &[u8]) -> Result<Tok<String>, KErr> {
-        spaces(bs);
+    fn read_varname(bs:&mut &[u8]) -> Result<Tok<String>,Error> {
+        spaces!(bs);
 
         let mut toklen = 0;
-        while Self::is_varname_byte_opt(peek_n(bs,toklen),toklen) { toklen+=1; }
+        while Self::is_varname_byte_opt(peek_n!(bs,toklen),toklen) { toklen+=1; }
 
         if toklen==0 { return Ok(Pass); }
 
         let out = unsafe { from_utf8_unchecked(&bs[..toklen]) }.to_string();
-        skip_n(bs, toklen);
+        skip_n!(bs, toklen);
         Ok(Bite(out))
     }
 
-    fn read_open_parenthesis(bs:&mut &[u8]) -> Result<Tok<u8>, KErr> {
-        spaces(bs);
+    fn read_open_parenthesis(bs:&mut &[u8]) -> Result<Tok<u8>,Error> {
+        spaces!(bs);
 
-        match peek(bs) {
-            Some(b'(') | Some(b'[') => Ok(Bite(read(bs).unwrap())),
+        match peek!(bs) {
+            Some(b'(') | Some(b'[') => Ok(Bite(read!(bs).unwrap())),
             _ => Ok(Pass),
         }
     }
 
-    fn read_func(fname:String, slab:&mut ParseSlab, bs:&mut &[u8], depth:usize, open_parenth:u8) -> Result<StdFunc, KErr> {
+    fn read_func(fname:String, slab:&mut ParseSlab, bs:&mut &[u8], depth:usize, open_parenth:u8) -> Result<StdFunc,Error> {
         let close_parenth = match open_parenth {
             b'(' => b')',
             b'[' => b']',
@@ -552,132 +600,132 @@ impl Parser {
         };
         let mut args = Vec::<ExpressionI>::with_capacity(4);
         loop {
-            spaces(bs);
-            match peek(bs) {
+            spaces!(bs);
+            match peek!(bs) {
                 Some(b) => {
                     if b==close_parenth {
-                        skip(bs);
+                        skip!(bs);
                         break;
                     }
                 }
-                None => return Err(KErr::new(&format!("Reached end of input while parsing function: {}",fname))),
+                None => return Err(Error::EofWhileParsing(fname)),
             }
             if !args.is_empty() {
-                match read(bs) {
+                match read!(bs) {
                     Ok(b',') | Ok(b';') => {
                         // I accept ',' or ';' because the TV API disallows the ',' char in symbols... so I'm using ';' as a compromise.
                     }
-                    _ => return Err(KErr::new("expected ',' or ';'")),
+                    _ => return Err(Error::Expected(", or ;".to_string())),
                 }
             }
-            args.push(Self::read_expression(slab,bs,depth+1,false).map_err(|e| e.pre("read_expression"))?);
+            args.push(Self::read_expression(slab,bs,depth+1,false)?);
         }
 
         let fname_str = fname.as_str();
         match fname_str {
             "int" => {
                 if args.len()==1 { Ok(EFuncInt(args.pop().unwrap()))
-                } else { Err(KErr::new("expected one arg")) }
+                } else { Err(Error::WrongArgs("expected one arg".to_string())) }
             }
             "ceil" => {
                 if args.len()==1 { Ok(EFuncCeil(args.pop().unwrap()))
-                } else { Err(KErr::new("expected one arg")) }
+                } else { Err(Error::WrongArgs("expected one arg".to_string())) }
             }
             "floor" => {
                 if args.len()==1 { Ok(EFuncFloor(args.pop().unwrap()))
-                } else { Err(KErr::new("expected one arg")) }
+                } else { Err(Error::WrongArgs("expected one arg".to_string())) }
             }
             "abs" => {
                 if args.len()==1 { Ok(EFuncAbs(args.pop().unwrap()))
-                } else { Err(KErr::new("expected one arg")) }
+                } else { Err(Error::WrongArgs("expected one arg".to_string())) }
             }
             "sign" => {
                 if args.len()==1 { Ok(EFuncSign(args.pop().unwrap()))
-                } else { Err(KErr::new("expected one arg")) }
+                } else { Err(Error::WrongArgs("expected one arg".to_string())) }
             }
             "log" => {
                 if args.len()==1 { Ok(EFuncLog{base:None, expr:args.pop().unwrap()})
                 } else if args.len()==2 {
                     let expr = args.pop().unwrap();
                     Ok(EFuncLog{base:Some(args.pop().unwrap()), expr})
-                } else { Err(KErr::new("expected log(x) or log(base,x)")) }
+                } else { Err(Error::WrongArgs("expected log(x) or log(base,x)".to_string())) }
             }
             "round" => {
                 if args.len()==1 { Ok(EFuncRound{modulus:None, expr:args.pop().unwrap()})
                 } else if args.len()==2 {
                     let expr = args.pop().unwrap();
                     Ok(EFuncRound{modulus:Some(args.pop().unwrap()), expr})
-                } else { Err(KErr::new("expected round(x) or round(modulus,x)")) }
+                } else { Err(Error::WrongArgs("expected round(x) or round(modulus,x)".to_string())) }
             }
             "min" => {
                 if !args.is_empty() {
                     let first = args.remove(0);
                     Ok(EFuncMin{first, rest:args})
-                } else { Err(KErr::new("expected one or more args")) }
+                } else { Err(Error::WrongArgs("expected one or more args".to_string())) }
             }
             "max" => {
                 if !args.is_empty() {
                     let first = args.remove(0);
                     Ok(EFuncMax{first, rest:args})
-                } else { Err(KErr::new("expected one or more args")) }
+                } else { Err(Error::WrongArgs("expected one or more args".to_string())) }
             }
 
             "e" => {
                 if args.is_empty() { Ok(EFuncE)
-                } else { Err(KErr::new("expected no args")) }
+                } else { Err(Error::WrongArgs("expected no args".to_string())) }
             }
             "pi" => {
                 if args.is_empty() { Ok(EFuncPi)
-                } else { Err(KErr::new("expected no args")) }
+                } else { Err(Error::WrongArgs("expected no args".to_string())) }
             }
 
             "sin" => {
                 if args.len()==1 { Ok(EFuncSin(args.pop().unwrap()))
-                } else { Err(KErr::new("expected one arg")) }
+                } else { Err(Error::WrongArgs("expected one arg".to_string())) }
             }
             "cos" => {
                 if args.len()==1 { Ok(EFuncCos(args.pop().unwrap()))
-                } else { Err(KErr::new("expected one arg")) }
+                } else { Err(Error::WrongArgs("expected one arg".to_string())) }
             }
             "tan" => {
                 if args.len()==1 { Ok(EFuncTan(args.pop().unwrap()))
-                } else { Err(KErr::new("expected one arg")) }
+                } else { Err(Error::WrongArgs("expected one arg".to_string())) }
             }
             "asin" => {
                 if args.len()==1 { Ok(EFuncASin(args.pop().unwrap()))
-                } else { Err(KErr::new("expected one arg")) }
+                } else { Err(Error::WrongArgs("expected one arg".to_string())) }
             }
             "acos" => {
                 if args.len()==1 { Ok(EFuncACos(args.pop().unwrap()))
-                } else { Err(KErr::new("expected one arg")) }
+                } else { Err(Error::WrongArgs("expected one arg".to_string())) }
             }
             "atan" => {
                 if args.len()==1 { Ok(EFuncATan(args.pop().unwrap()))
-                } else { Err(KErr::new("expected one arg")) }
+                } else { Err(Error::WrongArgs("expected one arg".to_string())) }
             }
             "sinh" => {
                 if args.len()==1 { Ok(EFuncSinH(args.pop().unwrap()))
-                } else { Err(KErr::new("expected one arg")) }
+                } else { Err(Error::WrongArgs("expected one arg".to_string())) }
             }
             "cosh" => {
                 if args.len()==1 { Ok(EFuncCosH(args.pop().unwrap()))
-                } else { Err(KErr::new("expected one arg")) }
+                } else { Err(Error::WrongArgs("expected one arg".to_string())) }
             }
             "tanh" => {
                 if args.len()==1 { Ok(EFuncTanH(args.pop().unwrap()))
-                } else { Err(KErr::new("expected one arg")) }
+                } else { Err(Error::WrongArgs("expected one arg".to_string())) }
             }
             "asinh" => {
                 if args.len()==1 { Ok(EFuncASinH(args.pop().unwrap()))
-                } else { Err(KErr::new("expected one arg")) }
+                } else { Err(Error::WrongArgs("expected one arg".to_string())) }
             }
             "acosh" => {
                 if args.len()==1 { Ok(EFuncACosH(args.pop().unwrap()))
-                } else { Err(KErr::new("expected one arg")) }
+                } else { Err(Error::WrongArgs("expected one arg".to_string())) }
             }
             "atanh" => {
                 if args.len()==1 { Ok(EFuncATanH(args.pop().unwrap()))
-                } else { Err(KErr::new("expected one arg")) }
+                } else { Err(Error::WrongArgs("expected one arg".to_string())) }
             }
 
             _ => {
@@ -693,7 +741,7 @@ impl Parser {
         }
     }
 
-    fn read_printfunc(slab:&mut ParseSlab, bs:&mut &[u8], depth:usize, open_parenth:u8) -> Result<PrintFunc, KErr> {
+    fn read_printfunc(slab:&mut ParseSlab, bs:&mut &[u8], depth:usize, open_parenth:u8) -> Result<PrintFunc,Error> {
         let close_parenth = match open_parenth {
             b'(' => b')',
             b'[' => b']',
@@ -701,20 +749,20 @@ impl Parser {
         };
         let mut args = Vec::<ExpressionOrString>::with_capacity(8);
         loop {
-            spaces(bs);
-            match peek(bs) {
+            spaces!(bs);
+            match peek!(bs) {
                 Some(b) => {
                     if b==close_parenth {
-                        skip(bs);
+                        skip!(bs);
                         break;
                     }
                 }
-                None => { return Err(KErr::new("reached end of inupt while parsing printfunc")) }
+                None => { return Err(Error::EofWhileParsing("print".to_string())); }
             }
             if !args.is_empty() {
-                match read(bs) {
+                match read!(bs) {
                     Ok(b',') | Ok(b';') => {}
-                    _ => { return Err(KErr::new("expected ',' or ';'")) }
+                    _ => { return Err(Error::Expected(", or ;".to_string())); }
                 }
             }
             args.push(Self::read_expressionorstring(slab,bs,depth+1)?);
@@ -723,7 +771,7 @@ impl Parser {
         Ok(PrintFunc(args))
     }
 
-    fn read_expressionorstring(slab:&mut ParseSlab, bs:&mut &[u8], depth:usize) -> Result<ExpressionOrString, KErr> {
+    fn read_expressionorstring(slab:&mut ParseSlab, bs:&mut &[u8], depth:usize) -> Result<ExpressionOrString,Error> {
         match Self::read_string(bs)? {
             Pass => {}
             Bite(s) => return Ok(EStr(s)),
@@ -731,26 +779,27 @@ impl Parser {
         Ok(EExpr(Self::read_expression(slab,bs,depth+1,false)?))
     }
 
-    fn read_string(bs:&mut &[u8]) -> Result<Tok<String>,KErr> {
-        spaces(bs);
+    fn read_string(bs:&mut &[u8]) -> Result<Tok<String>,Error> {
+        spaces!(bs);
 
-        match peek(bs) {
-            None => return Err(KErr::new("EOF while reading opening quote of string")),
-            Some(b'"') => { skip(bs); }
+        match peek!(bs) {
+            None => return Err(Error::EofWhileParsing("opening quote of string".to_string())),
+            Some(b'"') => { skip!(bs); }
             Some(_) => { return Ok(Pass) }
         }
 
         let mut toklen = 0;
-        while match peek_n(bs,toklen) {
+        while match peek_n!(bs,toklen) {
             None => false,
             Some(b'"') => false,
             Some(_) => true,
         } { toklen+=1; }
 
-        let out = from_utf8(&bs[..toklen]).map_err(|_| KErr::new("Utf8Error while reading string"))?;
-        skip_n(bs, toklen);
-        match read(bs) {
-            Err(e) => Err(e.pre("error while searching for closing double-quote")),
+        let out = from_utf8(&bs[..toklen]).map_err(|_| Error::Utf8ErrorWhileParsing("string".to_string()))?;
+        skip_n!(bs, toklen);
+        match read!(bs) {
+            Err(Error::EOF) => Err(Error::EofWhileParsing("string".to_string())),
+            Err(_) => unreachable!(),
             Ok(b'"') => Ok(Bite(out.to_string())),
             Ok(_) => unreachable!(),
         }
@@ -767,21 +816,21 @@ mod internal_tests {
 
     #[test]
     fn util() {
-        match (|| -> Result<(),KErr> {
+        match (|| -> Result<(),Error> {
             let bsarr = [1,2,3];
             let bs = &mut &bsarr[..];
 
-            assert_eq!(peek(bs), Some(1));
-            assert_eq!(peek_n(bs,1), Some(2));
-            assert_eq!(peek_n(bs,2), Some(3));
-            assert_eq!(peek_n(bs,3), None);
+            assert_eq!(peek!(bs), Some(1));
+            assert_eq!(peek_n!(bs,1), Some(2));
+            assert_eq!(peek_n!(bs,2), Some(3));
+            assert_eq!(peek_n!(bs,3), None);
 
-            assert_eq!(read(bs)?, 1);
-            skip(bs);
-            assert_eq!(read(bs)?, 3);
-            match read(bs).err() {
-                Some(KErr{..}) => {}  // Can I improve this so I can match the "EOF" ?
-                None => panic!("I expected an EOF")
+            assert_eq!(read!(bs)?, 1);
+            skip!(bs);
+            assert_eq!(read!(bs)?, 3);
+            match read!(bs).err() {
+                Some(Error::EOF) => {},
+                _ => panic!("I expected an EOF")
             }
 
             Ok(())
@@ -792,23 +841,23 @@ mod internal_tests {
             }
         }
 
-        assert!(is_at_eof(&[]));
-        assert!(!is_at_eof(&[1]));
-        assert!(is_at_eof(b""));
-        assert!(!is_at_eof(b"x"));
+        assert!((&[0u8; 0]).is_empty());
+        assert!(!(&[1]).is_empty());
+        assert!((b"").is_empty());
+        assert!(!(b"x").is_empty());
 
-        assert!(is_space(b' '));
-        assert!(is_space(b'\t'));
-        assert!(is_space(b'\r'));
-        assert!(is_space(b'\n'));
-        assert!(!is_space(b'a'));
-        assert!(!is_space(b'1'));
-        assert!(!is_space(b'.'));
+        let b=b' ';  assert!(is_space!(b));
+        let b=b'\t'; assert!(is_space!(b));
+        let b=b'\r'; assert!(is_space!(b));
+        let b=b'\n'; assert!(is_space!(b));
+        let b=b'a';  assert!(!is_space!(b));
+        let b=b'1';  assert!(!is_space!(b));
+        let b=b'.';  assert!(!is_space!(b));
 
         {
             let bsarr = b"  abc 123   ";
             let bs = &mut &bsarr[..];
-            spaces(bs);
+            spaces!(bs);
             assert_eq!(bs, b"abc 123   ");
         }
     }
@@ -837,13 +886,13 @@ mod internal_tests {
     //             let (z1,z2,z3,z4) = (&mut &zero[..], &mut &zero[..], &mut &zero[..], &mut &zero[..]);
     //             let (o1,o2) = (&mut &one[..], &mut &one[..]);
     //             let t1 = &mut &two[..];
-    //             spaces(z1);
-    //             spaces(z2);
-    //             spaces(z3);
-    //             spaces(z4);
-    //             spaces(o1);
-    //             spaces(o2);
-    //             spaces(t1);
+    //             spaces!(z1);
+    //             spaces!(z2);
+    //             spaces!(z3);
+    //             spaces!(z4);
+    //             spaces!(o1);
+    //             spaces!(o2);
+    //             spaces!(t1);
     //             black_box(z1);
     //             black_box(z2);
     //             black_box(z3);

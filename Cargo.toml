@@ -8,7 +8,6 @@ description = """Fast evaluation of algebraic expressions"""
 edition = "2018"
 
 [dependencies]
-kerr = "0.1"
 
 [profile.bench]
 debug = true
@@ -16,5 +15,5 @@ debug = true
 [features]
 default = ["alpha-keywords"]
 alpha-keywords = []  # Enable 'NaN', 'inf', 'and', 'or'
-unsafe-vars = []  # tinyexpr-style pointer-based variables.
+unsafe-vars = []     # tinyexpr-style pointer-based variables.
 

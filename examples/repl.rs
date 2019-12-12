@@ -1,6 +1,7 @@
 // usage: rlwrap cargo run --release --example repl
 
-use al::{parse, Slab, EvalNamespace};
+use al::Evaler;  // Import this trait for '.eval()' functionality.
+use al::{parse, Slab};
 
 use std::collections::BTreeMap;
 use std::io::{self, BufRead, Write};
@@ -65,7 +66,7 @@ fn repl() {
             }
         };
 
-        let ans = match ns_stack.eval(&slab, expr_ref) {
+        let ans = match expr_ref.eval(&slab,&mut ns_stack) {
             Ok(val) => val,
             Err(err) => {
                 eprintln!("eval error: {}", err);

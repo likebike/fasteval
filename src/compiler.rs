@@ -2,7 +2,16 @@ use crate::slab::{ParseSlab, CompileSlab};
 use crate::parser::{Expression, ExprPair, Value, UnaryOp::{self, EPos, ENeg, ENot, EParentheses}, BinaryOp::{self, EOR, EAND, ENE, EEQ, EGTE, ELTE, EGT, ELT, EAdd, ESub, EMul, EDiv, EMod, EExp}, StdFunc::{self, EVar, EFunc, EFuncInt, EFuncCeil, EFuncFloor, EFuncAbs, EFuncSign, EFuncLog, EFuncRound, EFuncMin, EFuncMax, EFuncE, EFuncPi, EFuncSin, EFuncCos, EFuncTan, EFuncASin, EFuncACos, EFuncATan, EFuncSinH, EFuncCosH, EFuncTanH, EFuncASinH, EFuncACosH, EFuncATanH}, PrintFunc};
 #[cfg(feature="unsafe-vars")]
 use crate::parser::StdFunc::EUnsafeVar;
-use crate::evaler::bool_to_f64;
+
+
+#[macro_export]
+macro_rules! bool_to_f64 {
+    ($b:expr) => {
+        if $b { 1.0 }
+        else { 0.0 }
+    };
+}
+
 
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub struct InstructionI(pub usize);
@@ -125,10 +134,36 @@ impl<'s> ExprSlice<'s> {
     }
 }
 
-#[inline]
-pub fn f64_eq(l:f64, r:f64) -> bool { (l-r).abs() <= 8.0*std::f64::EPSILON }
-#[inline]
-pub fn f64_ne(l:f64, r:f64) -> bool { (l-r).abs() > 8.0*std::f64::EPSILON }
+#[macro_export]
+macro_rules! f64_eq {
+    ($l:ident, $r:literal) => {
+        ($l-$r).abs() <= 8.0*std::f64::EPSILON
+    };
+    ($l:ident, $r:ident) => {
+        ($l-$r).abs() <= 8.0*std::f64::EPSILON
+    };
+    ($l:expr, $r:literal) => {
+        ($l-$r).abs() <= 8.0*std::f64::EPSILON
+    };
+    ($l:expr, $r:expr) => {
+        (($l)-($r)).abs() <= 8.0*std::f64::EPSILON
+    };
+}
+#[macro_export]
+macro_rules! f64_ne {
+    ($l:ident, $r:literal) => {
+        ($l-$r).abs() > 8.0*std::f64::EPSILON
+    };
+    ($l:ident, $r:ident) => {
+        ($l-$r).abs() > 8.0*std::f64::EPSILON
+    };
+    ($l:expr, $r:literal) => {
+        ($l-$r).abs() > 8.0*std::f64::EPSILON
+    };
+    ($l:expr, $r:expr) => {
+        (($l)-($r)).abs() > 8.0*std::f64::EPSILON
+    };
+}
 fn neg_wrap(instr:Instruction, cslab:&mut CompileSlab) -> Instruction {
     if let IConst(c) = instr {
         IConst(-c)
@@ -140,7 +175,7 @@ fn neg_wrap(instr:Instruction, cslab:&mut CompileSlab) -> Instruction {
 }
 fn not_wrap(instr:Instruction, cslab:&mut CompileSlab) -> Instruction {
     if let IConst(c) = instr {
-        IConst(bool_to_f64(f64_eq(c,0.0)))
+        IConst(bool_to_f64!(f64_eq!(c,0.0)))
     } else if let INot(i) = instr {
         cslab.take_instr(i)
     } else {
@@ -171,7 +206,7 @@ fn compile_mul(instrs:Vec<Instruction>, cslab:&mut CompileSlab) -> Instruction {
             }
         }
     }
-    if f64_ne(const_prod,1.0) {
+    if f64_ne!(const_prod,1.0) {
         if out_set {
             out = IMul(cslab.push_instr(out), cslab.push_instr(IConst(const_prod)));
         } else {
@@ -182,8 +217,8 @@ fn compile_mul(instrs:Vec<Instruction>, cslab:&mut CompileSlab) -> Instruction {
 }
 pub(crate) fn log(base:f64, n:f64) -> f64 {
     // Can't use floating point in 'match' patterns.  :(
-    if f64_eq(base,2.0) { return n.log2(); }
-    if f64_eq(base,10.0) { return n.log10(); }
+    if f64_eq!(base,2.0) { return n.log2(); }
+    if f64_eq!(base,10.0) { return n.log10(); }
     n.log(base)
 }
 
@@ -226,10 +261,10 @@ impl Compiler for ExprSlice<'_> {
                 if let IConst(l) = out {
                     if let IConst(r) = instr {
                         out = match op {
-                            ELT => IConst(bool_to_f64(l<r)),
-                            EGT => IConst(bool_to_f64(l>r)),
-                            ELTE => IConst(bool_to_f64(l<=r)),
-                            EGTE => IConst(bool_to_f64(l>=r)),
+                            ELT => IConst(bool_to_f64!(l<r)),
+                            EGT => IConst(bool_to_f64!(l>r)),
+                            ELTE => IConst(bool_to_f64!(l<=r)),
+                            EGTE => IConst(bool_to_f64!(l>=r)),
                             _ => unreachable!(),
                         };
                         continue;
@@ -258,8 +293,8 @@ impl Compiler for ExprSlice<'_> {
                 if let IConst(l) = out {
                     if let IConst(r) = instr {
                         out = match op {
-                            EEQ => IConst(bool_to_f64(f64_eq(l,r))),
-                            ENE => IConst(bool_to_f64(f64_ne(l,r))),
+                            EEQ => IConst(bool_to_f64!(f64_eq!(l,r))),
+                            ENE => IConst(bool_to_f64!(f64_ne!(l,r))),
                             _ => unreachable!(),
                         };
                         continue;
@@ -285,7 +320,7 @@ impl Compiler for ExprSlice<'_> {
                         out = IOR(cslab.push_instr(out), cslab.push_instr(instr));
                     } else {
                         if let IConst(c) = instr {
-                            if f64_ne(c,0.0) { return instr; }
+                            if f64_ne!(c,0.0) { return instr; }
                             // out = instr;     // Skip this 0 value (mostly so I don't complicate my logic in 'if out_set' since I can assume that any set value is non-const).
                             // out_set = true;
                         } else {
@@ -340,7 +375,7 @@ impl Compiler for ExprSlice<'_> {
                         }
                     }
                 }
-                if f64_ne(const_sum,0.0) {
+                if f64_ne!(const_sum,0.0) {
                     if out_set {
                         out = IAdd(cslab.push_instr(out), cslab.push_instr(IConst(const_sum)));
                     } else {
@@ -383,7 +418,7 @@ impl Compiler for ExprSlice<'_> {
                     }
                     is_first = false;
                 }
-                if f64_ne(const_sum,0.0) {
+                if f64_ne!(const_sum,0.0) {
                     if out_set {
                         out = IAdd(cslab.push_instr(out), cslab.push_instr(IConst(const_sum)));
                     } else {
@@ -447,7 +482,7 @@ impl Compiler for ExprSlice<'_> {
 //                    }
 //                    is_first = false;
 //                }
-//                if f64_ne(const_prod,1.0) {
+//                if f64_ne!(const_prod,1.0) {
 //                    if out_set {
 //                        out = IMul(cslab.push_instr(out), cslab.push_instr(IConst(const_prod)));
 //                    } else {
@@ -556,7 +591,7 @@ impl Compiler for UnaryOp {
             ENot(i) => {
                 let instr = pslab.get_val(*i).compile(pslab,cslab);
                 if let IConst(c) = instr {
-                    IConst(bool_to_f64(f64_eq(c,0.0)))
+                    IConst(bool_to_f64!(f64_eq!(c,0.0)))
                 } else {
                     not_wrap(instr,cslab)
                 }

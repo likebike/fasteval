@@ -1,5 +1,6 @@
 use crate as al;
 
+use crate::error::Error;
 use crate::slab::Slab;
 use crate::evalns::EvalNamespace;
 use crate::parser::{Expression,
@@ -11,26 +12,17 @@ use crate::parser::{Expression,
                     ExpressionOrString::{EExpr, EStr}};
 #[cfg(feature="unsafe-vars")]
 use crate::parser::StdFunc::EUnsafeVar;
-use crate::compiler::{log, f64_eq, f64_ne, Instruction::{self, IConst, INeg, INot, IInv, IAdd, IMul, IMod, IExp, ILT, ILTE, IEQ, INE, IGTE, IGT, IOR, IAND, IVar, IFunc, IFuncInt, IFuncCeil, IFuncFloor, IFuncAbs, IFuncSign, IFuncLog, IFuncRound, IFuncMin, IFuncMax, IFuncSin, IFuncCos, IFuncTan, IFuncASin, IFuncACos, IFuncATan, IFuncSinH, IFuncCosH, IFuncTanH, IFuncASinH, IFuncACosH, IFuncATanH, IPrintFunc}};
+use crate::compiler::{log, Instruction::{self, IConst, INeg, INot, IInv, IAdd, IMul, IMod, IExp, ILT, ILTE, IEQ, INE, IGTE, IGT, IOR, IAND, IVar, IFunc, IFuncInt, IFuncCeil, IFuncFloor, IFuncAbs, IFuncSign, IFuncLog, IFuncRound, IFuncMin, IFuncMax, IFuncSin, IFuncCos, IFuncTan, IFuncASin, IFuncACos, IFuncATan, IFuncSinH, IFuncCosH, IFuncTanH, IFuncASinH, IFuncACosH, IFuncATanH, IPrintFunc}};
 #[cfg(feature="unsafe-vars")]
 use crate::compiler::Instruction::IUnsafeVar;
-
-use kerr::KErr;
 
 use std::collections::BTreeSet;
 use std::f64::consts;
 use std::fmt;
 
 
-#[inline]
-pub fn bool_to_f64(b:bool) -> f64 {
-    if b { 1.0 }
-    else { 0.0 }
-}
-
-
 pub trait Evaler : fmt::Debug {
-    fn eval(&self, slab:&Slab, ns:&mut impl EvalNamespace) -> Result<f64,KErr>;
+    fn eval(&self, slab:&Slab, ns:&mut impl EvalNamespace) -> Result<f64,Error>;
 
     // Because of ternary short-circuits, we cannot get a complete list of vars just by doing eval() with a clever callback:
     fn _var_names(&self, slab:&Slab, dst:&mut BTreeSet<String>);
@@ -48,7 +40,7 @@ impl Evaler for Expression {
             pair.1._var_names(slab,dst);
         }
     }
-    fn eval(&self, slab:&Slab, ns:&mut impl EvalNamespace) -> Result<f64,KErr> {
+    fn eval(&self, slab:&Slab, ns:&mut impl EvalNamespace) -> Result<f64,Error> {
         // Order of operations: 1) ^  2) */  3) +-
         // Exponentiation should be processed right-to-left.  Think of what 2^3^4 should mean:
         //     2^(3^4)=2417851639229258349412352   <--- I choose this one.  https://codeplea.com/exponentiation-associativity-options
@@ -88,10 +80,10 @@ impl Evaler for Expression {
         // Code for new Expression data structure:
         let mut vals = Vec::<f64>::with_capacity(self.pairs.len()+1);
         let mut ops  = Vec::<BinaryOp>::with_capacity(self.pairs.len());
-        vals.push(ns.eval(slab, &self.first)?);
+        vals.push(self.first.eval(slab,ns)?);
         for pair in self.pairs.iter() {
             ops.push(pair.0);
-            vals.push(ns.eval(slab, &pair.1)?);
+            vals.push(pair.1.eval(slab,ns)?);
         }
 
 
@@ -171,8 +163,8 @@ impl Evaler for Expression {
         ltor(&mut vals, &mut ops, EAND);
         ltor(&mut vals, &mut ops, EOR);
 
-        if !ops.is_empty() { return Err(KErr::new("Unhandled Expression ops")); }
-        if vals.len()!=1 { return Err(KErr::new("More than one final Expression value")); }
+        if !ops.is_empty() { unreachable!(); }
+        if vals.len()!=1 { unreachable!(); }
         Ok(vals[0])
     }
 }
@@ -186,12 +178,12 @@ impl Evaler for Value {
             EPrintFunc(f) => f._var_names(slab,dst),
         };
     }
-    fn eval(&self, slab:&Slab, ns:&mut impl EvalNamespace) -> Result<f64,KErr> {
+    fn eval(&self, slab:&Slab, ns:&mut impl EvalNamespace) -> Result<f64,Error> {
         match self {
             EConstant(c) => Ok(*c),
-            EUnaryOp(u) => ns.eval(slab, u),
-            EStdFunc(f) => ns.eval(slab, f),
-            EPrintFunc(f) => ns.eval(slab, f),
+            EUnaryOp(u) => u.eval(slab,ns),
+            EStdFunc(f) => f.eval(slab,ns),
+            EPrintFunc(f) => f.eval(slab,ns),
         }
     }
 }
@@ -203,12 +195,12 @@ impl Evaler for UnaryOp {
             EParentheses(expr_i) => slab.ps.get_expr(*expr_i)._var_names(slab,dst),
         }
     }
-    fn eval(&self, slab:&Slab, ns:&mut impl EvalNamespace) -> Result<f64,KErr> {
+    fn eval(&self, slab:&Slab, ns:&mut impl EvalNamespace) -> Result<f64,Error> {
         match self {
-            EPos(val_i) => ns.eval(slab, slab.ps.get_val(*val_i)),
-            ENeg(val_i) => Ok(-ns.eval(slab, slab.ps.get_val(*val_i))?),
-            ENot(val_i) => Ok(bool_to_f64(f64_eq(ns.eval(slab, slab.ps.get_val(*val_i))?,0.0))),
-            EParentheses(expr_i) => ns.eval(slab, slab.ps.get_expr(*expr_i)),
+            EPos(val_i) => slab.ps.get_val(*val_i).eval(slab,ns),
+            ENeg(val_i) => Ok(-slab.ps.get_val(*val_i).eval(slab,ns)?),
+            ENot(val_i) => Ok(bool_to_f64!(f64_eq!(slab.ps.get_val(*val_i).eval(slab,ns)?,0.0))),
+            EParentheses(expr_i) => slab.ps.get_expr(*expr_i).eval(slab,ns),
         }
     }
 }
@@ -223,36 +215,43 @@ impl BinaryOp {
             EDiv => left/right,
             EMod => left%right, //left - (left/right).trunc()*right
             EExp => left.powf(right),
-            ELT => bool_to_f64(left<right),
-            ELTE => bool_to_f64(left<=right),
-            EEQ => bool_to_f64(f64_eq(left,right)),
-            ENE => bool_to_f64(f64_ne(left,right)),
-            EGTE => bool_to_f64(left>=right),
-            EGT => bool_to_f64(left>right),
-            EOR => if f64_ne(left,0.0) { left }
+            ELT => bool_to_f64!(left<right),
+            ELTE => bool_to_f64!(left<=right),
+            EEQ => bool_to_f64!(f64_eq!(left,right)),
+            ENE => bool_to_f64!(f64_ne!(left,right)),
+            EGTE => bool_to_f64!(left>=right),
+            EGT => bool_to_f64!(left>right),
+            EOR => if f64_ne!(left,0.0) { left }
                    else { right },
-            EAND => if f64_eq(left,0.0) { left }
+            EAND => if f64_eq!(left,0.0) { left }
                     else { right },
         }
     }
 }
 
-#[inline]
-fn eval_var(ns:&mut impl EvalNamespace, name:&str, args:Vec<f64>) -> Result<f64,KErr> {
-    match ns.get_cached(name,args) {
-        Some(f) => Ok(f),
-        None => Err(KErr::new(&format!("variable undefined: {}",name))),
-    }
+macro_rules! eval_var {
+    ($ns:ident, $name:ident, $args:ident) => {
+        match $ns.get_cached($name,$args) {
+            Some(f) => Ok(f),
+            None => Err(Error::Undefined($name.to_string())),
+        }
+    };
+    ($ns:ident, $name:ident, $args:expr) => {
+        match $ns.get_cached($name,$args) {
+            Some(f) => Ok(f),
+            None => Err(Error::Undefined($name.to_string())),
+        }
+    };
 }
 
 impl Evaler for StdFunc {
     fn _var_names(&self, slab:&Slab, dst:&mut BTreeSet<String>) {
         match self {
             #[cfg(feature="unsafe-vars")]
-            EUnsafeVar{name, ptr:_} => { dst.insert(name.clone()); }
+            EUnsafeVar{name, ..} => { dst.insert(name.clone()); }
 
             EVar(s) => { dst.insert(s.clone()); }
-            EFunc{name, args:_} => { dst.insert(name.clone()); }
+            EFunc{name, ..} => { dst.insert(name.clone()); }
 
             EFuncInt(xi) | EFuncCeil(xi) | EFuncFloor(xi) | EFuncAbs(xi) | EFuncSign(xi) | EFuncSin(xi) | EFuncCos(xi) | EFuncTan(xi) | EFuncASin(xi) | EFuncACos(xi) | EFuncATan(xi) | EFuncSinH(xi) | EFuncCosH(xi) | EFuncTanH(xi) | EFuncASinH(xi) | EFuncACosH(xi) | EFuncATanH(xi) => slab.ps.get_expr(*xi)._var_names(slab,dst),
 
@@ -270,51 +269,51 @@ impl Evaler for StdFunc {
             }
         };
     }
-    fn eval(&self, slab:&Slab, ns:&mut impl EvalNamespace) -> Result<f64,KErr> {
+    fn eval(&self, slab:&Slab, ns:&mut impl EvalNamespace) -> Result<f64,Error> {
         match self {
             #[cfg(feature="unsafe-vars")]
-            EUnsafeVar{name:_,ptr} => unsafe { Ok(**ptr) },
+            EUnsafeVar{ptr, ..} => unsafe { Ok(**ptr) },
 
-            EVar(name) => eval_var(ns, name, Vec::new()),
+            EVar(name) => eval_var!(ns, name, Vec::new()),
             EFunc{name, args:xis} => {
                 let mut args = Vec::with_capacity(xis.len());
                 for xi in xis {
-                    args.push(ns.eval(slab, slab.ps.get_expr(*xi))?)
+                    args.push(slab.ps.get_expr(*xi).eval(slab,ns)?)
                 }
-                eval_var(ns, name, args)
+                eval_var!(ns, name, args)
             }
 
-            EFuncInt(expr_i) => Ok(ns.eval(slab, slab.ps.get_expr(*expr_i))?.trunc()),
-            EFuncCeil(expr_i) => Ok(ns.eval(slab, slab.ps.get_expr(*expr_i))?.ceil()),
-            EFuncFloor(expr_i) => Ok(ns.eval(slab, slab.ps.get_expr(*expr_i))?.floor()),
-            EFuncAbs(expr_i) => Ok(ns.eval(slab, slab.ps.get_expr(*expr_i))?.abs()),
-            EFuncSign(expr_i) => Ok(ns.eval(slab, slab.ps.get_expr(*expr_i))?.signum()),
+            EFuncInt(expr_i) => Ok(slab.ps.get_expr(*expr_i).eval(slab,ns)?.trunc()),
+            EFuncCeil(expr_i) => Ok(slab.ps.get_expr(*expr_i).eval(slab,ns)?.ceil()),
+            EFuncFloor(expr_i) => Ok(slab.ps.get_expr(*expr_i).eval(slab,ns)?.floor()),
+            EFuncAbs(expr_i) => Ok(slab.ps.get_expr(*expr_i).eval(slab,ns)?.abs()),
+            EFuncSign(expr_i) => Ok(slab.ps.get_expr(*expr_i).eval(slab,ns)?.signum()),
             EFuncLog{base:base_opt, expr:expr_i} => {
                 let base = match base_opt {
-                    Some(b_expr_i) => ns.eval(slab, slab.ps.get_expr(*b_expr_i))?,
+                    Some(b_expr_i) => slab.ps.get_expr(*b_expr_i).eval(slab,ns)?,
                     None => 10.0,
                 };
-                let n = ns.eval(slab, slab.ps.get_expr(*expr_i))?;
+                let n = slab.ps.get_expr(*expr_i).eval(slab,ns)?;
                 Ok(log(base,n))
             }
             EFuncRound{modulus:modulus_opt, expr:expr_i} => {
                 let modulus = match modulus_opt {
-                    Some(m_expr_i) => ns.eval(slab, slab.ps.get_expr(*m_expr_i))?,
+                    Some(m_expr_i) => slab.ps.get_expr(*m_expr_i).eval(slab,ns)?,
                     None => 1.0,
                 };
-                Ok((ns.eval(slab, slab.ps.get_expr(*expr_i))?/modulus).round() * modulus)
+                Ok((slab.ps.get_expr(*expr_i).eval(slab,ns)?/modulus).round() * modulus)
             }
             EFuncMin{first:first_i, rest} => {
-                let mut min = ns.eval(slab, slab.ps.get_expr(*first_i))?;
+                let mut min = slab.ps.get_expr(*first_i).eval(slab,ns)?;
                 for x_i in rest.iter() {
-                    min = min.min(ns.eval(slab, slab.ps.get_expr(*x_i))?);
+                    min = min.min(slab.ps.get_expr(*x_i).eval(slab,ns)?);
                 }
                 Ok(min)
             }
             EFuncMax{first:first_i, rest} => {
-                let mut max = ns.eval(slab, slab.ps.get_expr(*first_i))?;
+                let mut max = slab.ps.get_expr(*first_i).eval(slab,ns)?;
                 for x_i in rest.iter() {
-                    max = max.max(ns.eval(slab, slab.ps.get_expr(*x_i))?);
+                    max = max.max(slab.ps.get_expr(*x_i).eval(slab,ns)?);
                 }
                 Ok(max)
             }
@@ -322,18 +321,18 @@ impl Evaler for StdFunc {
             EFuncE => Ok(consts::E),
             EFuncPi => Ok(consts::PI),
 
-            EFuncSin(expr_i) => Ok(ns.eval(slab, slab.ps.get_expr(*expr_i))?.sin()),
-            EFuncCos(expr_i) => Ok(ns.eval(slab, slab.ps.get_expr(*expr_i))?.cos()),
-            EFuncTan(expr_i) => Ok(ns.eval(slab, slab.ps.get_expr(*expr_i))?.tan()),
-            EFuncASin(expr_i) => Ok(ns.eval(slab, slab.ps.get_expr(*expr_i))?.asin()),
-            EFuncACos(expr_i) => Ok(ns.eval(slab, slab.ps.get_expr(*expr_i))?.acos()),
-            EFuncATan(expr_i) => Ok(ns.eval(slab, slab.ps.get_expr(*expr_i))?.atan()),
-            EFuncSinH(expr_i) => Ok(ns.eval(slab, slab.ps.get_expr(*expr_i))?.sinh()),
-            EFuncCosH(expr_i) => Ok(ns.eval(slab, slab.ps.get_expr(*expr_i))?.cosh()),
-            EFuncTanH(expr_i) => Ok(ns.eval(slab, slab.ps.get_expr(*expr_i))?.tanh()),
-            EFuncASinH(expr_i) => Ok(ns.eval(slab, slab.ps.get_expr(*expr_i))?.asinh()),
-            EFuncACosH(expr_i) => Ok(ns.eval(slab, slab.ps.get_expr(*expr_i))?.acosh()),
-            EFuncATanH(expr_i) => Ok(ns.eval(slab, slab.ps.get_expr(*expr_i))?.atanh()),
+            EFuncSin(expr_i) => Ok(slab.ps.get_expr(*expr_i).eval(slab,ns)?.sin()),
+            EFuncCos(expr_i) => Ok(slab.ps.get_expr(*expr_i).eval(slab,ns)?.cos()),
+            EFuncTan(expr_i) => Ok(slab.ps.get_expr(*expr_i).eval(slab,ns)?.tan()),
+            EFuncASin(expr_i) => Ok(slab.ps.get_expr(*expr_i).eval(slab,ns)?.asin()),
+            EFuncACos(expr_i) => Ok(slab.ps.get_expr(*expr_i).eval(slab,ns)?.acos()),
+            EFuncATan(expr_i) => Ok(slab.ps.get_expr(*expr_i).eval(slab,ns)?.atan()),
+            EFuncSinH(expr_i) => Ok(slab.ps.get_expr(*expr_i).eval(slab,ns)?.sinh()),
+            EFuncCosH(expr_i) => Ok(slab.ps.get_expr(*expr_i).eval(slab,ns)?.cosh()),
+            EFuncTanH(expr_i) => Ok(slab.ps.get_expr(*expr_i).eval(slab,ns)?.tanh()),
+            EFuncASinH(expr_i) => Ok(slab.ps.get_expr(*expr_i).eval(slab,ns)?.asinh()),
+            EFuncACosH(expr_i) => Ok(slab.ps.get_expr(*expr_i).eval(slab,ns)?.acosh()),
+            EFuncATanH(expr_i) => Ok(slab.ps.get_expr(*expr_i).eval(slab,ns)?.atanh()),
         }
     }
 }
@@ -347,7 +346,7 @@ impl Evaler for PrintFunc {
             };
         }
     }
-    fn eval(&self, slab:&Slab, ns:&mut impl EvalNamespace) -> Result<f64,KErr> {
+    fn eval(&self, slab:&Slab, ns:&mut impl EvalNamespace) -> Result<f64,Error> {
         let mut val = 0f64;
 
         fn process_str(s:&str) -> String {
@@ -374,7 +373,7 @@ impl Evaler for PrintFunc {
             if i>0 { out.push(' '); }
             match a {
                 EExpr(e_i) => {
-                    val = ns.eval(slab, slab.ps.get_expr(*e_i))?;
+                    val = slab.ps.get_expr(*e_i).eval(slab,ns)?;
                     out.push_str(&val.to_string());
                 }
                 EStr(s) => out.push_str(&process_str(s))
@@ -390,10 +389,10 @@ impl Evaler for Instruction {
     fn _var_names(&self, slab:&Slab, dst:&mut BTreeSet<String>) {
         match self {
             #[cfg(feature="unsafe-vars")]
-            IUnsafeVar{name, ptr:_} => { dst.insert(name.clone()); }
+            IUnsafeVar{name, ..} => { dst.insert(name.clone()); }
 
             IVar(s) => { dst.insert(s.clone()); }
-            IFunc{name, args:_} => { dst.insert(name.clone()); }
+            IFunc{name, ..} => { dst.insert(name.clone()); }
 
             IConst(_) => (),
 
@@ -407,15 +406,15 @@ impl Evaler for Instruction {
             IPrintFunc(pf) => pf._var_names(slab,dst),
         }
     }
-    fn eval(&self, slab:&Slab, ns:&mut impl EvalNamespace) -> Result<f64,KErr> {
+    fn eval(&self, slab:&Slab, ns:&mut impl EvalNamespace) -> Result<f64,Error> {
         match self {
             IConst(c) => Ok(*c),
 
             #[cfg(feature="unsafe-vars")]
-            IUnsafeVar{name:_,ptr} => unsafe { Ok(**ptr) },
+            IUnsafeVar{ptr, ..} => unsafe { Ok(**ptr) },
 
             INeg(i) => Ok(-eval_instr_ref!(slab.cs.get_instr(*i), slab, ns)),
-            INot(i) => Ok(bool_to_f64(f64_eq(eval_instr_ref!(slab.cs.get_instr(*i), slab, ns),0.0))),
+            INot(i) => Ok(bool_to_f64!(f64_eq!(eval_instr_ref!(slab.cs.get_instr(*i), slab, ns),0.0))),
             IInv(i) => Ok(1.0/eval_instr_ref!(slab.cs.get_instr(*i), slab, ns)),
 
             IAdd(li,ri) => Ok( eval_instr_ref!(slab.cs.get_instr(*li), slab, ns) +
@@ -427,41 +426,41 @@ impl Evaler for Instruction {
             IExp{base, power} => Ok( eval_instr_ref!(slab.cs.get_instr(*base), slab, ns).powf(
                                                   eval_instr_ref!(slab.cs.get_instr(*power), slab, ns) ) ),
 
-            ILT(left, right) => Ok( bool_to_f64(eval_instr_ref!(slab.cs.get_instr(*left), slab, ns) <
+            ILT(left, right) => Ok( bool_to_f64!(eval_instr_ref!(slab.cs.get_instr(*left), slab, ns) <
                                                              eval_instr_ref!(slab.cs.get_instr(*right), slab, ns)) ),
-            ILTE(left, right) => Ok( bool_to_f64(eval_instr_ref!(slab.cs.get_instr(*left), slab, ns) <=
+            ILTE(left, right) => Ok( bool_to_f64!(eval_instr_ref!(slab.cs.get_instr(*left), slab, ns) <=
                                                               eval_instr_ref!(slab.cs.get_instr(*right), slab, ns)) ),
-            IEQ(left, right) => Ok( bool_to_f64(f64_eq(eval_instr_ref!(slab.cs.get_instr(*left), slab, ns),
+            IEQ(left, right) => Ok( bool_to_f64!(f64_eq!(eval_instr_ref!(slab.cs.get_instr(*left), slab, ns),
                                                                     eval_instr_ref!(slab.cs.get_instr(*right), slab, ns))) ),
-            INE(left, right) => Ok( bool_to_f64(f64_ne(eval_instr_ref!(slab.cs.get_instr(*left), slab, ns),
+            INE(left, right) => Ok( bool_to_f64!(f64_ne!(eval_instr_ref!(slab.cs.get_instr(*left), slab, ns),
                                                                     eval_instr_ref!(slab.cs.get_instr(*right), slab, ns))) ),
-            IGTE(left, right) => Ok( bool_to_f64(eval_instr_ref!(slab.cs.get_instr(*left), slab, ns) >=
+            IGTE(left, right) => Ok( bool_to_f64!(eval_instr_ref!(slab.cs.get_instr(*left), slab, ns) >=
                                                               eval_instr_ref!(slab.cs.get_instr(*right), slab, ns)) ),
-            IGT(left, right) => Ok( bool_to_f64(eval_instr_ref!(slab.cs.get_instr(*left), slab, ns) >
+            IGT(left, right) => Ok( bool_to_f64!(eval_instr_ref!(slab.cs.get_instr(*left), slab, ns) >
                                                              eval_instr_ref!(slab.cs.get_instr(*right), slab, ns)) ),
 
             IAND(lefti, righti) => {
                 let left = eval_instr_ref!(slab.cs.get_instr(*lefti), slab, ns);
-                if f64_eq(left,0.0) { Ok(left) }
+                if f64_eq!(left,0.0) { Ok(left) }
                 else {
                     Ok(eval_instr_ref!(slab.cs.get_instr(*righti), slab, ns))
                 }
             }
             IOR(lefti, righti) => {
                 let left = eval_instr_ref!(slab.cs.get_instr(*lefti), slab, ns);
-                if f64_ne(left,0.0) { Ok(left) }
+                if f64_ne!(left,0.0) { Ok(left) }
                 else {
                     Ok(eval_instr_ref!(slab.cs.get_instr(*righti), slab, ns))
                 }
             }
 
-            IVar(name) => eval_var(ns, name, Vec::new()),
+            IVar(name) => eval_var!(ns, name, Vec::new()),
             IFunc{name, args:iis} => {
                 let mut args = Vec::with_capacity(iis.len());
                 for ii in iis {
                     args.push( eval_instr_ref!(slab.cs.get_instr(*ii), slab, ns) );
                 }
-                eval_var(ns, name, args)
+                eval_var!(ns, name, args)
             },
 
             IFuncInt(i) => Ok( eval_instr_ref!(slab.cs.get_instr(*i), slab, ns).trunc() ),
@@ -511,7 +510,7 @@ impl Evaler for Instruction {
             IFuncACosH(i) => Ok( eval_instr_ref!(slab.cs.get_instr(*i), slab, ns).acosh() ),
             IFuncATanH(i) => Ok( eval_instr_ref!(slab.cs.get_instr(*i), slab, ns).atanh() ),
 
-            IPrintFunc(pf) => ns.eval(slab,pf),
+            IPrintFunc(pf) => pf.eval(slab,ns),
         }
     }
 }

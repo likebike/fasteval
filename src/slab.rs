@@ -1,8 +1,8 @@
+use crate::error::Error;
 use crate::parser::{ExpressionI, ValueI,
                     Expression,  Value};
 use crate::compiler::{Instruction::{self, IConst}, InstructionI};
 
-use kerr::KErr;
 use std::fmt;
 use std::mem;
 
@@ -46,21 +46,23 @@ impl ParseSlab {
         &self.vals[val_i.0]
     }
     #[inline]
-    pub(crate) fn push_expr(&mut self, expr:Expression) -> Result<ExpressionI,KErr> {
+    pub(crate) fn push_expr(&mut self, expr:Expression) -> Result<ExpressionI,Error> {
         let i = self.exprs.len();
-        if i>=self.exprs.capacity() { return Err(KErr::new("slab expr overflow")); }
+        if i>=self.exprs.capacity() { return Err(Error::SlabOverflow); }
         self.exprs.push(expr);
         Ok(ExpressionI(i))
     }
     #[inline]
-    pub(crate) fn push_val(&mut self, val:Value) -> Result<ValueI,KErr> {
+    pub(crate) fn push_val(&mut self, val:Value) -> Result<ValueI,Error> {
         let i = self.vals.len();
-        if i>=self.vals.capacity() { return Err(KErr::new("slab val overflow")); }
+        if i>=self.vals.capacity() { return Err(Error::SlabOverflow); }
         self.vals.push(val);
         Ok(ValueI(i))
     }
 
+    // TODO: Add "# Safety" section to docs.
     #[cfg(feature="unsafe-vars")]
+    #[allow(clippy::trivially_copy_pass_by_ref)]
     pub unsafe fn add_unsafe_var(&mut self, name:String, ptr:&f64) {
         self.unsafe_vars.insert(name, ptr as *const f64);
     }

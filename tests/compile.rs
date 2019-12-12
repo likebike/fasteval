@@ -1,11 +1,10 @@
-use al::{parse, Compiler, Evaler, Slab, EmptyNamespace, FlatNamespace, ExpressionI, InstructionI, eval_instr, eval_instr_ref, eval_instr_ref_or_panic};
+use al::{parse, Compiler, Evaler, Error, Slab, EmptyNamespace, FlatNamespace, ExpressionI, InstructionI, eval_instr, eval_instr_ref, eval_instr_ref_or_panic};
 use al::parser::{PrintFunc, ExpressionOrString::{EExpr, EStr}};
 #[cfg(feature="eval-builtin")]
 use al::parser::{EvalFunc, KWArg};
 use al::compiler::Instruction::{self, IConst, INeg, INot, IInv, IAdd, IMul, IMod, IExp, ILT, ILTE, IEQ, INE, IGTE, IGT, IAND, IOR, IVar, IFunc, IFuncInt, IFuncCeil, IFuncFloor, IFuncAbs, IFuncSign, IFuncLog, IFuncRound, IFuncMin, IFuncMax, IFuncSin, IFuncCos, IFuncTan, IFuncASin, IFuncACos, IFuncATan, IFuncSinH, IFuncCosH, IFuncTanH, IFuncASinH, IFuncACosH, IFuncATanH, IPrintFunc};
 #[cfg(feature="eval-builtin")]
 use al::compiler::Instruction::IEvalFunc;
-use kerr::KErr;
 
 #[test]
 fn slab_overflow() {
@@ -22,7 +21,7 @@ fn slab_overflow() {
     assert_eq!(format!("{:?}", slab),
 "Slab{ exprs:{ 0:Expression { first: EUnaryOp(EPos(ValueI(1))), pairs: [] }, 1:Expression { first: EConstant(1.0), pairs: [ExprPair(EAdd, EConstant(2.0)), ExprPair(EAdd, EConstant(-3.0)), ExprPair(EAdd, EUnaryOp(EParentheses(ExpressionI(0))))] } }, vals:{ 0:EConstant(4.0), 1:EUnaryOp(EPos(ValueI(0))) }, instrs:{} }");
 
-    assert_eq!(parse({slab.clear(); &mut slab.ps}, "1 + 2 + -3 + ( ++++4 )"), Err(KErr::new("slab val overflow")));
+    assert_eq!(parse({slab.clear(); &mut slab.ps}, "1 + 2 + -3 + ( ++++4 )"), Err(Error::SlabOverflow));
 }
 
 #[test]
@@ -462,7 +461,7 @@ fn custom_func() {
 
 #[test]
 fn eval_macro() {
-    fn wrapped() -> Result<(),KErr> {
+    fn wrapped() -> Result<(),Error> {
         let mut ns = EmptyNamespace;
         let mut slab = Slab::new();
 

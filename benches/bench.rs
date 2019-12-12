@@ -181,30 +181,30 @@
 //
 //     "((((87))) - 73) + (97 + (((15 / 55 * ((31)) + 35))) + (15 - (9)) - (39 / 26) / 20 / 91 + 27 / (33 * 26 + 28 - (7) / 10 + 66 * 6) + 60 / 35 - ((29) - (69) / 44 / (92)) / (89) + 2 + 87 / 47 * ((2)) * 83 / 98 * 42 / (((67)) * ((97))) / (34 / 89 + 77) - 29 + 70 * (20)) + ((((((92))) + 23 * (98) / (95) + (((99) * (41))) + (5 + 41) + 10) - (36) / (6 + 80 * 52 + (90))))"
 //     BTreeMap:
-//     ez                                           11875 ns/iter      533s ago
-//     native_1000x                                   333 ns/iter      755s ago
-//     parse_compile_eval                           16190 ns/iter      755s ago
-//     parse_eval_1000x                          11879312 ns/iter      804s ago
-//     parse_eval_1x                                12009 ns/iter      670s ago
-//     parse_nsbubble_eval                          11725 ns/iter      804s ago
-//     preparse_eval_1000x                        3654228 ns/iter      804s ago
-//     preparse_eval                                 3616 ns/iter      804s ago
-//     preparse_precompile_eval                         0 ns/iter      804s ago
-//     preparse_precompile_eval_1000x                 747 ns/iter      755s ago
-//     preparse_precompile_nsbubble_eval                0 ns/iter      804s ago
+//     ez                                           10752 ns/iter      664s ago
+//     native_1000x                                   323 ns/iter     1636s ago
+//     parse_compile_eval                           15124 ns/iter     1154s ago
+//     parse_eval_1000x                          10807702 ns/iter      664s ago
+//     parse_eval_1x                                10712 ns/iter     1399s ago
+//     parse_nsbubble_eval                          10782 ns/iter     1307s ago
+//     preparse_eval_1000x                        3204041 ns/iter     1375s ago
+//     preparse_eval                                 3150 ns/iter     1555s ago
+//     preparse_precompile_eval                         0 ns/iter     1813s ago
+//     preparse_precompile_eval_1000x                 726 ns/iter     1576s ago
+//     preparse_precompile_nsbubble_eval                0 ns/iter     1813s ago
 //     BTreeMap, --features unsafe-vars:
-//     ez                                           11959 ns/iter     1578s ago
-//     native_1000x                                   333 ns/iter     1029s ago
-//     parse_compile_eval                           16070 ns/iter     2505s ago
-//     parse_eval_1000x                          11860334 ns/iter     1672s ago
-//     parse_eval_1x                                11878 ns/iter     1672s ago
-//     parse_nsbubble_eval                          11654 ns/iter     2665s ago
-//     preparse_eval_1000x                        3613330 ns/iter     2553s ago
-//     preparse_eval                                 3656 ns/iter     1073s ago
-//     preparse_precompile_eval_1000x                 961 ns/iter     2137s ago
-//     preparse_precompile_eval                         1 ns/iter     3668s ago
-//     preparse_precompile_eval_unsafe_1000x          963 ns/iter     1296s ago
-//     preparse_precompile_nsbubble_eval                1 ns/iter     3668s ago
+//     ez                                           11079 ns/iter      897s ago
+//     native_1000x                                   326 ns/iter      897s ago
+//     parse_compile_eval                           15707 ns/iter      863s ago
+//     parse_eval_1000x                          11286841 ns/iter      897s ago
+//     parse_eval_1x                                11232 ns/iter      897s ago
+//     parse_nsbubble_eval                          11394 ns/iter      897s ago
+//     preparse_eval_1000x                        3216461 ns/iter      148s ago
+//     preparse_eval                                 3238 ns/iter      148s ago
+//     preparse_precompile_eval_1000x                 944 ns/iter      897s ago
+//     preparse_precompile_eval                         1 ns/iter     1191s ago
+//     preparse_precompile_eval_unsafe_1000x          940 ns/iter      925s ago
+//     preparse_precompile_nsbubble_eval                1 ns/iter     1191s ago
 //
 //
 // python3:

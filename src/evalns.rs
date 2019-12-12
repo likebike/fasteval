@@ -1,7 +1,6 @@
+use crate::error::Error;
 use crate::slab::Slab;
 use crate::evaler::Evaler;
-
-use kerr::KErr;
 
 use std::collections::BTreeMap;
 
@@ -10,13 +9,8 @@ use std::collections::BTreeMap;
 pub trait EvalNamespace {
     fn get_cached(&mut self, name:&str, args:Vec<f64>) -> Option<f64>;
     fn set_cached(&mut self, name:String, val:f64);
-    fn create_cached(&mut self, name:String, val:f64) -> Result<(),KErr>;
+    fn create_cached(&mut self, name:String, val:f64) -> Result<(),Error>;
     fn clear_cached(&mut self);
-
-    #[inline(always)]
-    fn eval(&mut self, slab:&Slab, evaler:& impl Evaler) -> Result<f64,KErr> where Self:Sized {
-        evaler.eval(slab, self).map_err(|e| e.pre(&format!("eval({:?})",evaler)))
-    }
 }
 
 pub struct EmptyNamespace;
@@ -57,7 +51,7 @@ impl EvalNamespace for BTreeMap<String,f64> {
     // Think of the 'self' BTreeMap as an alternative to a callback.  When you set/create/clear for other Namespace types,
     // it doesn't modify the callback results -- it modifies the Namespace cache.  Therefore, these become no-ops for this type:
     fn set_cached(&mut self, _name:String, _val:f64) { panic!("cannot set cached value in BTreeMap Namespace"); }
-    fn create_cached(&mut self, _name:String, _val:f64) -> Result<(),KErr> { panic!("cannot create cached value in BTreeMap Namespace"); }
+    fn create_cached(&mut self, _name:String, _val:f64) -> Result<(),Error> { panic!("cannot create cached value in BTreeMap Namespace"); }
     fn clear_cached(&mut self) {}
 }
 
@@ -74,14 +68,14 @@ impl EvalNamespace for Vec<BTreeMap<String,f64>> {
     // Think of the 'self' Vec<BTreeMap> as an alternative to a callback.  When you set/create/clear for other Namespace types,
     // it doesn't modify the callback results -- it modifies the Namespace cache.  Therefore, these become no-ops for this type:
     fn set_cached(&mut self, _name:String, _val:f64) { panic!("cannot set cached value in Vec<BTreeMap> Namespace"); }
-    fn create_cached(&mut self, _name:String, _val:f64) -> Result<(),KErr> { panic!("cannot create cached value in Vec<BTreeMap> Namespace"); }
+    fn create_cached(&mut self, _name:String, _val:f64) -> Result<(),Error> { panic!("cannot create cached value in Vec<BTreeMap> Namespace"); }
     fn clear_cached(&mut self) {}
 }
 
 impl EvalNamespace for EmptyNamespace {
     fn get_cached(&mut self, _name:&str, _args:Vec<f64>) -> Option<f64> { None }
     fn set_cached(&mut self, _name:String, _val:f64) { panic!("cannot set cached value in EmptyNamespace"); }
-    fn create_cached(&mut self, _name:String, _val:f64) -> Result<(),KErr> { panic!("cannot create cached value in EmptyNamespace"); }
+    fn create_cached(&mut self, _name:String, _val:f64) -> Result<(),Error> { panic!("cannot create cached value in EmptyNamespace"); }
     fn clear_cached(&mut self) {}
 }
 
@@ -104,8 +98,8 @@ impl EvalNamespace for FlatNamespace<'_> {
     fn set_cached(&mut self, name:String, val:f64) {
         self.map.insert(name, val);
     }
-    fn create_cached(&mut self, name:String, val:f64) -> Result<(),KErr> {
-        if self.map.contains_key(&name) { return Err(KErr::new("AlreadyExists")); }
+    fn create_cached(&mut self, name:String, val:f64) -> Result<(),Error> {
+        if self.map.contains_key(&name) { return Err(Error::AlreadyExists); }
         self.map.insert(name, val);
         Ok(())
     }
@@ -144,9 +138,9 @@ impl EvalNamespace for ScopedNamespace<'_> {
     fn set_cached(&mut self, name:String, val:f64) {
         self.maps.last_mut().unwrap().insert(name, val);
     }
-    fn create_cached(&mut self, name:String, val:f64) -> Result<(),KErr> {
+    fn create_cached(&mut self, name:String, val:f64) -> Result<(),Error> {
         let cur_layer = self.maps.last_mut().unwrap();
-        if cur_layer.contains_key(&name) { return Err(KErr::new("AlreadyExists")); }
+        if cur_layer.contains_key(&name) { return Err(Error::AlreadyExists); }
         cur_layer.insert(name, val);
         Ok(())
     }
@@ -176,15 +170,11 @@ impl<'a> ScopedNamespace<'a> {
         self.maps.pop();
     }
 
-    pub fn eval_bubble(&mut self, slab:&Slab, evaler:& impl Evaler) -> Result<f64,KErr> {
+    pub fn eval_bubble(&mut self, slab:&Slab, evaler:& impl Evaler) -> Result<f64,Error> {
         self.push();
-        let out = self.eval(slab,evaler);
+        let out = evaler.eval(slab, self);
         self.pop();
         out
-    }
-    #[inline]
-    pub fn eval(&mut self, slab:&Slab, evaler:& impl Evaler) -> Result<f64,KErr> {
-        evaler.eval(slab, self).map_err(|e| e.pre(&format!("eval({:?})",evaler)))
     }
 }
 

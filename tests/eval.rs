@@ -1,7 +1,5 @@
-use al::{Evaler, Slab, EvalNamespace, EmptyNamespace, FlatNamespace, ScopedNamespace, parse};
-use al::evaler::bool_to_f64;
-
-use kerr::KErr;
+use al::{Evaler, Error, Slab, EvalNamespace, EmptyNamespace, FlatNamespace, ScopedNamespace, parse};
+use al::bool_to_f64;
 
 use std::mem;
 use std::collections::{BTreeMap, BTreeSet};
@@ -19,13 +17,13 @@ fn eval() {
 
     assert_eq!(parse(&mut slab.ps,"x+y+z").unwrap().from(&slab.ps).eval(&slab, &mut ns).unwrap(), 6.0);
 
-    assert_eq!(parse(&mut slab.ps,"x+y+z+a").unwrap().from(&slab.ps).eval(&slab, &mut ns), Err(KErr::new("variable undefined: a")));
+    assert_eq!(parse(&mut slab.ps,"x+y+z+a").unwrap().from(&slab.ps).eval(&slab, &mut ns), Err(Error::Undefined("a".to_string())));
 }
 
 #[test]
 fn aaa_util() {
-    assert_eq!(bool_to_f64(true), 1.0);
-    assert_eq!(bool_to_f64(false), 0.0);
+    assert_eq!(bool_to_f64!(true), 1.0);
+    assert_eq!(bool_to_f64!(false), 0.0);
 }
 
 #[test]
@@ -113,7 +111,7 @@ fn aaa_basics() {
 
     assert_eq!(
         parse({slab.clear(); &mut slab.ps}, "x + 1").unwrap().from(&slab.ps).eval(&slab, &mut ns),
-        Err(KErr::new("variable undefined: x")));
+        Err(Error::Undefined("x".to_string())));
 
     let mut ns = FlatNamespace::new(|_,_| Some(3.0));
     assert_eq!(
@@ -212,7 +210,7 @@ fn aaa_basics() {
 struct TestEvaler;
 impl Evaler for TestEvaler {
     fn _var_names(&self, _slab:&Slab, _dst:&mut BTreeSet<String>) {}
-    fn eval(&self, _slab:&Slab, ns:&mut impl EvalNamespace) -> Result<f64,KErr> {
+    fn eval(&self, _slab:&Slab, ns:&mut impl EvalNamespace) -> Result<f64,Error> {
         match ns.get_cached("x",vec![]) {
             Some(v) => Ok(v),
             None => Ok(1.23),
