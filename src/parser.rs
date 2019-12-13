@@ -237,8 +237,8 @@ macro_rules! spaces {
 
 
 #[inline]
-pub fn parse(slab:&mut ParseSlab, s:&str) -> Result<ExpressionI,Error> {
-    Parser.parse(slab, s)
+pub fn parse(expr_str:&str, slab:&mut ParseSlab) -> Result<ExpressionI,Error> {
+    Parser.parse(expr_str, slab)
 }
 
 
@@ -261,9 +261,9 @@ impl Parser {
 
     // I cannot return Result<&Expression> because it would prolong the mut:
     #[inline]
-    pub fn parse(&self, slab:&mut ParseSlab, s:&str) -> Result<ExpressionI,Error> {
-        if s.len()>4096 { return Err(Error::TooLong); }  // Restrict length for safety
-        let mut bs = s.as_bytes();
+    pub fn parse(&self, expr_str:&str, slab:&mut ParseSlab) -> Result<ExpressionI,Error> {
+        if expr_str.len()>4096 { return Err(Error::TooLong); }  // Restrict length for safety
+        let mut bs = expr_str.as_bytes();
         Self::read_expression(slab, &mut bs, 0, true)
     }
 

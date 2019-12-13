@@ -58,7 +58,7 @@ fn repl() {
             continue;
         }
 
-        let expr_ref = match parse(&mut slab.ps, &line) {
+        let expr_ref = match parse(&line, &mut slab.ps) {
             Ok(expr_i) => slab.ps.get_expr(expr_i),
             Err(err) => {
                 eprintln!("parse error: {}", err);

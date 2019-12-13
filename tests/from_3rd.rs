@@ -17,7 +17,7 @@ fn evalns_cb(name:&str, args:Vec<f64>) -> Option<f64> {
 
 fn chk_ok(expr_str:&str, expect_compile_str:&str, expect_slab_str:&str, expect_eval:f64) {
     let mut slab = Slab::new();
-    let expr = parse(&mut slab.ps, expr_str).unwrap().from(&slab.ps);
+    let expr = parse(expr_str, &mut slab.ps).unwrap().from(&slab.ps);
     let instr = expr.compile(&slab.ps, &mut slab.cs);
 
     assert_eq!(format!("{:?}",instr), expect_compile_str);
@@ -32,13 +32,13 @@ fn chk_ok(expr_str:&str, expect_compile_str:&str, expect_slab_str:&str, expect_e
 
 fn chk_perr(expr_str:&str, expect_err:Error) {
     let mut slab = Slab::new();
-    let res = parse(&mut slab.ps, expr_str);
+    let res = parse(expr_str, &mut slab.ps);
     assert_eq!(res, Err(expect_err));
 }
 
 fn chk_eerr(expr_str:&str, expect_err:Error) {
     let mut slab = Slab::new();
-    let expr = parse(&mut slab.ps, expr_str).unwrap().from(&slab.ps);
+    let expr = parse(expr_str, &mut slab.ps).unwrap().from(&slab.ps);
     let instr = expr.compile(&slab.ps, &mut slab.cs);
     let mut ns = FlatNamespace::new(evalns_cb);
     assert_eq!(instr.eval(&slab, &mut ns), Err(expect_err));

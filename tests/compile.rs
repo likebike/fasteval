@@ -9,19 +9,19 @@ use al::compiler::Instruction::IEvalFunc;
 #[test]
 fn slab_overflow() {
     let mut slab = Slab::with_capacity(2);
-    assert_eq!(parse({slab.clear(); &mut slab.ps}, "1 + 2 + -3 + ( +4 )"), Ok(ExpressionI(1)));
+    assert_eq!(parse("1 + 2 + -3 + ( +4 )", {slab.clear(); &mut slab.ps}), Ok(ExpressionI(1)));
     assert_eq!(format!("{:?}", slab),
 "Slab{ exprs:{ 0:Expression { first: EConstant(4.0), pairs: [] }, 1:Expression { first: EConstant(1.0), pairs: [ExprPair(EAdd, EConstant(2.0)), ExprPair(EAdd, EConstant(-3.0)), ExprPair(EAdd, EUnaryOp(EParentheses(ExpressionI(0))))] } }, vals:{}, instrs:{} }");
 
-    assert_eq!(parse({slab.clear(); &mut slab.ps}, "1 + 2 + -3 + ( ++4 )"), Ok(ExpressionI(1)));
+    assert_eq!(parse("1 + 2 + -3 + ( ++4 )", {slab.clear(); &mut slab.ps}), Ok(ExpressionI(1)));
     assert_eq!(format!("{:?}", slab),
 "Slab{ exprs:{ 0:Expression { first: EUnaryOp(EPos(ValueI(0))), pairs: [] }, 1:Expression { first: EConstant(1.0), pairs: [ExprPair(EAdd, EConstant(2.0)), ExprPair(EAdd, EConstant(-3.0)), ExprPair(EAdd, EUnaryOp(EParentheses(ExpressionI(0))))] } }, vals:{ 0:EConstant(4.0) }, instrs:{} }");
 
-    assert_eq!(parse({slab.clear(); &mut slab.ps}, "1 + 2 + -3 + ( +++4 )"), Ok(ExpressionI(1)));
+    assert_eq!(parse("1 + 2 + -3 + ( +++4 )", {slab.clear(); &mut slab.ps}), Ok(ExpressionI(1)));
     assert_eq!(format!("{:?}", slab),
 "Slab{ exprs:{ 0:Expression { first: EUnaryOp(EPos(ValueI(1))), pairs: [] }, 1:Expression { first: EConstant(1.0), pairs: [ExprPair(EAdd, EConstant(2.0)), ExprPair(EAdd, EConstant(-3.0)), ExprPair(EAdd, EUnaryOp(EParentheses(ExpressionI(0))))] } }, vals:{ 0:EConstant(4.0), 1:EUnaryOp(EPos(ValueI(0))) }, instrs:{} }");
 
-    assert_eq!(parse({slab.clear(); &mut slab.ps}, "1 + 2 + -3 + ( ++++4 )"), Err(Error::SlabOverflow));
+    assert_eq!(parse("1 + 2 + -3 + ( ++++4 )", {slab.clear(); &mut slab.ps}), Err(Error::SlabOverflow));
 }
 
 #[test]
@@ -29,7 +29,7 @@ fn basics() {
     let mut slab = Slab::new();
     let mut ns = EmptyNamespace;
 
-    let expr_i = parse({slab.clear(); &mut slab.ps}, "3*3-3/3+1").unwrap();
+    let expr_i = parse("3*3-3/3+1", {slab.clear(); &mut slab.ps}).unwrap();
     let expr_ref = slab.ps.get_expr(expr_i);
     let instr = expr_ref.compile(&slab.ps, &mut slab.cs);
     assert_eq!(instr, IConst(9.0));
@@ -42,13 +42,13 @@ fn basics() {
 
 fn comp(expr_str:&str) -> (Slab, Instruction) {
     let mut slab = Slab::new();
-    let instr = parse(&mut slab.ps, expr_str).unwrap().from(&slab.ps).compile(&slab.ps, &mut slab.cs);
+    let instr = parse(expr_str, &mut slab.ps).unwrap().from(&slab.ps).compile(&slab.ps, &mut slab.cs);
     (slab, instr)
 }
 
 fn comp_chk(expr_str:&str, expect_instr:Instruction, expect_fmt:&str, expect_eval:f64) {
     let mut slab = Slab::new();
-    let expr = parse(&mut slab.ps, expr_str).unwrap().from(&slab.ps);
+    let expr = parse(expr_str, &mut slab.ps).unwrap().from(&slab.ps);
     let instr = expr.compile(&slab.ps, &mut slab.cs);
 
     assert_eq!(instr, expect_instr);
@@ -115,7 +115,7 @@ fn unsafe_comp_chk(expr_str:&str, expect_fmt:&str, expect_eval:f64) {
         slab.ps.add_unsafe_var("z".to_string(), &z);
     }
 
-    let expr = parse(&mut slab.ps, expr_str).unwrap().from(&slab.ps);
+    let expr = parse(expr_str, &mut slab.ps).unwrap().from(&slab.ps);
     let instr = expr.compile(&slab.ps, &mut slab.cs);
 
     assert_eq!(replace_addrs(format!("{:?}",slab.cs)), expect_fmt);
@@ -178,11 +178,21 @@ fn all_instrs() {
     // IAdd:
     comp_chk("1 + x", IAdd(InstructionI(0), InstructionI(1)), "CompileSlab{ instrs:{ 0:IVar(\"x\"), 1:IConst(1.0) } }", 2.0);
     comp_chk("1 - x", IAdd(InstructionI(1), InstructionI(2)), "CompileSlab{ instrs:{ 0:IVar(\"x\"), 1:INeg(InstructionI(0)), 2:IConst(1.0) } }", 0.0);
+    comp_chk("x + 2+pi()-360", IAdd(InstructionI(0), InstructionI(1)), "CompileSlab{ instrs:{ 0:IVar(\"x\"), 1:IConst(-354.8584073464102) } }", -353.8584073464102);
+    comp_chk("x-360 + 2+pi()", IAdd(InstructionI(0), InstructionI(1)), "CompileSlab{ instrs:{ 0:IVar(\"x\"), 1:IConst(-354.8584073464102) } }", -353.8584073464102);
+    comp_chk("1 - -(x-360 + 2+pi())", IAdd(InstructionI(2), InstructionI(3)), "CompileSlab{ instrs:{ 0:IVar(\"x\"), 1:IConst(-354.8584073464102), 2:IAdd(InstructionI(0), InstructionI(1)), 3:IConst(1.0) } }", -352.8584073464102);
+    comp_chk("3 + 3 - 3 + 3 - 3 + 3", IConst(6.0), "CompileSlab{ instrs:{} }", 6.0);
+    comp_chk("3 + x - 3 + 3 + y - 3", IAdd(InstructionI(0), InstructionI(1)), "CompileSlab{ instrs:{ 0:IVar(\"x\"), 1:IVar(\"y\") } }", 3.0);
 
     // IMul:
     comp_chk("2 * x", IMul(InstructionI(0), InstructionI(1)), "CompileSlab{ instrs:{ 0:IVar(\"x\"), 1:IConst(2.0) } }", 2.0);
     comp_chk("x * 2", IMul(InstructionI(0), InstructionI(1)), "CompileSlab{ instrs:{ 0:IVar(\"x\"), 1:IConst(2.0) } }", 2.0);
     comp_chk("x / 2", IMul(InstructionI(0), InstructionI(1)), "CompileSlab{ instrs:{ 0:IVar(\"x\"), 1:IConst(0.5) } }", 0.5);
+    comp_chk("x * 2*pi()/360", IMul(InstructionI(0), InstructionI(1)), "CompileSlab{ instrs:{ 0:IVar(\"x\"), 1:IConst(0.017453292519943295) } }", 0.017453292519943295);
+    comp_chk("x/360 * 2*pi()", IMul(InstructionI(0), InstructionI(1)), "CompileSlab{ instrs:{ 0:IVar(\"x\"), 1:IConst(0.017453292519943295) } }", 0.017453292519943295);
+    comp_chk("1 / -(x/360 * 2*pi())", IInv(InstructionI(3)), "CompileSlab{ instrs:{ 0:IVar(\"x\"), 1:IConst(0.017453292519943295), 2:IMul(InstructionI(0), InstructionI(1)), 3:INeg(InstructionI(2)) } }", -57.29577951308232);
+    comp_chk("3 * 3 / 3 * 3 / 3 * 3", IConst(9.0), "CompileSlab{ instrs:{} }", 9.0);
+    comp_chk("3 * x / 3 * 3 * y / 3", IMul(InstructionI(0), InstructionI(1)), "CompileSlab{ instrs:{ 0:IVar(\"x\"), 1:IVar(\"y\") } }", 2.0);
 
     // IMod:
     comp_chk("8 % 3", IConst(2.0), "CompileSlab{ instrs:{} }", 2.0);
@@ -465,7 +475,7 @@ fn eval_macro() {
         let mut ns = EmptyNamespace;
         let mut slab = Slab::new();
 
-        let expr = parse(&mut slab.ps, "5").unwrap().from(&slab.ps);
+        let expr = parse("5", &mut slab.ps).unwrap().from(&slab.ps);
         let instr = expr.compile(&slab.ps, &mut slab.cs);
         assert_eq!(eval_instr_ref!(&instr, &slab, &mut ns), 5.0);
         assert_eq!(eval_instr_ref_or_panic!(&instr, &slab, &mut ns), 5.0);
@@ -475,7 +485,7 @@ fn eval_macro() {
         {
             let x = 1.0;
             unsafe { slab.ps.add_unsafe_var("x".to_string(), &x) }
-            let expr = parse({slab.clear(); &mut slab.ps}, "x").unwrap().from(&slab.ps);
+            let expr = parse("x", {slab.clear(); &mut slab.ps}).unwrap().from(&slab.ps);
             let instr = expr.compile(&slab.ps, &mut slab.cs);
             assert_eq!(eval_instr_ref!(&instr, &slab, &mut ns), 1.0);
             assert_eq!(eval_instr_ref_or_panic!(&instr, &slab, &mut ns), 1.0);

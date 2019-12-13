@@ -41,8 +41,9 @@
 //! ```
 //!
 //! # Examples
-//! 
-//! Single-step evaluation of constant expressions:
+//!
+//! ## Easy evaluation of constant expressions
+//! The `ez_eval()` function performs the entire allocation-parse-eval process for you.  It is a little bit inefficient because it always allocates a fresh Slab, but it is very simple to use:
 //!
 //! ```
 //! fn main() -> Result<(), al::Error> {
@@ -53,7 +54,7 @@
 //!     //   |             |          |   |          |               comparisons
 //!     //   |             |          |   |          square-brackets act like parenthesis
 //!     //   |             |          |   builtin constants: e(), pi()
-//!     //   |             |          'log' can take an optional first 'base' argument, defaults to 10.
+//!     //   |             |          'log' can take an optional first 'base' argument, defaults to 10
 //!     //   |             many builtin functions: print, int, ceil, floor, abs, sign, log, round, min, max, sin, asin, ...
 //!     //   standard binary operators
 //!
@@ -64,7 +65,8 @@
 //! ```
 //!
 //!
-//! Simple variables:
+//! ## Simple variables
+//! Several namespace types are supported, each designed for different situations.  For simple cases, you can define variables with a `BTreeMap`:
 //!
 //! ```
 //! use std::collections::BTreeMap;
@@ -76,7 +78,7 @@
 //!
 //!     let val = al::ez_eval(r#"x + print("y:",y) + z"#,    &mut map)?;
 //!     //                           |
-//!     //                           prints "y: 2" to stderr and then evaluates to 2.0.
+//!     //                           prints "y: 2" to stderr and then evaluates to 2.0
 //!
 //!     assert_eq!(val, 6.0);
 //!
@@ -84,33 +86,98 @@
 //! }
 //! ```
 //!
-//! Advanced variables and custom functions:
+//! ## Advanced variables and custom functions
+//! This time, instead of using a map, we will use a namespace with a callback function, which enables us to do advanced things, like define custom functions and array-like objects:
 //!
 //! ```
 //! fn main() -> Result<(), al::Error> {
 //!     let mut ns = al::FlatNamespace::new(|name:&str, args:Vec<f64>| -> Option<f64> {
+//!         let mydata : [f64; 3] = [11.1, 22.2, 33.3];
 //!         match name {
-//!             "x" => Some(1.0),
-//!             "y" => Some(2.0),
-//!             "z" => Some(3.0),
+//!             "x" => Some(3.0),
+//!             "y" => Some(4.0),
 //!             "sum" => {
 //!                 Some(args.into_iter().fold(0.0, |s,f| s+f))
 //!             }
+//!             "data" => args.get(0).and_then(|f| mydata.get(*f as usize).copied()),
 //!             _ => None,
 //!         }
 //!     });
 //!
-//!     let val = al::ez_eval("sum(x^2, y^2, z^2)",    &mut ns)?;
-//!     //                     |   |
-//!     //                     |   variables are like custom functions with zero args.
+//!     let val = al::ez_eval("sum(x^2, y^2)^0.5 + data[0]",    &mut ns)?;
+//!     //                     |   |               |
+//!     //                     |   |               square-brackets act like parenthesis
+//!     //                     |   variables are like custom functions with zero args
 //!     //                     custom function
 //!
-//!     assert_eq!(val, 14.0);
+//!     assert_eq!(val, 16.1);
 //!
 //!     Ok(())
 //! }
 //! ```
 //!
+//! ## Re-use the Slab to go faster
+//! If we perform the parse and eval ourselves (without relying on the 'ez' interface), then we can re-use the Slab allocation for subsequent parsing and evaluations:
+//!
+//! ```
+//! use std::collections::BTreeMap;
+//! use al::Evaler;  // import this trait so we can call eval().
+//! fn main() -> Result<(), al::Error> {
+//!     let mut slab = al::Slab::new();
+//!
+//!     // Parse an expression string:
+//!
+//!     let expr_str = "x + 1";
+//!     let expr_ref = al::parse(expr_str, &mut slab.ps)?.from(&slab.ps);
+//!
+//!     // Let's evaluate the expression a couple times with different 'x' values:
+//!
+//!     let mut map : BTreeMap<String,f64> = BTreeMap::new();
+//!     map.insert("x".to_string(), 1.0);
+//!     let val = expr_ref.eval(&slab, &mut map)?;
+//!     assert_eq!(val, 2.0);
+//!
+//!     map.insert("x".to_string(), 2.5);
+//!     let val = expr_ref.eval(&slab, &mut map)?;
+//!     assert_eq!(val, 3.5);
+//!
+//!     // Now, let's re-use the Slab for a new expression.
+//!     // (This is much cheaper than allocating a new Slab.)
+//!
+//!     slab.clear();
+//!     let expr_str = "x * 10";
+//!     let expr_ref = al::parse(expr_str, &mut slab.ps)?.from(&slab.ps);
+//!
+//!     let val = expr_ref.eval(&slab, &mut map)?;
+//!     assert_eq!(val, 25.0);
+//!
+//!     Ok(())
+//! }
+//! ```
+//!
+//! ## Compile to go super fast!
+//! If you plan to evaluate an expression just one or two times, then you should parse-eval as shown in previous examples.  But if you expect to evaluate an expression three or more times, you can dramatically improve your performance by compiling.  The compiled form is usually more than 10 times faster than the un-compiled form, and for constant expressions it is usually more than 200 times faster.
+//! ```
+//! use std::collections::BTreeMap;
+//! use al::Compiler;  // import this trait so we can call compile().
+//! use al::Evaler;    // import this trait so we can call eval().
+//! fn main() -> Result<(), al::Error> {
+//!     let mut slab = al::Slab::new();
+//!     let mut map = BTreeMap::new();
+//!
+//!     let expr_str = "sin(deg/360 * 2*pi())";
+//!     let compiled = al::parse(expr_str, &mut slab.ps)?.from(&slab.ps).compile(&slab.ps, &mut slab.cs);
+//!     eprintln!("slab: {:?}",slab);
+//!     //panic!("halt");
+//!     for deg in 0..360 {
+//!         map.insert("deg".to_string(), deg as f64);
+//!         let val = compiled.eval(&slab, &mut map)?;
+//!         eprintln!("{} : {}", deg, val);
+//!     }
+//!
+//!     Ok(())
+//! }
+//! ```
 //!
 //! # How is `al` so fast?
 //!

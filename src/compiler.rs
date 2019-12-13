@@ -215,11 +215,69 @@ fn compile_mul(instrs:Vec<Instruction>, cslab:&mut CompileSlab) -> Instruction {
     }
     out
 }
+fn compile_add(instrs:Vec<Instruction>, cslab:&mut CompileSlab) -> Instruction {
+    let mut out = IConst(0.0); let mut out_set = false;
+    let mut const_sum = 0.0;
+    for instr in instrs {
+        if let IConst(c) = instr {
+            const_sum += c;
+        } else {
+            if out_set {
+                out = IAdd(cslab.push_instr(out), cslab.push_instr(instr));
+            } else {
+                out = instr;
+                out_set = true;
+            }
+        }
+    }
+    if f64_ne!(const_sum,0.0) {
+        if out_set {
+            out = IAdd(cslab.push_instr(out), cslab.push_instr(IConst(const_sum)));
+        } else {
+            out = IConst(const_sum);
+        }
+    }
+    out
+}
 pub(crate) fn log(base:f64, n:f64) -> f64 {
     // Can't use floating point in 'match' patterns.  :(
     if f64_eq!(base,2.0) { return n.log2(); }
     if f64_eq!(base,10.0) { return n.log10(); }
     n.log(base)
+}
+
+// Can't inline recursive functions:
+fn push_mul_leaves(instrs:&mut Vec<Instruction>, cslab:&mut CompileSlab, li:InstructionI, ri:InstructionI) {
+    // Take 'ri' before 'li' for a chance for more efficient memory usage:
+    let instr = cslab.take_instr(ri);
+    if let IMul(rli,rri) = instr {
+        push_mul_leaves(instrs,cslab,rli,rri);
+    } else {
+        instrs.push(instr);
+    }
+
+    let instr = cslab.take_instr(li);
+    if let IMul(lli,lri) = instr {
+        push_mul_leaves(instrs,cslab,lli,lri);
+    } else {
+        instrs.push(instr);
+    }
+}
+fn push_add_leaves(instrs:&mut Vec<Instruction>, cslab:&mut CompileSlab, li:InstructionI, ri:InstructionI) {
+    // Take 'ri' before 'li' for a chance for more efficient memory usage:
+    let instr = cslab.take_instr(ri);
+    if let IAdd(rli,rri) = instr {
+        push_add_leaves(instrs,cslab,rli,rri);
+    } else {
+        instrs.push(instr);
+    }
+
+    let instr = cslab.take_instr(li);
+    if let IAdd(lli,lri) = instr {
+        push_add_leaves(instrs,cslab,lli,lri);
+    } else {
+        instrs.push(instr);
+    }
 }
 
 impl Compiler for ExprSlice<'_> {
@@ -360,81 +418,50 @@ impl Compiler for ExprSlice<'_> {
             EAdd => {
                 let mut xss = Vec::<ExprSlice>::with_capacity(4);
                 self.split(EAdd, &mut xss);
-                let mut out = IConst(0.0); let mut out_set = false;
-                let mut const_sum = 0.0;
-                for xs in xss.iter() {
+                let mut instrs = Vec::<Instruction>::with_capacity(xss.len());
+                for xs in xss {
                     let instr = xs.compile(pslab,cslab);
-                    if let IConst(c) = instr {
-                        const_sum += c;
+                    if let IAdd(li,ri) = instr {
+                        push_add_leaves(&mut instrs,cslab,li,ri);  // Flatten nested structures like "x - 1 + 2 - 3".
                     } else {
-                        if out_set {
-                            out = IAdd(cslab.push_instr(out), cslab.push_instr(instr));
-                        } else {
-                            out = instr;
-                            out_set = true;
-                        }
+                        instrs.push(instr);
                     }
                 }
-                if f64_ne!(const_sum,0.0) {
-                    if out_set {
-                        out = IAdd(cslab.push_instr(out), cslab.push_instr(IConst(const_sum)));
-                    } else {
-                        out = IConst(const_sum);
-                    }
-                }
-                out
+                compile_add(instrs,cslab)
             }
             ESub => {
+                // Note: We don't need to push_add_leaves from here because Sub has a higher precedence than Add.
+
                 let mut xss = Vec::<ExprSlice>::with_capacity(4);
                 self.split(ESub, &mut xss);
-                let mut out = IConst(0.0); let mut out_set = false;
-                let mut const_sum = 0.0;
-                let mut is_first = true;
-                for xs in xss.iter() {
+                let mut instrs = Vec::<Instruction>::with_capacity(xss.len());
+                for (i,xs) in xss.into_iter().enumerate() {
                     let instr = xs.compile(pslab,cslab);
-                    if let IConst(c) = instr {
-                        if is_first {
-                            const_sum += c;
-                        } else {
-                            const_sum -= c;
-                        }
+                    if i==0 {
+                        instrs.push(instr);
                     } else {
-                        if is_first {
-                            if out_set {
-                                out = IAdd(cslab.push_instr(out), cslab.push_instr(instr));
-                            } else {
-                                out = instr;
-                                out_set = true;
-                            }
-                        } else {
-                            let instr = neg_wrap(instr,cslab);
-                            if out_set {
-                                out = IAdd(cslab.push_instr(out), cslab.push_instr(instr));
-                            } else {
-                                out = instr;
-                                out_set = true;
-                            }
-                        }
-                    }
-                    is_first = false;
-                }
-                if f64_ne!(const_sum,0.0) {
-                    if out_set {
-                        out = IAdd(cslab.push_instr(out), cslab.push_instr(IConst(const_sum)));
-                    } else {
-                        out = IConst(const_sum);
+                        instrs.push(neg_wrap(instr,cslab));
                     }
                 }
-                out
+                compile_add(instrs,cslab)
             }
             EMul => {
                 let mut xss = Vec::<ExprSlice>::with_capacity(4);
                 self.split(EMul, &mut xss);
                 let mut instrs = Vec::<Instruction>::with_capacity(xss.len());
-                for xs in xss { instrs.push(xs.compile(pslab,cslab)); }
+                for xs in xss {
+                    let instr = xs.compile(pslab,cslab);
+                    if let IMul(li,ri) = instr {
+                        push_mul_leaves(&mut instrs,cslab,li,ri);  // Flatten nested structures like "deg/360 * 2*pi()".
+                    } else {
+                        instrs.push(instr);
+                    }
+                }
                 compile_mul(instrs,cslab)
             }
             EDiv => {
+                // Note: We don't need to push_mul_leaves from here because Div has a higher precedence than Mul.
+
                 let mut xss = Vec::<ExprSlice>::with_capacity(4);
                 self.split(EDiv, &mut xss);
                 let mut instrs = Vec::<Instruction>::with_capacity(xss.len());
@@ -533,27 +560,27 @@ impl Compiler for ExprSlice<'_> {
                 }
                 out
             }
-//            EExp => {  // Left-to-Right Associativity
-//                let mut xss = Vec::<ExprSlice>::with_capacity(2);
-//                self.split(EExp, &mut xss);
-//                let mut pow_instrs = Vec::<Instruction>::with_capacity(xss.len()-1);
-//                let mut base = IConst(0.0);
-//                for (i,xs) in xss.into_iter().enumerate() {
-//                    let instr = xs.compile(pslab,cslab);
-//                    if i==0 {
-//                        base = instr;
-//                    } else {
-//                        pow_instrs.push(instr);
-//                    }
-//                }
-//                let power = compile_mul(pow_instrs,cslab);
-//                if let IConst(b) = base {
-//                    if let IConst(p) = power {
-//                        return IConst(b.powf(p));
-//                    }
-//                }
-//                IExp{base:cslab.push_instr(base), power:cslab.push_instr(power)}
-//            }
+//          EExp => {  // Left-to-Right Associativity
+//              let mut xss = Vec::<ExprSlice>::with_capacity(2);
+//              self.split(EExp, &mut xss);
+//              let mut pow_instrs = Vec::<Instruction>::with_capacity(xss.len()-1);
+//              let mut base = IConst(0.0);
+//              for (i,xs) in xss.into_iter().enumerate() {
+//                  let instr = xs.compile(pslab,cslab);
+//                  if i==0 {
+//                      base = instr;
+//                  } else {
+//                      pow_instrs.push(instr);
+//                  }
+//              }
+//              let power = compile_mul(pow_instrs,cslab);
+//              if let IConst(b) = base {
+//                  if let IConst(p) = power {
+//                      return IConst(b.powf(p));
+//                  }
+//              }
+//              IExp{base:cslab.push_instr(base), power:cslab.push_instr(power)}
+//          }
         }
     }
 }

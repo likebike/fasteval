@@ -34,7 +34,7 @@ pub struct ParseSlab {
     pub(crate) unsafe_vars:BTreeMap<String, *const f64>,
 }
 pub struct CompileSlab {
-    instrs:Vec<Instruction>,
+    pub instrs:Vec<Instruction>,  // TODO not pub
 }
 impl ParseSlab {
     #[inline]
