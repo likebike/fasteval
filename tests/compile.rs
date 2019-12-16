@@ -1,4 +1,4 @@
-use al::{parse, Compiler, Evaler, Error, Slab, EmptyNamespace, FlatNamespace, ExpressionI, InstructionI, eval_instr, eval_instr_ref, eval_instr_ref_or_panic};
+use al::{parse, Compiler, Evaler, Error, Slab, EmptyNamespace, FlatNamespace, ExpressionI, InstructionI, eval_compiled, eval_compiled_ref};
 use al::parser::{PrintFunc, ExpressionOrString::{EExpr, EStr}};
 #[cfg(feature="eval-builtin")]
 use al::parser::{EvalFunc, KWArg};
@@ -33,10 +33,14 @@ fn basics() {
     let expr_ref = slab.ps.get_expr(expr_i);
     let instr = expr_ref.compile(&slab.ps, &mut slab.cs);
     assert_eq!(instr, IConst(9.0));
-    assert_eq!(format!("{:?}", slab), 
+    assert_eq!(format!("{:?}", slab),
 "Slab{ exprs:{ 0:Expression { first: EConstant(3.0), pairs: [ExprPair(EMul, EConstant(3.0)), ExprPair(ESub, EConstant(3.0)), ExprPair(EDiv, EConstant(3.0)), ExprPair(EAdd, EConstant(1.0))] } }, vals:{}, instrs:{} }");
-    assert_eq!(instr.eval(&slab, &mut ns), Ok(9.0));
-    assert_eq!(instr.eval(&slab, &mut ns), Ok(9.0));
+
+    (|| -> Result<(),Error> {
+        assert_eq!(eval_compiled_ref!(&instr, &slab, &mut ns), 9.0);
+        assert_eq!(eval_compiled_ref!(&instr, &slab, &mut ns), 9.0);
+        Ok(())
+    })().unwrap();
 }
 
 
@@ -66,10 +70,15 @@ fn comp_chk(expr_str:&str, expect_instr:Instruction, expect_fmt:&str, expect_eva
             _ => None,
         }
     });
-    assert_eq!(instr.eval(&slab, &mut ns).unwrap(), expect_eval);
 
-    // Make sure Instruction eval matches normal eval:
-    assert_eq!(instr.eval(&slab, &mut ns).unwrap(), expr.eval(&slab, &mut ns).unwrap());
+    (|| -> Result<(),Error> {
+        assert_eq!(eval_compiled_ref!(&instr, &slab, &mut ns), expect_eval);
+
+        // Make sure Instruction eval matches normal eval:
+        assert_eq!(eval_compiled_ref!(&instr, &slab, &mut ns), expr.eval(&slab, &mut ns).unwrap());
+
+        Ok(())
+    })().unwrap();
 }
 #[cfg(feature="unsafe-vars")]
 fn unsafe_comp_chk(expr_str:&str, expect_fmt:&str, expect_eval:f64) {
@@ -120,11 +129,15 @@ fn unsafe_comp_chk(expr_str:&str, expect_fmt:&str, expect_eval:f64) {
 
     assert_eq!(replace_addrs(format!("{:?}",slab.cs)), expect_fmt);
 
-    let mut ns = EmptyNamespace;
-    assert_eq!(instr.eval(&slab, &mut ns).unwrap(), expect_eval);
+    (|| -> Result<(),Error> {
+        let mut ns = EmptyNamespace;
+        assert_eq!(eval_compiled_ref!(&instr, &slab, &mut ns), expect_eval);
 
-    // Make sure Instruction eval matches normal eval:
-    assert_eq!(instr.eval(&slab, &mut ns).unwrap(), expr.eval(&slab, &mut ns).unwrap());
+        // Make sure Instruction eval matches normal eval:
+        assert_eq!(eval_compiled_ref!(&instr, &slab, &mut ns), expr.eval(&slab, &mut ns).unwrap());
+
+        Ok(())
+    })().unwrap();
 }
 
 #[test]
@@ -174,7 +187,7 @@ fn all_instrs() {
 
     // IInv:
     comp_chk("1/x", IInv(InstructionI(0)), "CompileSlab{ instrs:{ 0:IVar(\"x\") } }", 1.0);
-    
+
     // IAdd:
     comp_chk("1 + x", IAdd(InstructionI(0), InstructionI(1)), "CompileSlab{ instrs:{ 0:IVar(\"x\"), 1:IConst(1.0) } }", 2.0);
     comp_chk("1 - x", IAdd(InstructionI(1), InstructionI(2)), "CompileSlab{ instrs:{ 0:IVar(\"x\"), 1:INeg(InstructionI(0)), 2:IConst(1.0) } }", 0.0);
@@ -214,7 +227,7 @@ fn all_instrs() {
     comp_chk("2 ^ 3 ^ 2", IConst(512.0), "CompileSlab{ instrs:{} }", 512.0);
     comp_chk("2 ^ z ^ 2", IExp { base: InstructionI(2), power: InstructionI(3) }, "CompileSlab{ instrs:{ 0:IVar(\"z\"), 1:IConst(2.0), 2:IConst(2.0), 3:IExp { base: InstructionI(0), power: InstructionI(1) } } }", 512.0);
     comp_chk("2 ^ z ^ 1 ^ 2 ^ 1", IExp { base: InstructionI(2), power: InstructionI(3) }, "CompileSlab{ instrs:{ 0:IVar(\"z\"), 1:IConst(1.0), 2:IConst(2.0), 3:IExp { base: InstructionI(0), power: InstructionI(1) } } }", 8.0);
-    
+
     // ILT:
     comp_chk("2 < 3", IConst(1.0), "CompileSlab{ instrs:{} }", 1.0);
     comp_chk("2 < z", ILT(InstructionI(0), InstructionI(1)), "CompileSlab{ instrs:{ 0:IConst(2.0), 1:IVar(\"z\") } }", 1.0);
@@ -254,7 +267,7 @@ fn all_instrs() {
     comp_chk("3.00000000000001 == z", IEQ(InstructionI(0), InstructionI(1)), "CompileSlab{ instrs:{ 0:IConst(3.00000000000001), 1:IVar(\"z\") } }", 0.0);
     comp_chk("3.000000000000001 == z", IEQ(InstructionI(0), InstructionI(1)), "CompileSlab{ instrs:{ 0:IConst(3.000000000000001), 1:IVar(\"z\") } }", 1.0);
     comp_chk("3.0000000000000001 == z", IEQ(InstructionI(0), InstructionI(1)), "CompileSlab{ instrs:{ 0:IConst(3.0), 1:IVar(\"z\") } }", 1.0);
-    
+
     // INE:
     comp_chk("2 != 3", IConst(1.0), "CompileSlab{ instrs:{} }", 1.0);
     comp_chk("2 != z", INE(InstructionI(0), InstructionI(1)), "CompileSlab{ instrs:{ 0:IConst(2.0), 1:IVar(\"z\") } }", 1.0);
@@ -286,7 +299,7 @@ fn all_instrs() {
     comp_chk("3 >= z", IGTE(InstructionI(0), InstructionI(1)), "CompileSlab{ instrs:{ 0:IConst(3.0), 1:IVar(\"z\") } }", 1.0);
     comp_chk("4 >= 3", IConst(1.0), "CompileSlab{ instrs:{} }", 1.0);
     comp_chk("4 >= z", IGTE(InstructionI(0), InstructionI(1)), "CompileSlab{ instrs:{ 0:IConst(4.0), 1:IVar(\"z\") } }", 1.0);
-    
+
     // IGT:
     comp_chk("3 > 2", IConst(1.0), "CompileSlab{ instrs:{} }", 1.0);
     comp_chk("z > 2", IGT(InstructionI(0), InstructionI(1)), "CompileSlab{ instrs:{ 0:IVar(\"z\"), 1:IConst(2.0) } }", 1.0);
@@ -303,7 +316,7 @@ fn all_instrs() {
     comp_chk("x and 2", IAND(InstructionI(0), InstructionI(1)), "CompileSlab{ instrs:{ 0:IVar(\"x\"), 1:IConst(2.0) } }", 2.0);
     comp_chk("0 and x", IConst(0.0), "CompileSlab{ instrs:{} }", 0.0);
     comp_chk("w and x", IAND(InstructionI(0), InstructionI(1)), "CompileSlab{ instrs:{ 0:IVar(\"w\"), 1:IVar(\"x\") } }", 0.0);
-    
+
     // IOR:
     comp_chk("2 or 3", IConst(2.0), "CompileSlab{ instrs:{} }", 2.0); comp_chk("2 || 3", IConst(2.0), "CompileSlab{ instrs:{} }", 2.0);
     comp_chk("2 or 3 or 4", IConst(2.0), "CompileSlab{ instrs:{} }", 2.0); comp_chk("2 || 3 || 4", IConst(2.0), "CompileSlab{ instrs:{} }", 2.0);
@@ -352,7 +365,7 @@ fn all_instrs() {
     comp_chk("ceil(y7)", IFuncCeil(InstructionI(0)), "CompileSlab{ instrs:{ 0:IVar(\"y7\") } }", 3.0);
     comp_chk("ceil(-2.7)", IConst(-2.0), "CompileSlab{ instrs:{} }", -2.0);
     comp_chk("ceil(-y7)", IFuncCeil(InstructionI(1)), "CompileSlab{ instrs:{ 0:IVar(\"y7\"), 1:INeg(InstructionI(0)) } }", -2.0);
-    
+
     // IFuncFloor
     comp_chk("floor(2.7)", IConst(2.0), "CompileSlab{ instrs:{} }", 2.0);
     comp_chk("floor(y7)", IFuncFloor(InstructionI(0)), "CompileSlab{ instrs:{ 0:IVar(\"y7\") } }", 2.0);
@@ -383,7 +396,7 @@ fn all_instrs() {
     comp_chk("round(2.7)", IConst(3.0), "CompileSlab{ instrs:{} }", 3.0);
     comp_chk("round(-2.7)", IConst(-3.0), "CompileSlab{ instrs:{} }", -3.0);
     comp_chk("round(y7)", IFuncRound { modulus: InstructionI(0), of: InstructionI(1) }, "CompileSlab{ instrs:{ 0:IConst(1.0), 1:IVar(\"y7\") } }", 3.0);
-    
+
     // IFuncMin
     comp_chk("min(2.7)", IConst(2.7), "CompileSlab{ instrs:{} }", 2.7);
     comp_chk("min(2.7, 3.7)", IConst(2.7), "CompileSlab{ instrs:{} }", 2.7);
@@ -391,7 +404,7 @@ fn all_instrs() {
     comp_chk("min(y7)", IVar("y7".to_string()), "CompileSlab{ instrs:{} }", 2.7);
     comp_chk("min(4.7, y7, 3.7)", IFuncMin(InstructionI(0), InstructionI(1)), "CompileSlab{ instrs:{ 0:IVar(\"y7\"), 1:IConst(3.7) } }", 2.7);
     comp_chk("min(3.7, y7, 4.7)", IFuncMin(InstructionI(0), InstructionI(1)), "CompileSlab{ instrs:{ 0:IVar(\"y7\"), 1:IConst(3.7) } }", 2.7);
-    
+
     // IFuncMax
     comp_chk("max(2.7)", IConst(2.7), "CompileSlab{ instrs:{} }", 2.7);
     comp_chk("max(2.7, 1.7)", IConst(2.7), "CompileSlab{ instrs:{} }", 2.7);
@@ -417,7 +430,7 @@ fn all_instrs() {
     // IFuncTan
     comp_chk("tan(0)", IConst(0.0), "CompileSlab{ instrs:{} }", 0.0);
     comp_chk("tan(w)", IFuncTan(InstructionI(0)), "CompileSlab{ instrs:{ 0:IVar(\"w\") } }", 0.0);
-    
+
     // IFuncASin
     comp_chk("asin(0)", IConst(0.0), "CompileSlab{ instrs:{} }", 0.0);
     comp_chk("asin(w)", IFuncASin(InstructionI(0)), "CompileSlab{ instrs:{ 0:IVar(\"w\") } }", 0.0);
@@ -477,9 +490,12 @@ fn eval_macro() {
 
         let expr = parse("5", &mut slab.ps).unwrap().from(&slab.ps);
         let instr = expr.compile(&slab.ps, &mut slab.cs);
-        assert_eq!(eval_instr_ref!(&instr, &slab, &mut ns), 5.0);
-        assert_eq!(eval_instr_ref_or_panic!(&instr, &slab, &mut ns), 5.0);
-        assert_eq!(eval_instr!(instr, &slab, &mut ns), 5.0);
+        assert_eq!(eval_compiled_ref!(&instr, &slab, &mut ns), 5.0);
+        (|| -> Result<(),Error> {
+            assert_eq!(eval_compiled_ref!(&instr, &slab, &mut ns), 5.0);
+            Ok(())
+        })().unwrap();
+        assert_eq!(eval_compiled!(instr, &slab, &mut ns), 5.0);
 
         #[cfg(feature="unsafe-vars")]
         {
@@ -487,9 +503,12 @@ fn eval_macro() {
             unsafe { slab.ps.add_unsafe_var("x".to_string(), &x) }
             let expr = parse("x", {slab.clear(); &mut slab.ps}).unwrap().from(&slab.ps);
             let instr = expr.compile(&slab.ps, &mut slab.cs);
-            assert_eq!(eval_instr_ref!(&instr, &slab, &mut ns), 1.0);
-            assert_eq!(eval_instr_ref_or_panic!(&instr, &slab, &mut ns), 1.0);
-            assert_eq!(eval_instr!(instr, &slab, &mut ns), 1.0);
+            assert_eq!(eval_compiled_ref!(&instr, &slab, &mut ns), 1.0);
+            (|| -> Result<(),Error> {
+                assert_eq!(eval_compiled_ref!(&instr, &slab, &mut ns), 1.0);
+                Ok(())
+            })().unwrap();
+            assert_eq!(eval_compiled!(instr, &slab, &mut ns), 1.0);
         }
 
         Ok(())

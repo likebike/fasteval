@@ -1,6 +1,4 @@
 use crate::error::Error;
-use crate::slab::Slab;
-use crate::evaler::Evaler;
 
 use std::collections::BTreeMap;
 
@@ -11,6 +9,11 @@ pub trait EvalNamespace {
     fn set_cached(&mut self, name:String, val:f64);
     fn create_cached(&mut self, name:String, val:f64) -> Result<(),Error>;
     fn clear_cached(&mut self);
+}
+
+pub trait Layered {
+    fn push(&mut self);
+    fn pop(&mut self);
 }
 
 pub struct EmptyNamespace;
@@ -24,6 +27,11 @@ pub struct ScopedNamespace<'a> {
     maps:Vec<BTreeMap<String,f64>>,
     cb  :Box<dyn FnMut(&str, Vec<f64>)->Option<f64> + 'a>,
 }
+pub struct Bubble<'a,'b:'a> {
+    ns   :&'a mut ScopedNamespace<'b>,
+    count:usize,
+}
+
 
 //---- Impls:
 
@@ -129,19 +137,30 @@ impl EvalNamespace for ScopedNamespace<'_> {
 
         match (self.cb)(name,args) {
             Some(val) => {
-                self.maps.last_mut().unwrap().insert(key.to_string(),val);
+                // I'm using this panic-free 'match' structure for performance:
+                match self.maps.last_mut() {
+                    Some(m_ref) => { m_ref.insert(key.to_string(),val); }
+                    None => (),  // unreachable
+                }
                 Some(val)
             }
             None => None,
         }
     }
     fn set_cached(&mut self, name:String, val:f64) {
-        self.maps.last_mut().unwrap().insert(name, val);
+        match self.maps.last_mut() {
+            Some(m_ref) => { m_ref.insert(name, val); }
+            None => (),  // unreachable
+        }
     }
     fn create_cached(&mut self, name:String, val:f64) -> Result<(),Error> {
-        let cur_layer = self.maps.last_mut().unwrap();
-        if cur_layer.contains_key(&name) { return Err(Error::AlreadyExists); }
-        cur_layer.insert(name, val);
+        match self.maps.last_mut() {
+            Some(cur_layer) => {
+                if cur_layer.contains_key(&name) { return Err(Error::AlreadyExists); }
+                cur_layer.insert(name, val);
+            }
+            None => return Err(Error::Unreachable),
+        };
         Ok(())
     }
     fn clear_cached(&mut self) {
@@ -149,7 +168,16 @@ impl EvalNamespace for ScopedNamespace<'_> {
         self.push();
     }
 }
-
+impl Layered for ScopedNamespace<'_> {
+    #[inline]
+    fn push(&mut self) {
+        self.maps.push(BTreeMap::new());
+    }
+    #[inline]
+    fn pop(&mut self) {
+        self.maps.pop();
+    }
+}
 impl<'a> ScopedNamespace<'a> {
     #[inline]
     pub fn new<F>(cb:F) -> Self where F:FnMut(&str,Vec<f64>)->Option<f64> + 'a {
@@ -160,21 +188,75 @@ impl<'a> ScopedNamespace<'a> {
         ns.push();
         ns
     }
+}
 
+impl Bubble<'_,'_> {
+    pub fn new<'a,'b:'a>(ns:&'a mut ScopedNamespace<'b>) -> Bubble<'a,'b> {
+        Bubble{
+            ns,
+            count:0,
+        }
+    }
+}
+impl Drop for Bubble<'_,'_> {
+    fn drop(&mut self) {
+        while self.count>0 {
+            self.pop();
+        }
+    }
+}
+impl EvalNamespace for Bubble<'_,'_> {
     #[inline]
-    pub fn push(&mut self) {
-        self.maps.push(BTreeMap::new());
+    fn get_cached(&mut self, name:&str, args:Vec<f64>) -> Option<f64> {
+        self.ns.get_cached(name,args)
     }
     #[inline]
-    pub fn pop(&mut self) {
-        self.maps.pop();
+    fn set_cached(&mut self, name:String, val:f64) {
+        self.ns.set_cached(name,val)
     }
+    #[inline]
+    fn create_cached(&mut self, name:String, val:f64) -> Result<(),Error> {
+        self.ns.create_cached(name,val)
+    }
+    #[inline]
+    fn clear_cached(&mut self) {
+        self.ns.clear_cached()
+    }
+}
+impl Layered for Bubble<'_,'_> {
+    #[inline]
+    fn push(&mut self) {
+        self.count += 1;
+        self.ns.push();
+    }
+    #[inline]
+    fn pop(&mut self) {
+        self.ns.pop();
+        self.count -= 1;
+    }
+}
 
-    pub fn eval_bubble(&mut self, slab:&Slab, evaler:& impl Evaler) -> Result<f64,Error> {
-        self.push();
-        let out = evaler.eval(slab, self);
-        self.pop();
-        out
+
+
+#[cfg(test)]
+mod internal_tests {
+    use super::*;
+
+    #[test]
+    fn bubble() {
+        let mut ns = ScopedNamespace::new(|_,_| None);
+        assert_eq!(ns.maps.len(), 1);
+        {
+            let mut bub = Bubble::new(&mut ns);  bub.push();
+            assert_eq!(bub.ns.maps.len(), 2);
+            bub.push();
+            assert_eq!(bub.ns.maps.len(), 3);
+            bub.push();
+            assert_eq!(bub.ns.maps.len(), 4);
+            bub.pop();
+            assert_eq!(bub.ns.maps.len(), 3);
+        }
+        assert_eq!(ns.maps.len(), 1);
     }
 }
 

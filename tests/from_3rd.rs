@@ -1,4 +1,4 @@
-use al::{parse, Compiler, Evaler, Error, Slab, FlatNamespace};
+use al::{parse, Compiler, Evaler, Error, Slab, FlatNamespace, eval_compiled_ref};
 
 use std::str::from_utf8;
 
@@ -23,11 +23,15 @@ fn chk_ok(expr_str:&str, expect_compile_str:&str, expect_slab_str:&str, expect_e
     assert_eq!(format!("{:?}",instr), expect_compile_str);
     assert_eq!(format!("{:?}",slab), expect_slab_str);
 
-    let mut ns = FlatNamespace::new(evalns_cb);
-    assert_eq!(instr.eval(&slab, &mut ns).unwrap(), expect_eval);
-    
-    // Make sure Instruction eval matches normal eval:
-    assert_eq!(instr.eval(&slab, &mut ns).unwrap(), expr.eval(&slab, &mut ns).unwrap());
+    (|| -> Result<(),Error> {
+        let mut ns = FlatNamespace::new(evalns_cb);
+        assert_eq!(eval_compiled_ref!(&instr, &slab, &mut ns), expect_eval);
+
+        // Make sure Instruction eval matches normal eval:
+        assert_eq!(eval_compiled_ref!(&instr, &slab, &mut ns), expr.eval(&slab, &mut ns).unwrap());
+
+        Ok(())
+    })().unwrap();
 }
 
 fn chk_perr(expr_str:&str, expect_err:Error) {

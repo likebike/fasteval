@@ -15,6 +15,7 @@ pub enum Error {
     Expected(String),
     WrongArgs(String),
     Undefined(String),
+    Unreachable,  // More efficient than unreachable!().
 }
 
 impl std::error::Error for Error {

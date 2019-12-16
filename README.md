@@ -15,6 +15,7 @@ Fast evaluation of algebraic expressions
 //   [x] Copy smart tests from other libs.
 //   [x] Reduce work: Parser obj --> functions.  EvalNS --> BTreeMap.
 //   [x] #[inline] last, using profile as a guide.
+//   [ ] Remove panics.
 //   [ ] Review #[inline]s -- can I convert to macros?
 //   [ ] More examples:  UnsafeVar.  Callbacks with user-defined vars and functions + mutation with RefCell.
 //   [ ] Readme

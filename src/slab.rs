@@ -29,21 +29,31 @@ pub struct Slab {
 pub struct ParseSlab {
                exprs      :Vec<Expression>,
                vals       :Vec<Value>,
+               def_expr   :Expression,
+               def_val    :Value,
     pub        char_buf   :String,
     #[cfg(feature="unsafe-vars")]
     pub(crate) unsafe_vars:BTreeMap<String, *const f64>,
 }
 pub struct CompileSlab {
-    pub instrs:Vec<Instruction>,  // TODO not pub
+    instrs   :Vec<Instruction>,
+    def_instr:Instruction,
 }
 impl ParseSlab {
     #[inline]
     pub fn get_expr(&self, expr_i:ExpressionI) -> &Expression {
-        &self.exprs[expr_i.0]
+        // I'm using this non-panic match structure to boost performance:
+        match self.exprs.get(expr_i.0) {
+            Some(expr_ref) => expr_ref,
+            None => &self.def_expr,
+        }
     }
     #[inline]
     pub fn get_val(&self, val_i:ValueI) -> &Value {
-        &self.vals[val_i.0]
+        match self.vals.get(val_i.0) {
+            Some(val_ref) => val_ref,
+            None => &self.def_val,
+        }
     }
     #[inline]
     pub(crate) fn push_expr(&mut self, expr:Expression) -> Result<ExpressionI,Error> {
@@ -60,6 +70,12 @@ impl ParseSlab {
         Ok(ValueI(i))
     }
 
+    #[inline]
+    pub fn clear(&mut self) {
+        self.exprs.clear();
+        self.vals.clear();
+    }
+
     // TODO: Add "# Safety" section to docs.
     #[cfg(feature="unsafe-vars")]
     #[allow(clippy::trivially_copy_pass_by_ref)]
@@ -70,7 +86,10 @@ impl ParseSlab {
 impl CompileSlab {
     #[inline]
     pub fn get_instr(&self, i:InstructionI) -> &Instruction {
-        &self.instrs[i.0]
+        match self.instrs.get(i.0) {
+            Some(instr_ref) => instr_ref,
+            None => &self.def_instr,
+        }
     }
     pub(crate) fn push_instr(&mut self, instr:Instruction) -> InstructionI {
         if self.instrs.capacity()==0 { self.instrs.reserve(32); }
@@ -80,10 +99,21 @@ impl CompileSlab {
     }
     pub(crate) fn take_instr(&mut self, i:InstructionI) -> Instruction {
         if i.0==self.instrs.len()-1 {
-            self.instrs.pop().unwrap()
+            match self.instrs.pop() {
+                Some(instr) => instr,
+                None => IConst(std::f64::NAN),
+            }
         } else {
-            mem::replace(&mut self.instrs[i.0], IConst(std::f64::NAN))  // Conspicuous Value
+            match self.instrs.get_mut(i.0) {
+                Some(instr_ref) => mem::replace(instr_ref, IConst(std::f64::NAN)),  // Conspicuous Value
+                None => IConst(std::f64::NAN),
+            }
         }
+    }
+
+    #[inline]
+    pub fn clear(&mut self) {
+        self.instrs.clear();
     }
 }
 impl Slab {
@@ -95,11 +125,16 @@ impl Slab {
             ps:ParseSlab{
                 exprs      :Vec::with_capacity(cap),
                 vals       :Vec::with_capacity(cap),
+                def_expr   :Default::default(),
+                def_val    :Default::default(),
                 char_buf   :String::with_capacity(64),
                 #[cfg(feature="unsafe-vars")]
                 unsafe_vars:BTreeMap::new(),
             },
-            cs:CompileSlab{instrs:Vec::new()},  // Don't pre-allocate for compilation.
+            cs:CompileSlab{
+                instrs   :Vec::new(),  // Don't pre-allocate for compilation.
+                def_instr:Default::default(),
+            },
         }
     }
 

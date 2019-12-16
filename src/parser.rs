@@ -2,6 +2,7 @@ use crate::error::Error;
 use crate::slab::ParseSlab;
 
 use std::str::{from_utf8, from_utf8_unchecked};
+use std::ptr;
 
 
 // === Algebra Grammar ===
@@ -154,53 +155,47 @@ use Tok::{Pass, Bite};
 
 macro_rules! peek {
     ($bs:ident) =>  {
-        if !$bs.is_empty() { Some($bs[0]) }
-        else { None }
+        $bs.first().copied()
     };
 }
-// This is slightly different than slice.get(i) because we return a u8, not a ref:
 macro_rules! peek_n {
     ($bs:ident, $skip:literal) => {
-        if $bs.len()>$skip { Some($bs[$skip]) }
-        else { None }
+        $bs.get($skip).copied()
     };
     ($bs:ident, $skip:ident) => {
-        if $bs.len()>$skip { Some($bs[$skip]) }
-        else { None }
+        $bs.get($skip).copied()
+    };
+    ($bs:ident, $skip:expr) => {
+        $bs.get($skip).copied()
     };
 }
 macro_rules! peek_is {
     ($bs:ident, $skip:literal, $val:literal) => {
-        match peek_n!($bs,$skip) {
-            Some(b) => b==$val,
-            None => false,
-        }
+        peek_n!($bs,$skip) == Some($val)
     };
     ($bs:ident, $skip:expr, $val:literal) => {
-        {
-            let skip = $skip;
-            match peek_n!($bs,skip) {
-                Some(b) => b==$val,
-                None => false,
-            }
-        }
+        peek_n!($bs,$skip) == Some($val)
     };
 }
 
 macro_rules! read {
     ($bs:ident) => {
-        if !$bs.is_empty() {
-            let b = $bs[0];
-            *$bs = &$bs[1..];
-            Ok(b)
-        } else { Err(Error::EOF) }
+        match $bs.first() {
+            Some(b) => {
+                *$bs = &$bs[1..];  // I wonder if I can get rid of the bounds check panics of slicing operations...
+                Ok(*b)
+            }
+            None => Err(Error::EOF),
+        }
     };
     ($bs:ident, $parsing:literal) => {
-        if !$bs.is_empty() {
-            let b = $bs[0];
-            *$bs = &$bs[1..];
-            Ok(b)
-        } else { Err(Error::EofWhileParsing($parsing.to_string())) }
+        match $bs.first() {
+            Some(b) => {
+                *$bs = &$bs[1..];
+                Ok(*b)
+            }
+            None => Err(Error::EofWhileParsing($parsing.to_string())),
+        }
     };
 }
 
@@ -283,7 +278,10 @@ impl Parser {
         }
         spaces!(bs);
         if expect_eof && !bs.is_empty() {
-            let bs_str = from_utf8(bs).unwrap_or("Utf8Error while handling UnparsedTokensRemaining error");
+            let bs_str = match from_utf8(bs) {
+                Ok(s) => s,
+                Err(..) => "Utf8Error while handling UnparsedTokensRemaining error",
+            };
             return Err(Error::UnparsedTokensRemaining(bs_str.to_string()));
         }
         Ok(slab.push_expr(Expression{first, pairs})?)
@@ -315,29 +313,33 @@ impl Parser {
         spaces!(bs);
 
         let mut toklen=0;  let mut sign_ok=true;  let mut specials_ok=true;  let mut suffix_ok=true;  let mut saw_val=false;
-        while toklen<bs.len() {
-            let b = bs[toklen];
-            if b'0'<=b && b<=b'9' || b==b'.' {
-                saw_val = true;
-                sign_ok=false; specials_ok=false;
-                toklen += 1;
-            } else if sign_ok && (b==b'-' || b==b'+') {
-                sign_ok = false;
-                toklen += 1;
-            } else if saw_val && (b==b'e' || b==b'E') {
-                suffix_ok = false;
-                sign_ok = true;
-                toklen += 1;
-            } else if specials_ok && ( b==b'N' && peek_is!(bs,toklen+1,b'a') && peek_is!(bs,toklen+2,b'N')  ||  b==b'i' && peek_is!(bs,toklen+1,b'n') && peek_is!(bs,toklen+2,b'f') ) {
-                #[cfg(feature="alpha-keywords")]
-                {
-                    saw_val = true;
-                    suffix_ok = false;
-                    toklen += 3;
+        loop {
+            match peek_n!(bs, toklen) {
+                None => break,
+                Some(b) => {
+                    if b'0'<=b && b<=b'9' || b==b'.' {
+                        saw_val = true;
+                        sign_ok=false; specials_ok=false;
+                        toklen += 1;
+                    } else if sign_ok && (b==b'-' || b==b'+') {
+                        sign_ok = false;
+                        toklen += 1;
+                    } else if saw_val && (b==b'e' || b==b'E') {
+                        suffix_ok = false;
+                        sign_ok = true;
+                        toklen += 1;
+                    } else if specials_ok && ( b==b'N' && peek_is!(bs,toklen+1,b'a') && peek_is!(bs,toklen+2,b'N')  ||  b==b'i' && peek_is!(bs,toklen+1,b'n') && peek_is!(bs,toklen+2,b'f') ) {
+                        #[cfg(feature="alpha-keywords")]
+                        {
+                            saw_val = true;
+                            suffix_ok = false;
+                            toklen += 3;
+                        }
+                        break;
+                    } else {
+                        break;
+                    }
                 }
-                break;
-            } else {
-                break;
             }
         }
 
@@ -587,7 +589,10 @@ impl Parser {
         spaces!(bs);
 
         match peek!(bs) {
-            Some(b'(') | Some(b'[') => Ok(Bite(read!(bs).unwrap())),
+            Some(b'(') | Some(b'[') => Ok(Bite(match read!(bs) {
+                                                   Ok(b) => b,
+                                                   Err(..) => return Err(Error::Unreachable),
+                                               })),
             _ => Ok(Pass),
         }
     }
@@ -596,7 +601,7 @@ impl Parser {
         let close_parenth = match open_parenth {
             b'(' => b')',
             b'[' => b']',
-            _ => unreachable!(),
+            _ => return Err(Error::Expected("'(' or '['".to_string())),
         };
         let mut args = Vec::<ExpressionI>::with_capacity(4);
         loop {
@@ -615,7 +620,7 @@ impl Parser {
                     Ok(b',') | Ok(b';') => {
                         // I accept ',' or ';' because the TV API disallows the ',' char in symbols... so I'm using ';' as a compromise.
                     }
-                    _ => return Err(Error::Expected(", or ;".to_string())),
+                    _ => return Err(Error::Expected("',' or ';'".to_string())),
                 }
             }
             args.push(Self::read_expression(slab,bs,depth+1,false)?);
@@ -624,108 +629,183 @@ impl Parser {
         let fname_str = fname.as_str();
         match fname_str {
             "int" => {
-                if args.len()==1 { Ok(EFuncInt(args.pop().unwrap()))
-                } else { Err(Error::WrongArgs("expected one arg".to_string())) }
+                if args.len()==1 { Ok(EFuncInt(match args.pop() {
+                                                   Some(xi) => xi,
+                                                   None => return Err(Error::Unreachable),
+                                               }))
+                } else { Err(Error::WrongArgs("int: expected one arg".to_string())) }
             }
             "ceil" => {
-                if args.len()==1 { Ok(EFuncCeil(args.pop().unwrap()))
-                } else { Err(Error::WrongArgs("expected one arg".to_string())) }
+                if args.len()==1 { Ok(EFuncCeil(match args.pop() {
+                                                   Some(xi) => xi,
+                                                   None => return Err(Error::Unreachable),
+                                               }))
+                } else { Err(Error::WrongArgs("ceil: expected one arg".to_string())) }
             }
             "floor" => {
-                if args.len()==1 { Ok(EFuncFloor(args.pop().unwrap()))
-                } else { Err(Error::WrongArgs("expected one arg".to_string())) }
+                if args.len()==1 { Ok(EFuncFloor(match args.pop() {
+                                                     Some(xi) => xi,
+                                                     None => return Err(Error::Unreachable),
+                                                 }))
+                } else { Err(Error::WrongArgs("floor: expected one arg".to_string())) }
             }
             "abs" => {
-                if args.len()==1 { Ok(EFuncAbs(args.pop().unwrap()))
-                } else { Err(Error::WrongArgs("expected one arg".to_string())) }
+                if args.len()==1 { Ok(EFuncAbs(match args.pop() {
+                                                   Some(xi) => xi,
+                                                   None => return Err(Error::Unreachable),
+                                               }))
+                } else { Err(Error::WrongArgs("abs: expected one arg".to_string())) }
             }
             "sign" => {
-                if args.len()==1 { Ok(EFuncSign(args.pop().unwrap()))
-                } else { Err(Error::WrongArgs("expected one arg".to_string())) }
+                if args.len()==1 { Ok(EFuncSign(match args.pop() {
+                                                    Some(xi) => xi,
+                                                    None => return Err(Error::Unreachable),
+                                                }))
+                } else { Err(Error::WrongArgs("sign: expected one arg".to_string())) }
             }
             "log" => {
-                if args.len()==1 { Ok(EFuncLog{base:None, expr:args.pop().unwrap()})
+                if args.len()==1 { Ok(EFuncLog{base:None, expr:match args.pop() {
+                                                                   Some(xi) => xi,
+                                                                   None => return Err(Error::Unreachable),
+                                                               }})
                 } else if args.len()==2 {
-                    let expr = args.pop().unwrap();
-                    Ok(EFuncLog{base:Some(args.pop().unwrap()), expr})
+                    let expr = match args.pop() {
+                                   Some(xi) => xi,
+                                   None => return Err(Error::Unreachable),
+                               };
+                    Ok(EFuncLog{base:Some(match args.pop() {
+                                              Some(xi) => xi,
+                                              None => return Err(Error::Unreachable),
+                                          }),
+                                expr})
                 } else { Err(Error::WrongArgs("expected log(x) or log(base,x)".to_string())) }
             }
             "round" => {
-                if args.len()==1 { Ok(EFuncRound{modulus:None, expr:args.pop().unwrap()})
+                if args.len()==1 { Ok(EFuncRound{modulus:None, expr:match args.pop() {
+                                                                        Some(xi) => xi,
+                                                                        None => return Err(Error::Unreachable),
+                                                                    }})
                 } else if args.len()==2 {
-                    let expr = args.pop().unwrap();
-                    Ok(EFuncRound{modulus:Some(args.pop().unwrap()), expr})
-                } else { Err(Error::WrongArgs("expected round(x) or round(modulus,x)".to_string())) }
+                    let expr = match args.pop() {
+                                   Some(xi) => xi,
+                                   None => return Err(Error::Unreachable),
+                               };
+                    Ok(EFuncRound{modulus:Some(match args.pop() {
+                                                   Some(xi) => xi,
+                                                   None => return Err(Error::Unreachable),
+                                               }),
+                                  expr})
+                } else { Err(Error::WrongArgs("round: expected round(x) or round(modulus,x)".to_string())) }
             }
             "min" => {
                 if !args.is_empty() {
-                    let first = args.remove(0);
-                    Ok(EFuncMin{first, rest:args})
-                } else { Err(Error::WrongArgs("expected one or more args".to_string())) }
+                    match remove_no_panic(&mut args, 0) {
+                        Some(first) => Ok(EFuncMin{first, rest:args}),
+                        None => Err(Error::Unreachable),
+                    }
+                } else { Err(Error::WrongArgs("min: expected one or more args".to_string())) }
             }
             "max" => {
                 if !args.is_empty() {
-                    let first = args.remove(0);
-                    Ok(EFuncMax{first, rest:args})
-                } else { Err(Error::WrongArgs("expected one or more args".to_string())) }
+                    match remove_no_panic(&mut args, 0) {
+                        Some(first) => Ok(EFuncMax{first, rest:args}),
+                        None => Err(Error::Unreachable),
+                    }
+                } else { Err(Error::WrongArgs("max: expected one or more args".to_string())) }
             }
 
             "e" => {
                 if args.is_empty() { Ok(EFuncE)
-                } else { Err(Error::WrongArgs("expected no args".to_string())) }
+                } else { Err(Error::WrongArgs("e: expected no args".to_string())) }
             }
             "pi" => {
                 if args.is_empty() { Ok(EFuncPi)
-                } else { Err(Error::WrongArgs("expected no args".to_string())) }
+                } else { Err(Error::WrongArgs("pi: expected no args".to_string())) }
             }
 
             "sin" => {
-                if args.len()==1 { Ok(EFuncSin(args.pop().unwrap()))
-                } else { Err(Error::WrongArgs("expected one arg".to_string())) }
+                if args.len()==1 { Ok(EFuncSin(match args.pop() {
+                                                   Some(xi) => xi,
+                                                   None => return Err(Error::Unreachable),
+                                               }))
+                } else { Err(Error::WrongArgs("sin: expected one arg".to_string())) }
             }
             "cos" => {
-                if args.len()==1 { Ok(EFuncCos(args.pop().unwrap()))
-                } else { Err(Error::WrongArgs("expected one arg".to_string())) }
+                if args.len()==1 { Ok(EFuncCos(match args.pop() {
+                                                   Some(xi) => xi,
+                                                   None => return Err(Error::Unreachable),
+                                               }))
+                } else { Err(Error::WrongArgs("cos: expected one arg".to_string())) }
             }
             "tan" => {
-                if args.len()==1 { Ok(EFuncTan(args.pop().unwrap()))
-                } else { Err(Error::WrongArgs("expected one arg".to_string())) }
+                if args.len()==1 { Ok(EFuncTan(match args.pop() {
+                                                   Some(xi) => xi,
+                                                   None => return Err(Error::Unreachable),
+                                               }))
+                } else { Err(Error::WrongArgs("tan: expected one arg".to_string())) }
             }
             "asin" => {
-                if args.len()==1 { Ok(EFuncASin(args.pop().unwrap()))
-                } else { Err(Error::WrongArgs("expected one arg".to_string())) }
+                if args.len()==1 { Ok(EFuncASin(match args.pop() {
+                                                    Some(xi) => xi,
+                                                    None => return Err(Error::Unreachable),
+                                                }))
+                } else { Err(Error::WrongArgs("asin: expected one arg".to_string())) }
             }
             "acos" => {
-                if args.len()==1 { Ok(EFuncACos(args.pop().unwrap()))
-                } else { Err(Error::WrongArgs("expected one arg".to_string())) }
+                if args.len()==1 { Ok(EFuncACos(match args.pop() {
+                                                    Some(xi) => xi,
+                                                    None => return Err(Error::Unreachable),
+                                                }))
+                } else { Err(Error::WrongArgs("acos: expected one arg".to_string())) }
             }
             "atan" => {
-                if args.len()==1 { Ok(EFuncATan(args.pop().unwrap()))
-                } else { Err(Error::WrongArgs("expected one arg".to_string())) }
+                if args.len()==1 { Ok(EFuncATan(match args.pop() {
+                                                    Some(xi) => xi,
+                                                    None => return Err(Error::Unreachable),
+                                                }))
+                } else { Err(Error::WrongArgs("atan: expected one arg".to_string())) }
             }
             "sinh" => {
-                if args.len()==1 { Ok(EFuncSinH(args.pop().unwrap()))
-                } else { Err(Error::WrongArgs("expected one arg".to_string())) }
+                if args.len()==1 { Ok(EFuncSinH(match args.pop() {
+                                                    Some(xi) => xi,
+                                                    None => return Err(Error::Unreachable),
+                                                }))
+                } else { Err(Error::WrongArgs("sinh: expected one arg".to_string())) }
             }
             "cosh" => {
-                if args.len()==1 { Ok(EFuncCosH(args.pop().unwrap()))
-                } else { Err(Error::WrongArgs("expected one arg".to_string())) }
+                if args.len()==1 { Ok(EFuncCosH(match args.pop() {
+                                                    Some(xi) => xi,
+                                                    None => return Err(Error::Unreachable),
+                                                }))
+                } else { Err(Error::WrongArgs("cosh: expected one arg".to_string())) }
             }
             "tanh" => {
-                if args.len()==1 { Ok(EFuncTanH(args.pop().unwrap()))
-                } else { Err(Error::WrongArgs("expected one arg".to_string())) }
+                if args.len()==1 { Ok(EFuncTanH(match args.pop() {
+                                                    Some(xi) => xi,
+                                                    None => return Err(Error::Unreachable),
+                                                }))
+                } else { Err(Error::WrongArgs("tanh: expected one arg".to_string())) }
             }
             "asinh" => {
-                if args.len()==1 { Ok(EFuncASinH(args.pop().unwrap()))
-                } else { Err(Error::WrongArgs("expected one arg".to_string())) }
+                if args.len()==1 { Ok(EFuncASinH(match args.pop() {
+                                                     Some(xi) => xi,
+                                                     None => return Err(Error::Unreachable),
+                                                 }))
+                } else { Err(Error::WrongArgs("asinh: expected one arg".to_string())) }
             }
             "acosh" => {
-                if args.len()==1 { Ok(EFuncACosH(args.pop().unwrap()))
-                } else { Err(Error::WrongArgs("expected one arg".to_string())) }
+                if args.len()==1 { Ok(EFuncACosH(match args.pop() {
+                                                     Some(xi) => xi,
+                                                     None => return Err(Error::Unreachable),
+                                                 }))
+                } else { Err(Error::WrongArgs("acosh: expected one arg".to_string())) }
             }
             "atanh" => {
-                if args.len()==1 { Ok(EFuncATanH(args.pop().unwrap()))
-                } else { Err(Error::WrongArgs("expected one arg".to_string())) }
+                if args.len()==1 { Ok(EFuncATanH(match args.pop() {
+                                                     Some(xi) => xi,
+                                                     None => return Err(Error::Unreachable),
+                                                 }))
+                } else { Err(Error::WrongArgs("atanh: expected one arg".to_string())) }
             }
 
             _ => {
@@ -745,7 +825,7 @@ impl Parser {
         let close_parenth = match open_parenth {
             b'(' => b')',
             b'[' => b']',
-            _ => unreachable!(),
+            _ => return Err(Error::Expected("'(' or '['".to_string())),
         };
         let mut args = Vec::<ExpressionOrString>::with_capacity(8);
         loop {
@@ -762,7 +842,7 @@ impl Parser {
             if !args.is_empty() {
                 match read!(bs) {
                     Ok(b',') | Ok(b';') => {}
-                    _ => { return Err(Error::Expected(", or ;".to_string())); }
+                    _ => { return Err(Error::Expected("',' or ';'".to_string())); }
                 }
             }
             args.push(Self::read_expressionorstring(slab,bs,depth+1)?);
@@ -799,20 +879,61 @@ impl Parser {
         skip_n!(bs, toklen);
         match read!(bs) {
             Err(Error::EOF) => Err(Error::EofWhileParsing("string".to_string())),
-            Err(_) => unreachable!(),
+            Err(_) => Err(Error::Unreachable),
             Ok(b'"') => Ok(Bite(out.to_string())),
-            Ok(_) => unreachable!(),
+            Ok(_) => Err(Error::Unreachable),
         }
     }
 }
+
 impl Default for Parser {
     fn default() -> Self { Self::new() }
 }
+impl Default for Expression {
+    fn default() -> Self { Expression{first:Default::default(), pairs:Vec::new()} }
+}
+impl Default for Value {
+    fn default() -> Self { EConstant(std::f64::NAN) }
+}
+
+// A version of Vec::remove that doesn't panic:
+// (Mostly copy-pasted from https://doc.rust-lang.org/src/alloc/vec.rs.html#991-1010 .)
+pub(crate) fn remove_no_panic<T>(vself:&mut Vec<T>, index:usize) -> Option<T> {
+    let len = vself.len();
+    if index >= len { return None }
+    unsafe {
+        // infallible
+        let ret;
+        {
+            // the place we are taking from.
+            let ptr = vself.as_mut_ptr().add(index);
+            // copy it out, unsafely having a copy of the value on
+            // the stack and in the vector at the same time.
+            ret = ptr::read(ptr);
+
+            // Shift everything down to fill in that spot.
+            ptr::copy(ptr.offset(1), ptr, len - index - 1);
+        }
+        vself.set_len(len - 1);
+        Some(ret)
+    }
+}
+
+
 
 #[cfg(test)]
 mod internal_tests {
     use super::*;
     use crate::slab::Slab;
+
+    #[test]
+    fn rem_no_panic() {
+        let mut v = vec![1u8, 2, 3];
+        assert_eq!(format!("{:?}",v), "[1, 2, 3]");
+        assert_eq!(remove_no_panic(&mut v,1), Some(2));
+        assert_eq!(remove_no_panic(&mut v,10), None);
+        assert_eq!(format!("{:?}",v), "[1, 3]");
+    }
 
     #[test]
     fn util() {

@@ -1,4 +1,4 @@
-use al::{Evaler, Error, Slab, EvalNamespace, EmptyNamespace, FlatNamespace, ScopedNamespace, parse};
+use al::{Evaler, Error, Slab, EvalNamespace, Layered, EmptyNamespace, FlatNamespace, ScopedNamespace, parse};
 use al::bool_to_f64;
 
 use std::mem;
@@ -222,9 +222,9 @@ impl Evaler for TestEvaler {
 fn aaa_evalns_basics() {
     let slab = Slab::new();
     let mut ns = ScopedNamespace::new(|_,_| Some(5.4321));
-    assert_eq!(ns.eval_bubble(&slab, &TestEvaler{}).unwrap(), 5.4321);
+    assert_eq!({ ns.push(); let out=TestEvaler{}.eval(&slab, &mut ns); ns.pop(); out }.unwrap(), 5.4321);
     ns.create_cached("x".to_string(),1.111).unwrap();
-    assert_eq!(ns.eval_bubble(&slab, &TestEvaler{}).unwrap(), 1.111);
+    assert_eq!({ ns.push(); let out=TestEvaler{}.eval(&slab, &mut ns); ns.pop(); out }.unwrap(), 1.111);
 }
 
 #[test]

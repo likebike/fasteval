@@ -26,37 +26,33 @@
 //!   * min(val, ...) -- Example: `min(1,-2,3,-4) == -4`
 //!   * max(val, ...) -- Example: `max(1,-2,3,-4) == 3`
 //!
-//!   * sin(radians)
-//!   * cos(radians)
-//!   * tan(radians)
-//!   * asin(val)
-//!   * acos(val)
-//!   * atan(val)
-//!   * sinh(val)
-//!   * cosh(val)
-//!   * tanh(val)
-//!   * asinh(val)
-//!   * acosh(val)
-//!   * atanh(val)
+//!   * sin(radians)    * asin(val)
+//!   * cos(radians)    * acos(val)
+//!   * tan(radians)    * atan(val)
+//!   * sinh(val)       * asinh(val)
+//!   * cosh(val)       * acosh(val)
+//!   * tanh(val)       * atanh(val)
 //! ```
 //!
 //! # Examples
 //!
 //! ## Easy evaluation of constant expressions
-//! The `ez_eval()` function performs the entire allocation-parse-eval process for you.  It is a little bit inefficient because it always allocates a fresh Slab, but it is very simple to use:
+//! The `ez_eval()` function performs the entire allocation-parse-eval process
+//! for you.  It is a little bit inefficient because it always allocates a
+//! fresh Slab, but it is very simple to use:
 //!
 //! ```
 //! fn main() -> Result<(), al::Error> {
 //!     let val = al::ez_eval(
 //!         "1+2*3/4^5%6 + log(100) + log(e(),100) + [3*(3-3)/3] + (2<3) && 1.23",    &mut al::EmptyNamespace)?;
-//!     //   |             |          |   |          |               |   |
-//!     //   |             |          |   |          |               |   boolean logic with ternary support
-//!     //   |             |          |   |          |               comparisons
-//!     //   |             |          |   |          square-brackets act like parenthesis
-//!     //   |             |          |   builtin constants: e(), pi()
-//!     //   |             |          'log' can take an optional first 'base' argument, defaults to 10
-//!     //   |             many builtin functions: print, int, ceil, floor, abs, sign, log, round, min, max, sin, asin, ...
-//!     //   standard binary operators
+//!     //    |            |          |   |          |               |   |
+//!     //    |            |          |   |          |               |   boolean logic with ternary support
+//!     //    |            |          |   |          |               comparisons
+//!     //    |            |          |   |          square-brackets act like parenthesis
+//!     //    |            |          |   built-in constants: e(), pi()
+//!     //    |            |          'log' can take an optional first 'base' argument, defaults to 10
+//!     //    |            many built-in functions: print, int, ceil, floor, abs, sign, log, round, min, max, sin, asin, ...
+//!     //    standard binary operators
 //!
 //!     assert_eq!(val, 1.23);
 //!
@@ -66,7 +62,8 @@
 //!
 //!
 //! ## Simple variables
-//! Several namespace types are supported, each designed for different situations.  For simple cases, you can define variables with a `BTreeMap`:
+//! Several namespace types are supported, each designed for different
+//! situations.  ([See the various Namespace types here.](evalns/index.html))  For simple cases, you can define variables with a `BTreeMap`:
 //!
 //! ```
 //! use std::collections::BTreeMap;
@@ -87,7 +84,9 @@
 //! ```
 //!
 //! ## Advanced variables and custom functions
-//! This time, instead of using a map, we will use a namespace with a callback function, which enables us to do advanced things, like define custom functions and array-like objects:
+//! This time, instead of using a map, we will use a namespace with a callback
+//! function, which enables us to do advanced things, like define custom
+//! functions and array-like objects:
 //!
 //! ```
 //! fn main() -> Result<(), al::Error> {
@@ -96,9 +95,7 @@
 //!         match name {
 //!             "x" => Some(3.0),
 //!             "y" => Some(4.0),
-//!             "sum" => {
-//!                 Some(args.into_iter().fold(0.0, |s,f| s+f))
-//!             }
+//!             "sum" => Some(args.into_iter().fold(0.0, |s,f| s+f)),
 //!             "data" => args.get(0).and_then(|f| mydata.get(*f as usize).copied()),
 //!             _ => None,
 //!         }
@@ -117,7 +114,10 @@
 //! ```
 //!
 //! ## Re-use the Slab to go faster
-//! If we perform the parse and eval ourselves (without relying on the 'ez' interface), then we can re-use the Slab allocation for subsequent parsing and evaluations:
+//! If we perform the parse and eval ourselves (without relying on the 'ez'
+//! interface), then we can re-use the Slab allocation for subsequent parsing
+//! and evaluations.  This avoids a significant amount of slow memory
+//! operations:
 //!
 //! ```
 //! use std::collections::BTreeMap;
@@ -125,10 +125,7 @@
 //! fn main() -> Result<(), al::Error> {
 //!     let mut slab = al::Slab::new();
 //!
-//!     // Parse an expression string:
-//!
-//!     let expr_str = "x + 1";
-//!     let expr_ref = al::parse(expr_str, &mut slab.ps)?.from(&slab.ps);
+//!     let expr_ref = al::parse("x + 1", &mut slab.ps)?.from(&slab.ps);
 //!
 //!     // Let's evaluate the expression a couple times with different 'x' values:
 //!
@@ -145,8 +142,7 @@
 //!     // (This is much cheaper than allocating a new Slab.)
 //!
 //!     slab.clear();
-//!     let expr_str = "x * 10";
-//!     let expr_ref = al::parse(expr_str, &mut slab.ps)?.from(&slab.ps);
+//!     let expr_ref = al::parse("x * 10", &mut slab.ps)?.from(&slab.ps);
 //!
 //!     let val = expr_ref.eval(&slab, &mut map)?;
 //!     assert_eq!(val, 25.0);
@@ -156,7 +152,12 @@
 //! ```
 //!
 //! ## Compile to go super fast!
-//! If you plan to evaluate an expression just one or two times, then you should parse-eval as shown in previous examples.  But if you expect to evaluate an expression three or more times, you can dramatically improve your performance by compiling.  The compiled form is usually more than 10 times faster than the un-compiled form, and for constant expressions it is usually more than 200 times faster.
+//! If you plan to evaluate an expression just one or two times, then you
+//! should parse-eval as shown in previous examples.  But if you expect to
+//! evaluate an expression three or more times, you can dramatically improve
+//! your performance by compiling.  The compiled form is usually more than 10
+//! times faster than the un-compiled form, and for constant expressions it is
+//! usually more than 200 times faster.
 //! ```
 //! use std::collections::BTreeMap;
 //! use al::Compiler;  // import this trait so we can call compile().
@@ -167,111 +168,165 @@
 //!
 //!     let expr_str = "sin(deg/360 * 2*pi())";
 //!     let compiled = al::parse(expr_str, &mut slab.ps)?.from(&slab.ps).compile(&slab.ps, &mut slab.cs);
-//!     eprintln!("slab: {:?}",slab);
-//!     //panic!("halt");
 //!     for deg in 0..360 {
 //!         map.insert("deg".to_string(), deg as f64);
-//!         let val = compiled.eval(&slab, &mut map)?;
-//!         eprintln!("{} : {}", deg, val);
+//!         // When working with compiled constant expressions, you can use the
+//!         // eval_compiled*!() macros to save a function call:
+//!         let val = al::eval_compiled!(compiled, &slab, &mut map);
+//!         eprintln!("sin({}°) = {}", deg, val);
 //!     }
 //!
 //!     Ok(())
 //! }
 //! ```
 //!
+//! ## Unsafe Variables
+//! If your variables *must* be as fast as possible and you are willing to be
+//! very careful, you can build with the `unsafe-vars` feature (`cargo build
+//! --features unsafe-vars`), which enables pointer-based variables.  These
+//! unsafe variables perform 2x-4x faster than the compiled form above.  This
+//! feature is not enabled by default because it slightly slows down other
+//! non-variable operations.
+//! ```
+//! use al::Compiler;  // import this trait so we can call compile().
+//! use al::Evaler;    // import this trait so we can call eval().
+//! fn main() -> Result<(), al::Error> {
+//!     let mut slab = al::Slab::new();
+//!     let mut deg : f64 = 0.0;
+//!     unsafe { slab.ps.add_unsafe_var("deg".to_string(), &deg); }  // Saves a pointer to 'deg'.
+//!
+//!     let mut ns = al::EmptyNamespace;  // We only define unsafe variables, not normal variables,
+//!                                       // so EmptyNamespace is fine.
+//!
+//!     let expr_str = "sin(deg/360 * 2*pi())";
+//!     let compiled = al::parse(expr_str, &mut slab.ps)?.from(&slab.ps).compile(&slab.ps, &mut slab.cs);
+//!     for d in 0..360 {
+//!         deg = d as f64;
+//!         let val = al::eval_compiled!(compiled, &slab, &mut ns);
+//!         eprintln!("sin({}°) = {}", deg, val);
+//!     }
+//!
+//!     Ok(())
+//! }
+//! ```
+//! 
+//!
+//! # Performance Benchmarks
+//!
+//! These benchmarks were performed on 2019-12-16.
+//!
+//! Here are links to all the libraries/tools included in these benchmarks:
+//!     * [al (this library)](https://github.com/likebike/al)
+//!     * [caldyn](https://github.com/Luthaf/caldyn)
+//!     * [rsc](https://github.com/codemessiah/rsc)
+//!     * [meval](https://github.com/rekka/meval-rs)
+//!     * [calc](https://github.com/redox-os/calc/tree/master/src)
+//!     * [tinyexpr (Rust)](https://github.com/kondrak/tinyexpr-rs)
+//!     * [tinyexpr (C)](https://github.com/codeplea/tinyexpr)
+//!     * [bc](https://www.gnu.org/software/bc/)
+//!     * [python3](https://www.python.org/)
+//!
+//! ## Summary & Analysis
+//!
+//! ## Benchmark Descriptions
+//! ```text
+//!     * simple = `3 * 3 - 3 / 3`
+//!       This is a simple test with primitive binary operators.
+//!       Since the expression is quite simple, it does a good job of showing
+//!       the intrinsic performance costs of a library.
+//!       Results:
+//!           * For compiled expressions, 'al' is 5x as fast as the closest
+//!             competitor (caldyn) because the eval_compiled!() macro is able to
+//!             eliminate all function calls.
+//!           * For interpreted expressions, 'al' is 1.6x as fast as the
+//!             tinyexpr C lib, and 2.3x as fast as the tinyexpr Rust lib.
+//!             This is because 'al' eliminates redundant work and memory
+//!             allocation during the parse phase.
+//!
+//!     * power = `2 ^ 3 ^ 4`
+//!               `2 ^ (3 ^ 4)` for 'tinyexpr' and 'rsc'
+//!       This test shows the associativity of the exponent operator.
+//!       Most libraries (including 'al') use right-associativity,
+//!       but some libraries (particularly tinyexpr and rsc) use
+//!       left-associativity.
+//!       This test is also interesting because it shows the precision of a
+//!       library's number system.  'al' just uses f64 and therefore truncates
+//!       the result (2417851639229258300000000), while python, bc, and the
+//!       tinyexpr C library produce a higher precision result
+//!       (2417851639229258349412352).
+//!       Results:
+//!           Same as the 'simple' case.
+//!
+//!     * variable = `x * 2`
+//!       This is a simple test of variable support.
+//!       Since the expression is quite simple, it shows the intrinsic
+//!       performance costs of a library.
+//!       Results:
+//!           * The tinyexpr Rust library does not currently support variables.
+//!           * For safe compiled evaluation, 'al' is 3x as fast as the closest
+//!             competitor (caldyn).
+//!           * For safe interpretation, 'al' is 2.4x as fast as the closest
+//!             competitor (caldyn).
+//!           * For unsafe operations, 'al' performance is similar to the
+//!             tinyexpr C library.
+//!
+//!     * trig = `sin(x)`
+//!       This is a test of variables, built-in function calls, and trigonometry.
+//!       Results:
+//!           * The tinyexpr Rust library does not currently support variables.
+//!           * The 'calc' library does not support trigonometry.
+//!           * For safe compiled evaluation, 'al' is 1.9x as fast as the
+//!             closest competitor (caldyn).
+//!           * For safe interpretation, 'al' is 1.6x as fast as the closest
+//!             competitor (caldyn).
+//!           * For unsafe operation, 'al' performance is similar to the
+//!             tinyexpr C library.
+//!
+//!     * quadratic = `(-z + (z^2 - 4*x*y)^0.5) / (2*x)`
+//!       This test demonstrates a more complex expression, involving several
+//!       variables, some of which are accessed more than once.
+//!       Results:
+//!           * 
+//!
+//!     * big = `((((87))) - 73) + (97 + (((15 / 55 * ((31)) + 35))) + (15 - (9)) - (39 / 26) / 20 / 91 + 27 / (33 * 26 + 28 - (7) / 10 + 66 * 6) + 60 / 35 - ((29) - (69) / 44 / (92)) / (89) + 2 + 87 / 47 * ((2)) * 83 / 98 * 42 / (((67)) * ((97))) / (34 / 89 + 77) - 29 + 70 * (20)) + ((((((92))) + 23 * (98) / (95) + (((99) * (41))) + (5 + 41) + 10) - (36) / (6 + 80 * 52 + (90))))`
+//! ```
+//!
+//! ## Charts
+//! Note that the following charts use logarithmic scales.  Therefore, tiny
+//! visual differences actually represent very significant performance
+//! differences.
+//!
+//! Performance of evaluation of a compiled expression:
+//! ![abc](http://hk.likebike.com/code/al/benches/al-compiled-20191214.png)
+//!
+//! Performance of one-time interpretation (parse and eval):
+//! ![abc](http://hk.likebike.com/code/al/benches/al-interp-20191214.png)
+//!
+//! Performance of Unsafe Variables, compared to the tinyexpr C library (the
+//! only other library in our test set that supports this mode):
+//! ![abc](http://hk.likebike.com/code/al/benches/al-unsafe-20191214.png)
+//!
+//! ## Methodology
+//! I am benchmarking on an Asus G55V (a 2012 laptop with Intel(R) Core(TM) i7-3610QM CPU @ 2.30GHz).
+//!
+//! I run 
+//!
+//! All numeric results can be found in `al/benches/bench.rs`.
+//!
 //! # How is `al` so fast?
 //!
 //! A variety of techniques are used to improve performance:
+//!   * Minimization of memory allocations/deallocations;
+//!     I just pre-allocate a large slab during initialization.
 //!   * Elimination of redundant work, especially when parsing.
-//!   * Minimization of memory allocations/deallocations; I just pre-allocate a large slab during initialization.
-//!   * Constant Folding.  Boosts performance of constant expressions 1000x.
-//!   * Profile-driven application of inlining.
+//!   * Compilation: Constant Folding and Expression Simplification.
+//!     Boosts performance up to 1000x.
+//!   * Profile-driven application of inlining.  Don't inline too much or too little.
 //!   * Use of macros to eliminate call overhead for the most-frequently-used functions.
+//!   * Don't panic.
 
 
 //#![warn(missing_docs)]
-
-// TODO: These should be placed in 'evaler.rs':
-#[macro_export]
-macro_rules! eval_instr {
-    ($evaler:ident, $slab_ref:expr, $ns_mut:expr) => {
-        if let al::IConst(c) = $evaler {
-            c
-        } else {
-            #[cfg(feature="unsafe-vars")]
-            {
-                if let al::IUnsafeVar{ptr, ..} = $evaler {
-                    unsafe { *ptr }
-                } else {
-                    $evaler.eval($slab_ref, $ns_mut)?
-                }
-            }
-
-            #[cfg(not(feature="unsafe-vars"))]
-            $evaler.eval($slab_ref, $ns_mut)?
-        }
-    };
-    ($evaler:expr, $slab_ref:expr, $ns_mut:expr) => {
-        {
-            let evaler = $evaler;
-            eval_instr!(evaler, $slab_ref, $ns_mut)
-        }
-    };
-}
-
-#[macro_export]
-macro_rules! eval_instr_ref {
-    ($evaler:ident, $slab_ref:expr, $ns_mut:expr) => {
-        if let al::IConst(c) = $evaler {
-            *c
-        } else {
-            #[cfg(feature="unsafe-vars")]
-            {
-                if let al::IUnsafeVar{ptr, ..} = $evaler {
-                    unsafe { **ptr }
-                } else {
-                    $evaler.eval($slab_ref, $ns_mut)?
-                }
-            }
-
-            #[cfg(not(feature="unsafe-vars"))]
-            $evaler.eval($slab_ref, $ns_mut)?
-        }
-    };
-    ($evaler:expr, $slab_ref:expr, $ns_mut:expr) => {
-        {
-            let evaler = $evaler;
-            eval_instr_ref!(evaler, $slab_ref, $ns_mut)
-        }
-    };
-}
-
-#[macro_export]
-macro_rules! eval_instr_ref_or_panic {
-    ($evaler:ident, $slab_ref:expr, $ns_mut:expr) => {
-        if let al::IConst(c) = $evaler {
-            *c
-        } else {
-            #[cfg(feature="unsafe-vars")]
-            {
-                if let al::IUnsafeVar{ptr, ..} = $evaler {
-                    unsafe { **ptr }
-                } else {
-                    $evaler.eval($slab_ref, $ns_mut).unwrap()
-                }
-            }
-
-            #[cfg(not(feature="unsafe-vars"))]
-            $evaler.eval($slab_ref, $ns_mut).unwrap()
-        }
-    };
-    ($evaler:expr, $slab_ref:expr, $ns_mut:expr) => {
-        {
-            let evaler = $evaler;
-            eval_instr_ref_or_panic!(evaler, $slab_ref, $ns_mut)
-        }
-    };
-}
 
 pub mod error;
 pub mod parser;
@@ -289,6 +344,6 @@ pub use self::compiler::{Compiler, Instruction::{self, IConst}, InstructionI};
 pub use self::compiler::Instruction::IUnsafeVar;
 pub use self::evaler::Evaler;
 pub use self::slab::Slab;
-pub use self::evalns::{EvalNamespace, EmptyNamespace, FlatNamespace, ScopedNamespace};
+pub use self::evalns::{EvalNamespace, Layered, EmptyNamespace, FlatNamespace, ScopedNamespace, Bubble};
 pub use self::ez::ez_eval;
 

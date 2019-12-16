@@ -40,11 +40,11 @@ fn consts() {
     parse("12.34", {slab.clear(); &mut slab.ps}).unwrap();
     assert_eq!(format!("{:?}",&slab),
 "Slab{ exprs:{ 0:Expression { first: EConstant(12.34), pairs: [] } }, vals:{}, instrs:{} }");
-    
+
     parse(".34", {slab.clear(); &mut slab.ps}).unwrap();
     assert_eq!(format!("{:?}",&slab),
 "Slab{ exprs:{ 0:Expression { first: EConstant(0.34), pairs: [] } }, vals:{}, instrs:{} }");
-    
+
     parse("12.", {slab.clear(); &mut slab.ps}).unwrap();
     assert_eq!(format!("{:?}",&slab),
 "Slab{ exprs:{ 0:Expression { first: EConstant(12.0), pairs: [] } }, vals:{}, instrs:{} }");
