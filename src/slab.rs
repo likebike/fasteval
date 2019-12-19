@@ -1,3 +1,36 @@
+//! A `Slab` is a pre-allocated block of memory, used during the
+//! parse/compile/eval phases to reduce memory allocation/deallocation.
+//!
+//! You usually won't need to use any of the methods of a Slab; you'll just pass it to other functions (sort of like a Context in other systems).
+//!
+//! The `Slab` contains two fields: `ps` ("Parse Slab") and `cs` ("Compile Slab").  It is structured like this because of Rust's borrowing rules, so that the two fields can be borrowed and mutated independently.
+//!
+//! If you use the `ez_eval()` function, it allocates a Slab for you.
+//!
+//! If you are performing the parse/compile/eval process yourself, then you'll need to allocate a Slab at the beginning.
+//!
+//! # Examples
+//!
+//! Here is an example of re-using one `Slab` for multiple parse/eval cycles:
+//! ```
+//! use al::Evaler;  // import this trait so we can call eval().
+//! fn main() -> Result<(), al::Error> {
+//!     let mut slab = al::Slab::new();
+//!
+//!     let val = al::parse("1+2*3-4", &mut slab.ps)?.from(&slab.ps).eval(&slab, &mut al::EmptyNamespace)?;
+//!     assert_eq!(val, 3.0);
+//!
+//!     // Let's re-use the same slab again to save memory operations.
+//!     // Clear out the previous data:
+//!     slab.clear();
+//!
+//!     let val = al::parse("5+6*7-8", &mut slab.ps)?.from(&slab.ps).eval(&slab, &mut al::EmptyNamespace)?;
+//!     assert_eq!(val, 39.0);
+//!
+//!     Ok(())
+//! }
+//! ```
+
 use crate::error::Error;
 use crate::parser::{ExpressionI, ValueI,
                     Expression,  Value};
@@ -9,13 +42,26 @@ use std::mem;
 #[cfg(feature="unsafe-vars")]
 use std::collections::BTreeMap;
 
+/// An `ExpressionI` represents an index into `Slab.ps.exprs`.  It behaves much
+/// like a pointer or reference, but it is `safe` (unlike a raw pointer) and is
+/// not managed by the Rust borrow checker (unlike a reference).
 impl ExpressionI {
+    /// Gets an Expression reference from the ParseSlab.
+    ///
+    /// This is actually just a convenience function built on top of
+    /// `ParseSlab.get_expr`, but it enables you to perform the entire
+    /// parse/compile/eval process in one line without upsetting the Rust
+    /// borrow checker.  (If you didn't have this function, the borrow checker
+    /// would force you to split the process into at least two lines.)
     #[inline]
     pub fn from(self, ps:&ParseSlab) -> &Expression {
         ps.get_expr(self)
     }
 }
 impl ValueI {
+    /// Gets a Value reference from the ParseSlab.
+    ///
+    /// See the comments on [ExpressionI::from](struct.ExpressionI.html#method.from).
     #[inline]
     pub fn from(self, ps:&ParseSlab) -> &Value {
         ps.get_val(self)

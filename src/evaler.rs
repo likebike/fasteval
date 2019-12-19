@@ -337,7 +337,10 @@ impl Evaler for StdFunc {
             EFuncE | EFuncPi => (),
 
             EFuncLog{base:opt,expr} | EFuncRound{modulus:opt,expr} => {
-                opt.map(|xi| slab.ps.get_expr(xi)._var_names(slab,dst));
+                match opt {
+                    Some(xi) => slab.ps.get_expr(*xi)._var_names(slab,dst),
+                    None => (),
+                }
                 slab.ps.get_expr(*expr)._var_names(slab,dst);
             }
             EFuncMin{first,rest} | EFuncMax{first,rest} => {

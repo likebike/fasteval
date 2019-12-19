@@ -11,6 +11,10 @@ edition = "2018"
 
 [profile.bench]
 debug = true
+lto = true
+# opt-level = 3
+# overflow-checks = false
+# debug-assertions = false
 
 [features]
 default = ["alpha-keywords"]

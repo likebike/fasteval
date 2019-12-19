@@ -324,8 +324,10 @@
 //!   * Profile-driven application of inlining.  Don't inline too much or too little.
 //!   * Use of macros to eliminate call overhead for the most-frequently-used functions.
 //!   * Don't panic.
+//!   * Localize variables.  Use "--emit asm" as a guide.
 
 
+#![feature(test)]
 //#![warn(missing_docs)]
 
 pub mod error;
