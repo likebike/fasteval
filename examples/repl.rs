@@ -66,7 +66,7 @@ fn repl() {
             }
         };
 
-        let ans = match expr_ref.eval(&slab,&mut ns_stack) {
+        let ans = match expr_ref.eval(&slab, &mut ns_stack) {
             Ok(val) => val,
             Err(err) => {
                 eprintln!("eval error: {}", err);

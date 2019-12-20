@@ -140,17 +140,17 @@
 //     preparse_precompile_eval_1000x              201106 ns/iter     8788s ago
 //     preparse_precompile_nsbubble_eval_1000x     367644 ns/iter    10012s ago
 //     BTreeMap, --emit=asm, --features unsafe-vars:
-//     ez                                            1521 ns/iter     1125s ago
-//     native_1000x                                   327 ns/iter     1571s ago
-//     parse_compile_eval_1000x                   2521581 ns/iter     1444s ago
-//     parse_eval_1000x                           1237108 ns/iter     1077s ago
-//     parse_eval_unsafe_1000x                    1228655 ns/iter      531s ago
-//     parse_nsbubble_eval_1000x                  1526710 ns/iter     1077s ago
-//     parser::internal_tests::spaces_1M            11941 ns/iter     1125s ago
-//     preparse_eval_1000x                         494451 ns/iter     2285s ago
-//     preparse_precompile_eval_1000x              203949 ns/iter     1222s ago
-//     preparse_precompile_eval_unsafe_1000x       124603 ns/iter     2329s ago
-//     preparse_precompile_nsbubble_eval_1000x     373522 ns/iter     2187s ago
+//     ez                                            1487 ns/iter     4958s ago
+//     native_1000x                                   321 ns/iter     4794s ago
+//     parse_compile_eval_1000x                   2528829 ns/iter     3995s ago
+//     parse_eval_1000x                           1200250 ns/iter      871s ago
+//     parse_eval_unsafe_1000x                    1166532 ns/iter     2900s ago
+//     parse_nsbubble_eval_1000x                  1411843 ns/iter      500s ago
+//     parser::internal_tests::spaces_1M            11671 ns/iter     4536s ago
+//     preparse_eval_1000x                         479185 ns/iter     3359s ago
+//     preparse_precompile_eval_1000x              200055 ns/iter     1515s ago
+//     preparse_precompile_eval_unsafe_1000x       122676 ns/iter     4763s ago
+//     preparse_precompile_nsbubble_eval_1000x     368102 ns/iter     3134s ago
 //
 //     "((((87))) - 73) + (97 + (((15 / 55 * ((31)) + 35))) + (15 - (9)) - (39 / 26) / 20 / 91 + 27 / (33 * 26 + 28 - (7) / 10 + 66 * 6) + 60 / 35 - ((29) - (69) / 44 / (92)) / (89) + 2 + 87 / 47 * ((2)) * 83 / 98 * 42 / (((67)) * ((97))) / (34 / 89 + 77) - 29 + 70 * (20)) + ((((((92))) + 23 * (98) / (95) + (((99) * (41))) + (5 + 41) + 10) - (36) / (6 + 80 * 52 + (90))))"
 //     BTreeMap, --emit=asm:
@@ -453,8 +453,8 @@ macro_rules! Namespace {
 //static EXPR : &'static str = "2 ^ 3 ^ 4";
 //static EXPR : &'static str = "x * 2";
 //static EXPR : &'static str = "sin(x)";
-//static EXPR : &'static str = "(-z + (z^2 - 4*x*y)^0.5) / (2*x)";
-static EXPR : &'static str = "((((87))) - 73) + (97 + (((15 / 55 * ((31)) + 35))) + (15 - (9)) - (39 / 26) / 20 / 91 + 27 / (33 * 26 + 28 - (7) / 10 + 66 * 6) + 60 / 35 - ((29) - (69) / 44 / (92)) / (89) + 2 + 87 / 47 * ((2)) * 83 / 98 * 42 / (((67)) * ((97))) / (34 / 89 + 77) - 29 + 70 * (20)) + ((((((92))) + 23 * (98) / (95) + (((99) * (41))) + (5 + 41) + 10) - (36) / (6 + 80 * 52 + (90))))";
+static EXPR : &'static str = "(-z + (z^2 - 4*x*y)^0.5) / (2*x)";
+//static EXPR : &'static str = "((((87))) - 73) + (97 + (((15 / 55 * ((31)) + 35))) + (15 - (9)) - (39 / 26) / 20 / 91 + 27 / (33 * 26 + 28 - (7) / 10 + 66 * 6) + 60 / 35 - ((29) - (69) / 44 / (92)) / (89) + 2 + 87 / 47 * ((2)) * 83 / 98 * 42 / (((67)) * ((97))) / (34 / 89 + 77) - 29 + 70 * (20)) + ((((((92))) + 23 * (98) / (95) + (((99) * (41))) + (5 + 41) + 10) - (36) / (6 + 80 * 52 + (90))))";
 
 #[bench]
 fn native_1000x(bencher:&mut Bencher) {
@@ -474,8 +474,8 @@ fn native_1000x(bencher:&mut Bencher) {
             //black_box(2.0f64.powf(3.0).powf(4.0));
             //black_box(x() * 2.0);
             //black_box(x().sin());
-            //black_box( (-b + (b.powf(2.0) - 4.0*a*c).powf(0.5)) / (2.0*a) );
-            black_box( ((((87.))) - 73.) + (97. + (((15. / 55. * ((31.)) + 35.))) + (15. - (9.)) - (39. / 26.) / 20. / 91. + 27. / (33. * 26. + 28. - (7.) / 10. + 66. * 6.) + 60. / 35. - ((29.) - (69.) / 44. / (92.)) / (89.) + 2. + 87. / 47. * ((2.)) * 83. / 98. * 42. / (((67.)) * ((97.))) / (34. / 89. + 77.) - 29. + 70. * (20.)) + ((((((92.))) + 23. * (98.) / (95.) + (((99.) * (41.))) + (5. + 41.) + 10.) - (36.) / (6. + 80. * 52. + (90.)))) );
+            black_box( (-b + (b.powf(2.0) - 4.0*a*c).powf(0.5)) / (2.0*a) );
+            //black_box( ((((87.))) - 73.) + (97. + (((15. / 55. * ((31.)) + 35.))) + (15. - (9.)) - (39. / 26.) / 20. / 91. + 27. / (33. * 26. + 28. - (7.) / 10. + 66. * 6.) + 60. / 35. - ((29.) - (69.) / 44. / (92.)) / (89.) + 2. + 87. / 47. * ((2.)) * 83. / 98. * 42. / (((67.)) * ((97.))) / (34. / 89. + 77.) - 29. + 70. * (20.)) + ((((((92.))) + 23. * (98.) / (95.) + (((99.) * (41.))) + (5. + 41.) + 10.) - (36.) / (6. + 80. * 52. + (90.)))) );
         }
     });
 }
@@ -678,6 +678,40 @@ fn preparse_precompile_eval_unsafe_1000x(b:&mut Bencher) {
         })().unwrap();
     });
 }
+
+// #[bench]
+// #[cfg(feature="unsafe-vars")]
+// #[allow(non_snake_case)]
+// fn preparse_precompile_eval_unsafe_100B(_:&mut Bencher) {
+//     let _ = (|| -> Result<(),al::Error> {
+//         let mut slab = Slab::new();
+//         let x = 1.0;
+//         let y = 2.0;
+//         let z = 3.0;
+//         let foo = 0.0;
+//         let bar = 0.0;
+//         unsafe {
+//             slab.ps.add_unsafe_var("x".to_string(), &x);
+//             slab.ps.add_unsafe_var("y".to_string(), &y);
+//             slab.ps.add_unsafe_var("z".to_string(), &z);
+//             slab.ps.add_unsafe_var("foo".to_string(), &foo);
+//             slab.ps.add_unsafe_var("bar".to_string(), &bar);
+//         }
+//
+//         let mut ns = EmptyNamespace;
+//         let instr = parse(EXPR, &mut slab.ps).unwrap().from(&slab.ps).compile(&slab.ps, &mut slab.cs);
+//
+//         let start = std::time::Instant::now();
+//         //for _ in 0..100 {
+//             for _ in 0..1_000_000_000 {
+//                 black_box(eval_compiled_ref!(&instr, &slab, &mut ns));
+//             }
+//         //}
+//         eprintln!("bench time: {}", start.elapsed().as_secs_f64());
+//
+//         Ok(())
+//     })();
+// }
 
 // #[bench]
 // #[allow(non_snake_case)]

@@ -588,9 +588,9 @@ impl Compiler for Value {
 impl Compiler for UnaryOp {
     fn compile(&self, pslab:&ParseSlab, cslab:&mut CompileSlab) -> Instruction {
         match self {
-            EPos(i) => pslab.get_val(*i).compile(pslab,cslab),
+            EPos(i) => get_val!(pslab,i).compile(pslab,cslab),
             ENeg(i) => {
-                let instr = pslab.get_val(*i).compile(pslab,cslab);
+                let instr = get_val!(pslab,i).compile(pslab,cslab);
                 if let IConst(c) = instr {
                     IConst(-c)
                 } else {
@@ -598,14 +598,14 @@ impl Compiler for UnaryOp {
                 }
             }
             ENot(i) => {
-                let instr = pslab.get_val(*i).compile(pslab,cslab);
+                let instr = get_val!(pslab,i).compile(pslab,cslab);
                 if let IConst(c) = instr {
                     IConst(bool_to_f64!(f64_eq!(c,0.0)))
                 } else {
                     not_wrap(instr,cslab)
                 }
             }
-            EParentheses(i) => pslab.get_expr(*i).compile(pslab,cslab),
+            EParentheses(i) => get_expr!(pslab,i).compile(pslab,cslab),
         }
     }
 }
@@ -619,14 +619,14 @@ impl Compiler for StdFunc {
             EFunc{name, args:xis} => {
                 let mut args = Vec::<InstructionI>::with_capacity(xis.len());
                 for xi in xis {
-                    let instr = pslab.get_expr(*xi).compile(pslab,cslab);
+                    let instr = get_expr!(pslab,xi).compile(pslab,cslab);
                     args.push(cslab.push_instr(instr));
                 }
                 IFunc{name:name.clone(), args}
             }
 
             EFuncInt(i) => {
-                let instr = pslab.get_expr(*i).compile(pslab,cslab);
+                let instr = get_expr!(pslab,i).compile(pslab,cslab);
                 if let IConst(c) = instr {
                     IConst(c.trunc())
                 } else {
@@ -634,7 +634,7 @@ impl Compiler for StdFunc {
                 }
             }
             EFuncCeil(i) => {
-                let instr = pslab.get_expr(*i).compile(pslab,cslab);
+                let instr = get_expr!(pslab,i).compile(pslab,cslab);
                 if let IConst(c) = instr {
                     IConst(c.ceil())
                 } else {
@@ -642,7 +642,7 @@ impl Compiler for StdFunc {
                 }
             }
             EFuncFloor(i) => {
-                let instr = pslab.get_expr(*i).compile(pslab,cslab);
+                let instr = get_expr!(pslab,i).compile(pslab,cslab);
                 if let IConst(c) = instr {
                     IConst(c.floor())
                 } else {
@@ -650,7 +650,7 @@ impl Compiler for StdFunc {
                 }
             }
             EFuncAbs(i) => {
-                let instr = pslab.get_expr(*i).compile(pslab,cslab);
+                let instr = get_expr!(pslab,i).compile(pslab,cslab);
                 if let IConst(c) = instr {
                     IConst(c.abs())
                 } else {
@@ -658,7 +658,7 @@ impl Compiler for StdFunc {
                 }
             }
             EFuncSign(i) => {
-                let instr = pslab.get_expr(*i).compile(pslab,cslab);
+                let instr = get_expr!(pslab,i).compile(pslab,cslab);
                 if let IConst(c) = instr {
                     IConst(c.signum())
                 } else {
@@ -667,10 +667,10 @@ impl Compiler for StdFunc {
             }
             EFuncLog{base:baseopt, expr:i} => {
                 let base = match baseopt {
-                    Some(bi) => pslab.get_expr(*bi).compile(pslab,cslab),
+                    Some(bi) => get_expr!(pslab,bi).compile(pslab,cslab),
                     None => IConst(10.0),
                 };
-                let instr = pslab.get_expr(*i).compile(pslab,cslab);
+                let instr = get_expr!(pslab,i).compile(pslab,cslab);
                 if let IConst(b) = base {
                     if let IConst(n) = instr {
                         return IConst(log(b,n));
@@ -680,10 +680,10 @@ impl Compiler for StdFunc {
             }
             EFuncRound{modulus:modopt, expr:i} => {
                 let modulus = match modopt {
-                    Some(mi) => pslab.get_expr(*mi).compile(pslab,cslab),
+                    Some(mi) => get_expr!(pslab,mi).compile(pslab,cslab),
                     None => IConst(1.0),
                 };
-                let instr = pslab.get_expr(*i).compile(pslab,cslab);
+                let instr = get_expr!(pslab,i).compile(pslab,cslab);
                 if let IConst(m) = modulus {
                     if let IConst(n) = instr {
                         return IConst( (n/m).round() * m );
@@ -692,9 +692,9 @@ impl Compiler for StdFunc {
                 IFuncRound{modulus:cslab.push_instr(modulus), of:cslab.push_instr(instr)}
             }
             EFuncMin{first:fi, rest:is} => {
-                let first = pslab.get_expr(*fi).compile(pslab,cslab);
+                let first = get_expr!(pslab,fi).compile(pslab,cslab);
                 let mut rest = Vec::<Instruction>::with_capacity(is.len());
-                for i in is { rest.push(pslab.get_expr(*i).compile(pslab,cslab)); }
+                for i in is { rest.push(get_expr!(pslab,i).compile(pslab,cslab)); }
                 let mut out = IConst(0.0); let mut out_set = false;
                 let mut const_min = 0.0; let mut const_min_set = false;
                 if let IConst(f) = first {
@@ -733,9 +733,9 @@ impl Compiler for StdFunc {
                 out
             }
             EFuncMax{first:fi, rest:is} => {
-                let first = pslab.get_expr(*fi).compile(pslab,cslab);
+                let first = get_expr!(pslab,fi).compile(pslab,cslab);
                 let mut rest = Vec::<Instruction>::with_capacity(is.len());
-                for i in is { rest.push(pslab.get_expr(*i).compile(pslab,cslab)); }
+                for i in is { rest.push(get_expr!(pslab,i).compile(pslab,cslab)); }
                 let mut out = IConst(0.0); let mut out_set = false;
                 let mut const_max = 0.0; let mut const_max_set = false;
                 if let IConst(f) = first {
@@ -778,7 +778,7 @@ impl Compiler for StdFunc {
             EFuncPi => IConst(std::f64::consts::PI),
 
             EFuncSin(i) => {
-                let instr = pslab.get_expr(*i).compile(pslab,cslab);
+                let instr = get_expr!(pslab,i).compile(pslab,cslab);
                 if let IConst(c) = instr {
                     IConst(c.sin())
                 } else {
@@ -786,7 +786,7 @@ impl Compiler for StdFunc {
                 }
             }
             EFuncCos(i) => {
-                let instr = pslab.get_expr(*i).compile(pslab,cslab);
+                let instr = get_expr!(pslab,i).compile(pslab,cslab);
                 if let IConst(c) = instr {
                     IConst(c.cos())
                 } else {
@@ -794,7 +794,7 @@ impl Compiler for StdFunc {
                 }
             }
             EFuncTan(i) => {
-                let instr = pslab.get_expr(*i).compile(pslab,cslab);
+                let instr = get_expr!(pslab,i).compile(pslab,cslab);
                 if let IConst(c) = instr {
                     IConst(c.tan())
                 } else {
@@ -802,7 +802,7 @@ impl Compiler for StdFunc {
                 }
             }
             EFuncASin(i) => {
-                let instr = pslab.get_expr(*i).compile(pslab,cslab);
+                let instr = get_expr!(pslab,i).compile(pslab,cslab);
                 if let IConst(c) = instr {
                     IConst(c.asin())
                 } else {
@@ -810,7 +810,7 @@ impl Compiler for StdFunc {
                 }
             }
             EFuncACos(i) => {
-                let instr = pslab.get_expr(*i).compile(pslab,cslab);
+                let instr = get_expr!(pslab,i).compile(pslab,cslab);
                 if let IConst(c) = instr {
                     IConst(c.acos())
                 } else {
@@ -818,7 +818,7 @@ impl Compiler for StdFunc {
                 }
             }
             EFuncATan(i) => {
-                let instr = pslab.get_expr(*i).compile(pslab,cslab);
+                let instr = get_expr!(pslab,i).compile(pslab,cslab);
                 if let IConst(c) = instr {
                     IConst(c.atan())
                 } else {
@@ -826,7 +826,7 @@ impl Compiler for StdFunc {
                 }
             }
             EFuncSinH(i) => {
-                let instr = pslab.get_expr(*i).compile(pslab,cslab);
+                let instr = get_expr!(pslab,i).compile(pslab,cslab);
                 if let IConst(c) = instr {
                     IConst(c.sinh())
                 } else {
@@ -834,7 +834,7 @@ impl Compiler for StdFunc {
                 }
             }
             EFuncCosH(i) => {
-                let instr = pslab.get_expr(*i).compile(pslab,cslab);
+                let instr = get_expr!(pslab,i).compile(pslab,cslab);
                 if let IConst(c) = instr {
                     IConst(c.cosh())
                 } else {
@@ -842,7 +842,7 @@ impl Compiler for StdFunc {
                 }
             }
             EFuncTanH(i) => {
-                let instr = pslab.get_expr(*i).compile(pslab,cslab);
+                let instr = get_expr!(pslab,i).compile(pslab,cslab);
                 if let IConst(c) = instr {
                     IConst(c.tanh())
                 } else {
@@ -850,7 +850,7 @@ impl Compiler for StdFunc {
                 }
             }
             EFuncASinH(i) => {
-                let instr = pslab.get_expr(*i).compile(pslab,cslab);
+                let instr = get_expr!(pslab,i).compile(pslab,cslab);
                 if let IConst(c) = instr {
                     IConst(c.asinh())
                 } else {
@@ -858,7 +858,7 @@ impl Compiler for StdFunc {
                 }
             }
             EFuncACosH(i) => {
-                let instr = pslab.get_expr(*i).compile(pslab,cslab);
+                let instr = get_expr!(pslab,i).compile(pslab,cslab);
                 if let IConst(c) = instr {
                     IConst(c.acosh())
                 } else {
@@ -866,7 +866,7 @@ impl Compiler for StdFunc {
                 }
             }
             EFuncATanH(i) => {
-                let instr = pslab.get_expr(*i).compile(pslab,cslab);
+                let instr = get_expr!(pslab,i).compile(pslab,cslab);
                 if let IConst(c) = instr {
                     IConst(c.atanh())
                 } else {

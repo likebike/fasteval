@@ -37,7 +37,7 @@ fn aaa_aaa_sizes() {
 fn aaa_aab_single() {
     let mut slab = Slab::new();
     let mut ns = EmptyNamespace;
-    assert_eq!(parse("123.456", &mut slab.ps ).unwrap().from(&slab.ps).eval(&slab, &mut ns).unwrap(), 123.456f64);
+    assert_eq!(parse("123.456", &mut slab.ps).unwrap().from(&slab.ps).eval(&slab, &mut ns).unwrap(), 123.456f64);
 }
 
 #[test]
@@ -211,7 +211,7 @@ struct TestEvaler;
 impl Evaler for TestEvaler {
     fn _var_names(&self, _slab:&Slab, _dst:&mut BTreeSet<String>) {}
     fn eval(&self, _slab:&Slab, ns:&mut impl EvalNamespace) -> Result<f64,Error> {
-        match ns.get_cached("x",vec![]) {
+        match ns.get_cached("x", vec![], &mut String::new()) {
             Some(v) => Ok(v),
             None => Ok(1.23),
         }

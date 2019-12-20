@@ -42,6 +42,35 @@ use std::mem;
 #[cfg(feature="unsafe-vars")]
 use std::collections::BTreeMap;
 
+
+// Eliminate function call overhead:
+macro_rules! get_expr {
+    ($pslab:expr, $i_ref:ident) => {
+        match $pslab.exprs.get($i_ref.0) {
+            Some(expr_ref) => expr_ref,
+            None => &$pslab.def_expr,
+        }
+    };
+}
+macro_rules! get_val {
+    ($pslab:expr, $i_ref:ident) => {
+        match $pslab.vals.get($i_ref.0) {
+            Some(val_ref) => val_ref,
+            None => &$pslab.def_val,
+        }
+    };
+}
+// The CompileSlab::get_instr method is in the hot path of compiled evaluation:
+macro_rules! get_instr {
+    ($cslab:expr, $i_ref:ident) => {
+        match $cslab.instrs.get($i_ref.0) {
+            Some(instr_ref) => instr_ref,
+            None => &$cslab.def_instr,
+        }
+    };
+}
+
+
 /// An `ExpressionI` represents an index into `Slab.ps.exprs`.  It behaves much
 /// like a pointer or reference, but it is `safe` (unlike a raw pointer) and is
 /// not managed by the Rust borrow checker (unlike a reference).
@@ -55,7 +84,7 @@ impl ExpressionI {
     /// would force you to split the process into at least two lines.)
     #[inline]
     pub fn from(self, ps:&ParseSlab) -> &Expression {
-        ps.get_expr(self)
+        get_expr!(ps,self)
     }
 }
 impl ValueI {
@@ -64,7 +93,7 @@ impl ValueI {
     /// See the comments on [ExpressionI::from](struct.ExpressionI.html#method.from).
     #[inline]
     pub fn from(self, ps:&ParseSlab) -> &Value {
-        ps.get_val(self)
+        get_val!(ps,self)
     }
 }
 
@@ -73,18 +102,19 @@ pub struct Slab {
     pub cs:CompileSlab,
 }
 pub struct ParseSlab {
-               exprs      :Vec<Expression>,
-               vals       :Vec<Value>,
-               def_expr   :Expression,
-               def_val    :Value,
-    pub        char_buf   :String,
+    pub(crate) exprs      :Vec<Expression>,
+    pub(crate) vals       :Vec<Value>,
+    pub(crate) def_expr   :Expression,
+    pub(crate) def_val    :Value,
+    pub(crate) char_buf   :String,
     #[cfg(feature="unsafe-vars")]
     pub(crate) unsafe_vars:BTreeMap<String, *const f64>,
 }
 pub struct CompileSlab {
-    instrs   :Vec<Instruction>,
-    def_instr:Instruction,
+    pub(crate) instrs   :Vec<Instruction>,
+    pub(crate) def_instr:Instruction,
 }
+
 impl ParseSlab {
     #[inline]
     pub fn get_expr(&self, expr_i:ExpressionI) -> &Expression {
@@ -129,6 +159,7 @@ impl ParseSlab {
         self.unsafe_vars.insert(name, ptr as *const f64);
     }
 }
+
 impl CompileSlab {
     #[inline]
     pub fn get_instr(&self, i:InstructionI) -> &Instruction {
@@ -237,6 +268,6 @@ impl fmt::Debug for CompileSlab {
 }
 
 impl Default for Slab {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self { Self::with_capacity(64) }
 }
 

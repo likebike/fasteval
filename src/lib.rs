@@ -331,11 +331,12 @@
 //#![warn(missing_docs)]
 
 pub mod error;
+#[macro_use]
+pub mod slab;
 pub mod parser;
 #[macro_use]
 pub mod compiler;
 pub mod evaler;
-pub mod slab;
 pub mod evalns;
 pub mod ez;
 

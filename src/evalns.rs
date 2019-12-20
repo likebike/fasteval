@@ -5,8 +5,8 @@ use std::collections::BTreeMap;
 //---- Types:
 
 pub trait EvalNamespace {
-    fn get_cached(&mut self, name:&str, args:Vec<f64>) -> Option<f64>;
-    fn set_cached(&mut self, name:String, val:f64);
+    fn get_cached(   &mut self, name:&str, args:Vec<f64>, keybuf:&mut String) -> Option<f64>;
+    fn set_cached(   &mut self, name:String, val:f64);
     fn create_cached(&mut self, name:String, val:f64) -> Result<(),Error>;
     fn clear_cached(&mut self);
 }
@@ -40,6 +40,7 @@ fn key_from_nameargs<'a,'b:'a>(keybuf:&'a mut String, name:&'b str, args:&[f64])
     if args.is_empty() {
         name
     } else {
+        keybuf.clear();
         keybuf.reserve(name.len() + 20*args.len());
         keybuf.push_str(name);
         for f in args {
@@ -51,9 +52,8 @@ fn key_from_nameargs<'a,'b:'a>(keybuf:&'a mut String, name:&'b str, args:&[f64])
 }
 
 impl EvalNamespace for BTreeMap<String,f64> {
-    fn get_cached(&mut self, name:&str, args:Vec<f64>) -> Option<f64> {
-        let mut keybuf = String::new();
-        let key = key_from_nameargs(&mut keybuf, name, &args);
+    fn get_cached(&mut self, name:&str, args:Vec<f64>, keybuf:&mut String) -> Option<f64> {
+        let key = key_from_nameargs(keybuf, name, &args);
         self.get(key).copied()
     }
     // Think of the 'self' BTreeMap as an alternative to a callback.  When you set/create/clear for other Namespace types,
@@ -64,9 +64,8 @@ impl EvalNamespace for BTreeMap<String,f64> {
 }
 
 impl EvalNamespace for Vec<BTreeMap<String,f64>> {
-    fn get_cached(&mut self, name:&str, args:Vec<f64>) -> Option<f64> {
-        let mut keybuf = String::new();
-        let key = key_from_nameargs(&mut keybuf, name, &args);
+    fn get_cached(&mut self, name:&str, args:Vec<f64>, keybuf:&mut String) -> Option<f64> {
+        let key = key_from_nameargs(keybuf, name, &args);
 
         for map in self.iter().rev() {
             if let Some(&val) = map.get(key) { return Some(val); }
@@ -81,7 +80,7 @@ impl EvalNamespace for Vec<BTreeMap<String,f64>> {
 }
 
 impl EvalNamespace for EmptyNamespace {
-    fn get_cached(&mut self, _name:&str, _args:Vec<f64>) -> Option<f64> { None }
+    fn get_cached(&mut self, _name:&str, _args:Vec<f64>, _keybuf:&mut String) -> Option<f64> { None }
     fn set_cached(&mut self, _name:String, _val:f64) { panic!("cannot set cached value in EmptyNamespace"); }
     fn create_cached(&mut self, _name:String, _val:f64) -> Result<(),Error> { panic!("cannot create cached value in EmptyNamespace"); }
     fn clear_cached(&mut self) {}
@@ -89,9 +88,8 @@ impl EvalNamespace for EmptyNamespace {
 
 
 impl EvalNamespace for FlatNamespace<'_> {
-    fn get_cached(&mut self, name:&str, args:Vec<f64>) -> Option<f64> {
-        let mut keybuf = String::new();
-        let key = key_from_nameargs(&mut keybuf, name, &args);
+    fn get_cached(&mut self, name:&str, args:Vec<f64>, keybuf:&mut String) -> Option<f64> {
+        let key = key_from_nameargs(keybuf, name, &args);
 
         if let Some(&val) = self.map.get(key) { return Some(val); }
 
@@ -127,9 +125,8 @@ impl<'a> FlatNamespace<'a> {
 }
 
 impl EvalNamespace for ScopedNamespace<'_> {
-    fn get_cached(&mut self, name:&str, args:Vec<f64>) -> Option<f64> {
-        let mut keybuf = String::new();
-        let key = key_from_nameargs(&mut keybuf, name, &args);
+    fn get_cached(&mut self, name:&str, args:Vec<f64>, keybuf:&mut String) -> Option<f64> {
+        let key = key_from_nameargs(keybuf, name, &args);
 
         for map in self.maps.iter().rev() {
             if let Some(&val) = map.get(key) { return Some(val); }
@@ -207,8 +204,8 @@ impl Drop for Bubble<'_,'_> {
 }
 impl EvalNamespace for Bubble<'_,'_> {
     #[inline]
-    fn get_cached(&mut self, name:&str, args:Vec<f64>) -> Option<f64> {
-        self.ns.get_cached(name,args)
+    fn get_cached(&mut self, name:&str, args:Vec<f64>, keybuf:&mut String) -> Option<f64> {
+        self.ns.get_cached(name,args,keybuf)
     }
     #[inline]
     fn set_cached(&mut self, name:String, val:f64) {
