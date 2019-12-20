@@ -347,6 +347,8 @@ impl Evaler for StdFunc {
     }
     fn eval(&self, slab:&Slab, ns:&mut impl EvalNamespace) -> Result<f64,Error> {
         match self {
+            // These match arms are ordered in a way that I feel should deliver good performance.
+
             #[cfg(feature="unsafe-vars")]
             EUnsafeVar{ptr, ..} => unsafe { Ok(**ptr) },
 
@@ -359,11 +361,6 @@ impl Evaler for StdFunc {
                 eval_var!(ns, name, args, unsafe{ &mut *(&slab.ps.char_buf as *const _ as *mut _) })
             }
 
-            EFuncInt(expr_i) => Ok(get_expr!(slab.ps,expr_i).eval(slab,ns)?.trunc()),
-            EFuncCeil(expr_i) => Ok(get_expr!(slab.ps,expr_i).eval(slab,ns)?.ceil()),
-            EFuncFloor(expr_i) => Ok(get_expr!(slab.ps,expr_i).eval(slab,ns)?.floor()),
-            EFuncAbs(expr_i) => Ok(get_expr!(slab.ps,expr_i).eval(slab,ns)?.abs()),
-            EFuncSign(expr_i) => Ok(get_expr!(slab.ps,expr_i).eval(slab,ns)?.signum()),
             EFuncLog{base:base_opt, expr:expr_i} => {
                 let base = match base_opt {
                     Some(b_expr_i) => get_expr!(slab.ps,b_expr_i).eval(slab,ns)?,
@@ -372,6 +369,20 @@ impl Evaler for StdFunc {
                 let n = get_expr!(slab.ps,expr_i).eval(slab,ns)?;
                 Ok(log(base,n))
             }
+
+            EFuncSin(expr_i) => Ok(get_expr!(slab.ps,expr_i).eval(slab,ns)?.sin()),
+            EFuncCos(expr_i) => Ok(get_expr!(slab.ps,expr_i).eval(slab,ns)?.cos()),
+            EFuncTan(expr_i) => Ok(get_expr!(slab.ps,expr_i).eval(slab,ns)?.tan()),
+            EFuncASin(expr_i) => Ok(get_expr!(slab.ps,expr_i).eval(slab,ns)?.asin()),
+            EFuncACos(expr_i) => Ok(get_expr!(slab.ps,expr_i).eval(slab,ns)?.acos()),
+            EFuncATan(expr_i) => Ok(get_expr!(slab.ps,expr_i).eval(slab,ns)?.atan()),
+            EFuncSinH(expr_i) => Ok(get_expr!(slab.ps,expr_i).eval(slab,ns)?.sinh()),
+            EFuncCosH(expr_i) => Ok(get_expr!(slab.ps,expr_i).eval(slab,ns)?.cosh()),
+            EFuncTanH(expr_i) => Ok(get_expr!(slab.ps,expr_i).eval(slab,ns)?.tanh()),
+            EFuncASinH(expr_i) => Ok(get_expr!(slab.ps,expr_i).eval(slab,ns)?.asinh()),
+            EFuncACosH(expr_i) => Ok(get_expr!(slab.ps,expr_i).eval(slab,ns)?.acosh()),
+            EFuncATanH(expr_i) => Ok(get_expr!(slab.ps,expr_i).eval(slab,ns)?.atanh()),
+
             EFuncRound{modulus:modulus_opt, expr:expr_i} => {
                 let modulus = match modulus_opt {
                     Some(m_expr_i) => get_expr!(slab.ps,m_expr_i).eval(slab,ns)?,
@@ -379,6 +390,12 @@ impl Evaler for StdFunc {
                 };
                 Ok((get_expr!(slab.ps,expr_i).eval(slab,ns)?/modulus).round() * modulus)
             }
+
+            EFuncAbs(expr_i) => Ok(get_expr!(slab.ps,expr_i).eval(slab,ns)?.abs()),
+            EFuncSign(expr_i) => Ok(get_expr!(slab.ps,expr_i).eval(slab,ns)?.signum()),
+            EFuncInt(expr_i) => Ok(get_expr!(slab.ps,expr_i).eval(slab,ns)?.trunc()),
+            EFuncCeil(expr_i) => Ok(get_expr!(slab.ps,expr_i).eval(slab,ns)?.ceil()),
+            EFuncFloor(expr_i) => Ok(get_expr!(slab.ps,expr_i).eval(slab,ns)?.floor()),
             EFuncMin{first:first_i, rest} => {
                 let mut min = get_expr!(slab.ps,first_i).eval(slab,ns)?;
                 for x_i in rest.iter() {
@@ -396,19 +413,6 @@ impl Evaler for StdFunc {
 
             EFuncE => Ok(consts::E),
             EFuncPi => Ok(consts::PI),
-
-            EFuncSin(expr_i) => Ok(get_expr!(slab.ps,expr_i).eval(slab,ns)?.sin()),
-            EFuncCos(expr_i) => Ok(get_expr!(slab.ps,expr_i).eval(slab,ns)?.cos()),
-            EFuncTan(expr_i) => Ok(get_expr!(slab.ps,expr_i).eval(slab,ns)?.tan()),
-            EFuncASin(expr_i) => Ok(get_expr!(slab.ps,expr_i).eval(slab,ns)?.asin()),
-            EFuncACos(expr_i) => Ok(get_expr!(slab.ps,expr_i).eval(slab,ns)?.acos()),
-            EFuncATan(expr_i) => Ok(get_expr!(slab.ps,expr_i).eval(slab,ns)?.atan()),
-            EFuncSinH(expr_i) => Ok(get_expr!(slab.ps,expr_i).eval(slab,ns)?.sinh()),
-            EFuncCosH(expr_i) => Ok(get_expr!(slab.ps,expr_i).eval(slab,ns)?.cosh()),
-            EFuncTanH(expr_i) => Ok(get_expr!(slab.ps,expr_i).eval(slab,ns)?.tanh()),
-            EFuncASinH(expr_i) => Ok(get_expr!(slab.ps,expr_i).eval(slab,ns)?.asinh()),
-            EFuncACosH(expr_i) => Ok(get_expr!(slab.ps,expr_i).eval(slab,ns)?.acosh()),
-            EFuncATanH(expr_i) => Ok(get_expr!(slab.ps,expr_i).eval(slab,ns)?.atanh()),
         }
     }
 }

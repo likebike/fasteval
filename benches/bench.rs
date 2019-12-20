@@ -140,7 +140,18 @@
 //     preparse_precompile_eval_1000x              201106 ns/iter     8788s ago
 //     preparse_precompile_nsbubble_eval_1000x     367644 ns/iter    10012s ago
 //     BTreeMap, --emit=asm, --features unsafe-vars:
-//     ez                                            1487 ns/iter     4958s ago
+//     ez                                            1476 ns/iter     7876s ago with unsafe to avoid allocation
+//     native_1000x                                   318 ns/iter     8786s ago
+//     parse_compile_eval_1000x                   2436218 ns/iter     4501s ago
+//     parse_eval_1000x                           1222108 ns/iter     4652s ago
+//     parse_eval_unsafe_1000x                    1187956 ns/iter     8751s ago
+//     parse_nsbubble_eval_1000x                  1416827 ns/iter     8946s ago
+//     parser::internal_tests::spaces_1M            11557 ns/iter     4236s ago
+//     preparse_eval_1000x                         467931 ns/iter     2673s ago
+//     preparse_precompile_eval_1000x              199312 ns/iter     1985s ago
+//     preparse_precompile_eval_unsafe_1000x       121572 ns/iter     2687s ago
+//     preparse_precompile_nsbubble_eval_1000x     353696 ns/iter     8603s ago
+//     ez                                            1487 ns/iter     4958s ago with String allocation
 //     native_1000x                                   321 ns/iter     4794s ago
 //     parse_compile_eval_1000x                   2528829 ns/iter     3995s ago
 //     parse_eval_1000x                           1200250 ns/iter      871s ago
@@ -700,6 +711,7 @@ fn preparse_precompile_eval_unsafe_1000x(b:&mut Bencher) {
 //
 //         let mut ns = EmptyNamespace;
 //         let instr = parse(EXPR, &mut slab.ps).unwrap().from(&slab.ps).compile(&slab.ps, &mut slab.cs);
+//         eprintln!("slab: {:?}  instr: {:?}", slab, instr);
 //
 //         let start = std::time::Instant::now();
 //         //for _ in 0..100 {
