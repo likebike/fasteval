@@ -690,40 +690,40 @@ fn preparse_precompile_eval_unsafe_1000x(b:&mut Bencher) {
     });
 }
 
-// #[bench]
-// #[cfg(feature="unsafe-vars")]
-// #[allow(non_snake_case)]
-// fn preparse_precompile_eval_unsafe_100B(_:&mut Bencher) {
-//     let _ = (|| -> Result<(),al::Error> {
-//         let mut slab = Slab::new();
-//         let x = 1.0;
-//         let y = 2.0;
-//         let z = 3.0;
-//         let foo = 0.0;
-//         let bar = 0.0;
-//         unsafe {
-//             slab.ps.add_unsafe_var("x".to_string(), &x);
-//             slab.ps.add_unsafe_var("y".to_string(), &y);
-//             slab.ps.add_unsafe_var("z".to_string(), &z);
-//             slab.ps.add_unsafe_var("foo".to_string(), &foo);
-//             slab.ps.add_unsafe_var("bar".to_string(), &bar);
-//         }
-//
-//         let mut ns = EmptyNamespace;
-//         let instr = parse(EXPR, &mut slab.ps).unwrap().from(&slab.ps).compile(&slab.ps, &mut slab.cs);
-//         eprintln!("slab: {:?}  instr: {:?}", slab, instr);
-//
-//         let start = std::time::Instant::now();
-//         //for _ in 0..100 {
-//             for _ in 0..1_000_000_000 {
-//                 black_box(eval_compiled_ref!(&instr, &slab, &mut ns));
-//             }
-//         //}
-//         eprintln!("bench time: {}", start.elapsed().as_secs_f64());
-//
-//         Ok(())
-//     })();
-// }
+#[bench]
+#[cfg(feature="unsafe-vars")]
+#[allow(non_snake_case)]
+fn preparse_precompile_eval_unsafe_100B(_:&mut Bencher) {
+    let _ = (|| -> Result<(),al::Error> {
+        let mut slab = Slab::new();
+        let x = 1.0;
+        let y = 2.0;
+        let z = 3.0;
+        let foo = 0.0;
+        let bar = 0.0;
+        unsafe {
+            slab.ps.add_unsafe_var("x".to_string(), &x);
+            slab.ps.add_unsafe_var("y".to_string(), &y);
+            slab.ps.add_unsafe_var("z".to_string(), &z);
+            slab.ps.add_unsafe_var("foo".to_string(), &foo);
+            slab.ps.add_unsafe_var("bar".to_string(), &bar);
+        }
+
+        let mut ns = EmptyNamespace;
+        let instr = parse(EXPR, &mut slab.ps).unwrap().from(&slab.ps).compile(&slab.ps, &mut slab.cs);
+        eprintln!("slab: {:?}  instr: {:?}", slab, instr);
+
+        let start = std::time::Instant::now();
+        //for _ in 0..100 {
+            for _ in 0..1_000_000_000 {
+                black_box(eval_compiled_ref!(&instr, &slab, &mut ns));
+            }
+        //}
+        eprintln!("bench time: {}", start.elapsed().as_secs_f64());
+
+        Ok(())
+    })();
+}
 
 // #[bench]
 // #[allow(non_snake_case)]

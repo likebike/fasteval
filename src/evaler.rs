@@ -13,7 +13,7 @@ use crate::parser::{Expression,
                     remove_no_panic};
 #[cfg(feature="unsafe-vars")]
 use crate::parser::StdFunc::EUnsafeVar;
-use crate::compiler::{log, Instruction::{self, IConst, INeg, INot, IInv, IAdd, IMul, IMod, IExp, ILT, ILTE, IEQ, INE, IGTE, IGT, IOR, IAND, IVar, IFunc, IFuncInt, IFuncCeil, IFuncFloor, IFuncAbs, IFuncSign, IFuncLog, IFuncRound, IFuncMin, IFuncMax, IFuncSin, IFuncCos, IFuncTan, IFuncASin, IFuncACos, IFuncATan, IFuncSinH, IFuncCosH, IFuncTanH, IFuncASinH, IFuncACosH, IFuncATanH, IPrintFunc}};
+use crate::compiler::{log, IC, Instruction::{self, IConst, INeg, INot, IInv, IAdd, IMul, IMod, IExp, ILT, ILTE, IEQ, INE, IGTE, IGT, IOR, IAND, IVar, IFunc, IFuncInt, IFuncCeil, IFuncFloor, IFuncAbs, IFuncSign, IFuncLog, IFuncRound, IFuncMin, IFuncMax, IFuncSin, IFuncCos, IFuncTan, IFuncASin, IFuncACos, IFuncATan, IFuncSinH, IFuncCosH, IFuncTanH, IFuncASinH, IFuncACosH, IFuncATanH, IPrintFunc}};
 #[cfg(feature="unsafe-vars")]
 use crate::compiler::Instruction::IUnsafeVar;
 
@@ -476,9 +476,16 @@ impl Evaler for Instruction {
 
             INeg(ii) | INot(ii) | IInv(ii) | IFuncInt(ii) | IFuncCeil(ii) | IFuncFloor(ii) | IFuncAbs(ii) | IFuncSign(ii) | IFuncSin(ii) | IFuncCos(ii) | IFuncTan(ii) | IFuncASin(ii) | IFuncACos(ii) | IFuncATan(ii) | IFuncSinH(ii) | IFuncCosH(ii) | IFuncTanH(ii) | IFuncASinH(ii) | IFuncACosH(ii) | IFuncATanH(ii) => get_instr!(slab.cs,ii)._var_names(slab,dst),
 
-            IAdd(li,ri) | IMul(li,ri) | ILT(li,ri) | ILTE(li,ri) | IEQ(li,ri) | INE(li,ri) | IGTE(li,ri) | IGT(li,ri) | IOR(li,ri) | IAND(li,ri) | IFuncMin(li,ri) | IFuncMax(li,ri) | IMod{dividend:li, divisor:ri} | IExp{base:li, power:ri} | IFuncLog{base:li, of:ri} | IFuncRound{modulus:li, of:ri} => {
+            ILT(lic,ric) | ILTE(lic,ric) | IEQ(lic,ric) | INE(lic,ric) | IGTE(lic,ric) | IGT(lic,ric) | IMod{dividend:lic, divisor:ric} | IExp{base:lic, power:ric} | IFuncLog{base:lic, of:ric} | IFuncRound{modulus:lic, of:ric} => {
+                let mut iconst : Instruction;
+                ic_to_instr!(slab.cs,iconst,lic)._var_names(slab,dst);
+                ic_to_instr!(slab.cs,iconst,ric)._var_names(slab,dst);
+            }
+
+            IAdd(li,ric) | IMul(li,ric) | IOR(li,ric) | IAND(li,ric) | IFuncMin(li,ric) | IFuncMax(li,ric) => {
                 get_instr!(slab.cs,li)._var_names(slab,dst);
-                get_instr!(slab.cs,ri)._var_names(slab,dst);
+                let iconst : Instruction;
+                ic_to_instr!(slab.cs,iconst,ric)._var_names(slab,dst);
             }
 
             IPrintFunc(pf) => pf._var_names(slab,dst),
@@ -488,28 +495,39 @@ impl Evaler for Instruction {
         match self {
             // I have manually ordered these match arms in a way that I feel should deliver good performance:
 
-            IMul(li,ri) => Ok( eval_compiled_ref!(get_instr!(slab.cs,li), slab, ns) *
-                                            eval_compiled_ref!(get_instr!(slab.cs,ri), slab, ns) ),
-            IAdd(li,ri) => Ok( eval_compiled_ref!(get_instr!(slab.cs,li), slab, ns) +
-                                            eval_compiled_ref!(get_instr!(slab.cs,ri), slab, ns) ),
-            IExp{base, power} => Ok( eval_compiled_ref!(get_instr!(slab.cs,base), slab, ns).powf(
-                                                  eval_compiled_ref!(get_instr!(slab.cs,power), slab, ns) ) ),
+            IMul(li,ric) => {
+                let iconst : Instruction;
+                Ok( eval_compiled_ref!(get_instr!(slab.cs,li), slab, ns) *
+                    eval_compiled_ref!(ic_to_instr!(slab.cs,iconst,ric), slab, ns) )
+            }
+            IAdd(li,ric) => {
+                let iconst : Instruction;
+                Ok( eval_compiled_ref!(get_instr!(slab.cs,li), slab, ns) +
+                    eval_compiled_ref!(ic_to_instr!(slab.cs,iconst,ric), slab, ns) )
+            }
+            IExp{base, power} => {
+                let iconst_base : Instruction; let iconst_power : Instruction;
+                Ok( eval_compiled_ref!(ic_to_instr!(slab.cs,iconst_base,base), slab, ns).powf(
+                    eval_compiled_ref!(ic_to_instr!(slab.cs,iconst_power,power), slab, ns) ) )
+            }
 
             INeg(i) => Ok(-eval_compiled_ref!(get_instr!(slab.cs,i), slab, ns)),
             IInv(i) => Ok(1.0/eval_compiled_ref!(get_instr!(slab.cs,i), slab, ns)),
 
             IVar(name) => eval_var!(ns, name, Vec::new(), unsafe{ &mut *(&slab.ps.char_buf as *const _ as *mut _) }),
-            IFunc{name, args:iis} => {
-                let mut args = Vec::with_capacity(iis.len());
-                for ii in iis {
-                    args.push( eval_compiled_ref!(get_instr!(slab.cs,ii), slab, ns) );
+            IFunc{name, args:ics} => {
+                let mut args = Vec::with_capacity(ics.len());
+                for ic in ics {
+                    let iconst : Instruction;
+                    args.push( eval_compiled_ref!(ic_to_instr!(slab.cs,iconst,ic), slab, ns) );
                 }
                 eval_var!(ns, name, args, unsafe{ &mut *(&slab.ps.char_buf as *const _ as *mut _) })
             },
 
-            IFuncLog{base:basei, of:ofi} => {
-                let base = eval_compiled_ref!(get_instr!(slab.cs,basei), slab, ns);
-                let of = eval_compiled_ref!(get_instr!(slab.cs,ofi), slab, ns);
+            IFuncLog{base:baseic, of:ofic} => {
+                let iconst_base : Instruction; let iconst_of : Instruction;
+                let base = eval_compiled_ref!(ic_to_instr!(slab.cs,iconst_base,baseic), slab, ns);
+                let of = eval_compiled_ref!(ic_to_instr!(slab.cs,iconst_of,ofic), slab, ns);
                 Ok(log(base,of))
             }
 
@@ -526,31 +544,37 @@ impl Evaler for Instruction {
             IFuncACosH(i) => Ok( eval_compiled_ref!(get_instr!(slab.cs,i), slab, ns).acosh() ),
             IFuncATanH(i) => Ok( eval_compiled_ref!(get_instr!(slab.cs,i), slab, ns).atanh() ),
 
-            IFuncRound{modulus:modi, of:ofi} => {
-                let modulus = eval_compiled_ref!(get_instr!(slab.cs,modi), slab, ns);
-                let of = eval_compiled_ref!(get_instr!(slab.cs,ofi), slab, ns);
+            IFuncRound{modulus:modic, of:ofic} => {
+                let iconst_mod : Instruction; let iconst_of : Instruction;
+                let modulus = eval_compiled_ref!(ic_to_instr!(slab.cs,iconst_mod,modic), slab, ns);
+                let of = eval_compiled_ref!(ic_to_instr!(slab.cs,iconst_of,ofic), slab, ns);
                 Ok( (of/modulus).round() * modulus )
             }
-            IMod{dividend, divisor} => Ok( eval_compiled_ref!(get_instr!(slab.cs,dividend), slab, ns) %
-                                                        eval_compiled_ref!(get_instr!(slab.cs,divisor), slab, ns) ),
+            IMod{dividend, divisor} => {
+                let iconst_dividend : Instruction; let iconst_divisor : Instruction;
+                Ok( eval_compiled_ref!(ic_to_instr!(slab.cs,iconst_dividend,dividend), slab, ns) %
+                    eval_compiled_ref!(ic_to_instr!(slab.cs,iconst_divisor,divisor), slab, ns) )
+            }
 
             IFuncAbs(i) => Ok( eval_compiled_ref!(get_instr!(slab.cs,i), slab, ns).abs() ),
             IFuncSign(i) => Ok( eval_compiled_ref!(get_instr!(slab.cs,i), slab, ns).signum() ),
             IFuncInt(i) => Ok( eval_compiled_ref!(get_instr!(slab.cs,i), slab, ns).trunc() ),
             IFuncCeil(i) => Ok( eval_compiled_ref!(get_instr!(slab.cs,i), slab, ns).ceil() ),
             IFuncFloor(i) => Ok( eval_compiled_ref!(get_instr!(slab.cs,i), slab, ns).floor() ),
-            IFuncMin(li,ri) => {
+            IFuncMin(li,ric) => {
+                let iconst : Instruction;
                 let left = eval_compiled_ref!(get_instr!(slab.cs,li), slab, ns);
-                let right = eval_compiled_ref!(get_instr!(slab.cs,ri), slab, ns);
+                let right = eval_compiled_ref!(ic_to_instr!(slab.cs,iconst,ric), slab, ns);
                 if left<right {
                     Ok(left)
                 } else {
                     Ok(right)
                 }
             }
-            IFuncMax(li,ri) => {
+            IFuncMax(li,ric) => {
+                let iconst : Instruction;
                 let left = eval_compiled_ref!(get_instr!(slab.cs,li), slab, ns);
-                let right = eval_compiled_ref!(get_instr!(slab.cs,ri), slab, ns);
+                let right = eval_compiled_ref!(ic_to_instr!(slab.cs,iconst,ric), slab, ns);
                 if left>right {
                     Ok(left)
                 } else {
@@ -559,32 +583,52 @@ impl Evaler for Instruction {
             }
 
 
-            IEQ(left, right) => Ok( bool_to_f64!(f64_eq!(eval_compiled_ref!(get_instr!(slab.cs,left), slab, ns),
-                                                                    eval_compiled_ref!(get_instr!(slab.cs,right), slab, ns))) ),
-            INE(left, right) => Ok( bool_to_f64!(f64_ne!(eval_compiled_ref!(get_instr!(slab.cs,left), slab, ns),
-                                                                    eval_compiled_ref!(get_instr!(slab.cs,right), slab, ns))) ),
-            ILT(left, right) => Ok( bool_to_f64!(eval_compiled_ref!(get_instr!(slab.cs,left), slab, ns) <
-                                                             eval_compiled_ref!(get_instr!(slab.cs,right), slab, ns)) ),
-            ILTE(left, right) => Ok( bool_to_f64!(eval_compiled_ref!(get_instr!(slab.cs,left), slab, ns) <=
-                                                              eval_compiled_ref!(get_instr!(slab.cs,right), slab, ns)) ),
-            IGTE(left, right) => Ok( bool_to_f64!(eval_compiled_ref!(get_instr!(slab.cs,left), slab, ns) >=
-                                                              eval_compiled_ref!(get_instr!(slab.cs,right), slab, ns)) ),
-            IGT(left, right) => Ok( bool_to_f64!(eval_compiled_ref!(get_instr!(slab.cs,left), slab, ns) >
-                                                             eval_compiled_ref!(get_instr!(slab.cs,right), slab, ns)) ),
+            IEQ(left, right) => {
+                let iconst_l : Instruction; let iconst_r : Instruction;
+                Ok( bool_to_f64!(f64_eq!(eval_compiled_ref!(ic_to_instr!(slab.cs,iconst_l,left), slab, ns),
+                                         eval_compiled_ref!(ic_to_instr!(slab.cs,iconst_r,right), slab, ns))) )
+            }
+            INE(left, right) => {
+                let iconst_l : Instruction; let iconst_r : Instruction;
+                Ok( bool_to_f64!(f64_ne!(eval_compiled_ref!(ic_to_instr!(slab.cs,iconst_l,left), slab, ns),
+                                         eval_compiled_ref!(ic_to_instr!(slab.cs,iconst_r,right), slab, ns))) )
+            }
+            ILT(left, right) => {
+                let iconst_l : Instruction; let iconst_r : Instruction;
+                Ok( bool_to_f64!(eval_compiled_ref!(ic_to_instr!(slab.cs,iconst_l,left), slab, ns) <
+                                 eval_compiled_ref!(ic_to_instr!(slab.cs,iconst_r,right), slab, ns)) )
+            }
+            ILTE(left, right) => {
+                let iconst_l : Instruction; let iconst_r : Instruction;
+                Ok( bool_to_f64!(eval_compiled_ref!(ic_to_instr!(slab.cs,iconst_l,left), slab, ns) <=
+                                 eval_compiled_ref!(ic_to_instr!(slab.cs,iconst_r,right), slab, ns)) )
+            }
+            IGTE(left, right) => {
+                let iconst_l : Instruction; let iconst_r : Instruction;
+                Ok( bool_to_f64!(eval_compiled_ref!(ic_to_instr!(slab.cs,iconst_l,left), slab, ns) >=
+                                 eval_compiled_ref!(ic_to_instr!(slab.cs,iconst_r,right), slab, ns)) )
+            }
+            IGT(left, right) => {
+                let iconst_l : Instruction; let iconst_r : Instruction;
+                Ok( bool_to_f64!(eval_compiled_ref!(ic_to_instr!(slab.cs,iconst_l,left), slab, ns) >
+                                 eval_compiled_ref!(ic_to_instr!(slab.cs,iconst_r,right), slab, ns)) )
+            }
 
             INot(i) => Ok(bool_to_f64!(f64_eq!(eval_compiled_ref!(get_instr!(slab.cs,i), slab, ns),0.0))),
-            IAND(lefti, righti) => {
+            IAND(lefti, rightic) => {
                 let left = eval_compiled_ref!(get_instr!(slab.cs,lefti), slab, ns);
                 if f64_eq!(left,0.0) { Ok(left) }
                 else {
-                    Ok(eval_compiled_ref!(get_instr!(slab.cs,righti), slab, ns))
+                    let iconst : Instruction;
+                    Ok(eval_compiled_ref!(ic_to_instr!(slab.cs,iconst,rightic), slab, ns))
                 }
             }
-            IOR(lefti, righti) => {
+            IOR(lefti, rightic) => {
                 let left = eval_compiled_ref!(get_instr!(slab.cs,lefti), slab, ns);
                 if f64_ne!(left,0.0) { Ok(left) }
                 else {
-                    Ok(eval_compiled_ref!(get_instr!(slab.cs,righti), slab, ns))
+                    let iconst : Instruction;
+                    Ok(eval_compiled_ref!(ic_to_instr!(slab.cs,iconst,rightic), slab, ns))
                 }
             }
 
