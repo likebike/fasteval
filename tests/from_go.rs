@@ -2,7 +2,7 @@
 // I know the test names suck, but I'm not going to change them because I want line-for-line compatibility with the Go tests.
 
 
-use al::{Evaler, ExpressionI, parse, Error, Slab, EmptyNamespace, FlatNamespace};
+use al::{Evaler, ExpressionI, parse, Error, Slab, EmptyNamespace, CachedFlatNamespace};
 
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
@@ -194,8 +194,8 @@ fn aaa_test_e() {
 fn aaa_test_f() {
     let mut slab = Slab::new();
 
-    assert_eq!(ok_parse("(x)^(3)", {slab.clear(); &mut slab}).from(&slab.ps).eval(&slab, &mut FlatNamespace::new(|n,_| { [("x",2.0)].iter().cloned().collect::<BTreeMap<&str,f64>>().get(n).cloned() })).unwrap(), 8.0);
-    assert_eq!(ok_parse("(x)^(y)", {slab.clear(); &mut slab}).from(&slab.ps).eval(&slab, &mut FlatNamespace::new(|n,_| { [("x",2.0),("y",3.0)].iter().cloned().collect::<BTreeMap<&str,f64>>().get(n).cloned() })).unwrap(), 8.0);
+    assert_eq!(ok_parse("(x)^(3)", {slab.clear(); &mut slab}).from(&slab.ps).eval(&slab, &mut CachedFlatNamespace::new(|n,_| { [("x",2.0)].iter().cloned().collect::<BTreeMap<&str,f64>>().get(n).cloned() })).unwrap(), 8.0);
+    assert_eq!(ok_parse("(x)^(y)", {slab.clear(); &mut slab}).from(&slab.ps).eval(&slab, &mut CachedFlatNamespace::new(|n,_| { [("x",2.0),("y",3.0)].iter().cloned().collect::<BTreeMap<&str,f64>>().get(n).cloned() })).unwrap(), 8.0);
     assert_eq!(ok_parse("(x)^(y)", {slab.clear(); &mut slab}).from(&slab.ps).var_names(&slab).len(), 2);
     assert_eq!(ok_parse("1+(x*y/2)^(z)", {slab.clear(); &mut slab}).from(&slab.ps).var_names(&slab).len(), 3);
     assert_eq!(format!("{:?}",ok_parse("1+(x*y/2)^(z)", {slab.clear(); &mut slab}).from(&slab.ps).var_names(&slab).iter().collect::<BTreeSet<&String>>()), r#"{"x", "y", "z"}"#);

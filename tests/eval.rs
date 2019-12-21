@@ -1,4 +1,4 @@
-use al::{Evaler, Error, Slab, EvalNamespace, Layered, EmptyNamespace, FlatNamespace, ScopedNamespace, parse};
+use al::{Evaler, Error, Slab, EvalNamespace, Layered, EmptyNamespace, CachedFlatNamespace, CachedScopedNamespace, parse};
 use al::bool_to_f64;
 
 use std::mem;
@@ -113,7 +113,7 @@ fn aaa_basics() {
         parse("x + 1", {slab.clear(); &mut slab.ps}).unwrap().from(&slab.ps).eval(&slab, &mut ns),
         Err(Error::Undefined("x".to_string())));
 
-    let mut ns = FlatNamespace::new(|_,_| Some(3.0));
+    let mut ns = CachedFlatNamespace::new(|_,_| Some(3.0));
     assert_eq!(
         parse("x + 1", {slab.clear(); &mut slab.ps}).unwrap().from(&slab.ps).eval(&slab, &mut ns),
         Ok(4.0));
@@ -221,7 +221,7 @@ impl Evaler for TestEvaler {
 #[test]
 fn aaa_evalns_basics() {
     let slab = Slab::new();
-    let mut ns = ScopedNamespace::new(|_,_| Some(5.4321));
+    let mut ns = CachedScopedNamespace::new(|_,_| Some(5.4321));
     assert_eq!({ ns.push(); let out=TestEvaler{}.eval(&slab, &mut ns); ns.pop(); out }.unwrap(), 5.4321);
     ns.create_cached("x".to_string(),1.111).unwrap();
     assert_eq!({ ns.push(); let out=TestEvaler{}.eval(&slab, &mut ns); ns.pop(); out }.unwrap(), 1.111);
@@ -239,26 +239,26 @@ fn corners() {
 fn my_evalns_cb_function(_:&str, _:Vec<f64>) -> Option<f64> { None }
 #[test]
 fn evalns_cb_ownership() {
-    let _ns = FlatNamespace::new(my_evalns_cb_function);
-    let _ns = FlatNamespace::new(my_evalns_cb_function);
+    let _ns = CachedFlatNamespace::new(my_evalns_cb_function);
+    let _ns = CachedFlatNamespace::new(my_evalns_cb_function);
     // Conclusion: You can pass a function pointer into a function that receives ownership.
 
     let closure = |_:&str, _:Vec<f64>| None;
-    let _ns = FlatNamespace::new(closure);
-    let _ns = FlatNamespace::new(closure);
+    let _ns = CachedFlatNamespace::new(closure);
+    let _ns = CachedFlatNamespace::new(closure);
 
     let x = 1.0;
     let closure = |_:&str, _:Vec<f64>| Some(x);
-    let _ns = FlatNamespace::new(closure);
-    let _ns = FlatNamespace::new(closure);
+    let _ns = CachedFlatNamespace::new(closure);
+    let _ns = CachedFlatNamespace::new(closure);
 
     let mut x = 1.0;
     let closure = |_:&str, _:Vec<f64>| {
         x+=1.0;
         Some(x)
     };
-    let _ns = FlatNamespace::new(closure);
-    //let _ns = FlatNamespace::new(closure);  // Not allowed.
+    let _ns = CachedFlatNamespace::new(closure);
+    //let _ns = CachedFlatNamespace::new(closure);  // Not allowed.
 
     // Conclusion: Functions and Closures that don't mutate state are effectively Copy.
     //             Closures that mutate state aren't Copy.
@@ -269,7 +269,7 @@ fn evalns_cb_ownership() {
 #[test]
 fn custom_func() {
     let mut slab = Slab::new();
-    let mut ns = FlatNamespace::new(|name,args| {
+    let mut ns = CachedFlatNamespace::new(|name,args| {
         eprintln!("In CB: {}",name);
         match name {
             "x" => Some(1.0),

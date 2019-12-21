@@ -18,17 +18,17 @@ pub trait Layered {
 
 pub struct EmptyNamespace;
 
-pub struct FlatNamespace<'a> {
+pub struct CachedFlatNamespace<'a> {
     map:BTreeMap<String,f64>,
     cb :Box<dyn FnMut(&str, Vec<f64>)->Option<f64> + 'a>,  // I think a reference would be more efficient than a Box, but then I would need to use a funky 'let cb=|n|{}; Namespace::new(&cb)' syntax.  The Box results in a super convenient pass-the-cb-by-value API interface.
 }
 
-pub struct ScopedNamespace<'a> {
+pub struct CachedScopedNamespace<'a> {
     maps:Vec<BTreeMap<String,f64>>,
     cb  :Box<dyn FnMut(&str, Vec<f64>)->Option<f64> + 'a>,
 }
 pub struct Bubble<'a,'b:'a> {
-    ns   :&'a mut ScopedNamespace<'b>,
+    ns   :&'a mut CachedScopedNamespace<'b>,
     count:usize,
 }
 
@@ -52,6 +52,7 @@ fn key_from_nameargs<'a,'b:'a>(keybuf:&'a mut String, name:&'b str, args:&[f64])
 }
 
 impl EvalNamespace for BTreeMap<String,f64> {
+    #[inline]
     fn get_cached(&mut self, name:&str, args:Vec<f64>, keybuf:&mut String) -> Option<f64> {
         let key = key_from_nameargs(keybuf, name, &args);
         self.get(key).copied()
@@ -64,6 +65,7 @@ impl EvalNamespace for BTreeMap<String,f64> {
 }
 
 impl EvalNamespace for Vec<BTreeMap<String,f64>> {
+    #[inline]
     fn get_cached(&mut self, name:&str, args:Vec<f64>, keybuf:&mut String) -> Option<f64> {
         let key = key_from_nameargs(keybuf, name, &args);
 
@@ -79,15 +81,27 @@ impl EvalNamespace for Vec<BTreeMap<String,f64>> {
     fn clear_cached(&mut self) {}
 }
 
+impl<F> EvalNamespace for F where F:FnMut(&str,Vec<f64>)->Option<f64> {
+    #[inline]
+    fn get_cached(&mut self, name:&str, args:Vec<f64>, _keybuf:&mut String) -> Option<f64> {
+        self(name,args)
+    }
+    // This EvalNamespace type doesn't use a cache:
+    fn set_cached(&mut self, _name:String, _val:f64) { panic!("cannot set cached value in Uncached CB Namespace"); }
+    fn create_cached(&mut self, _name:String, _val:f64) -> Result<(),Error> { panic!("cannot create cached value in Uncached CB Namespace"); }
+    fn clear_cached(&mut self) {}
+}
+
+
 impl EvalNamespace for EmptyNamespace {
+    #[inline]
     fn get_cached(&mut self, _name:&str, _args:Vec<f64>, _keybuf:&mut String) -> Option<f64> { None }
     fn set_cached(&mut self, _name:String, _val:f64) { panic!("cannot set cached value in EmptyNamespace"); }
     fn create_cached(&mut self, _name:String, _val:f64) -> Result<(),Error> { panic!("cannot create cached value in EmptyNamespace"); }
     fn clear_cached(&mut self) {}
 }
 
-
-impl EvalNamespace for FlatNamespace<'_> {
+impl EvalNamespace for CachedFlatNamespace<'_> {
     fn get_cached(&mut self, name:&str, args:Vec<f64>, keybuf:&mut String) -> Option<f64> {
         let key = key_from_nameargs(keybuf, name, &args);
 
@@ -113,18 +127,17 @@ impl EvalNamespace for FlatNamespace<'_> {
         self.map = BTreeMap::new();
     }
 }
-
-impl<'a> FlatNamespace<'a> {
+impl<'a> CachedFlatNamespace<'a> {
     #[inline]
     pub fn new<F>(cb:F) -> Self where F:FnMut(&str,Vec<f64>)->Option<f64> + 'a {
-        FlatNamespace{
+        CachedFlatNamespace{
             map:BTreeMap::new(),
             cb :Box::new(cb),
         }
     }
 }
 
-impl EvalNamespace for ScopedNamespace<'_> {
+impl EvalNamespace for CachedScopedNamespace<'_> {
     fn get_cached(&mut self, name:&str, args:Vec<f64>, keybuf:&mut String) -> Option<f64> {
         let key = key_from_nameargs(keybuf, name, &args);
 
@@ -165,7 +178,7 @@ impl EvalNamespace for ScopedNamespace<'_> {
         self.push();
     }
 }
-impl Layered for ScopedNamespace<'_> {
+impl Layered for CachedScopedNamespace<'_> {
     #[inline]
     fn push(&mut self) {
         self.maps.push(BTreeMap::new());
@@ -175,10 +188,10 @@ impl Layered for ScopedNamespace<'_> {
         self.maps.pop();
     }
 }
-impl<'a> ScopedNamespace<'a> {
+impl<'a> CachedScopedNamespace<'a> {
     #[inline]
     pub fn new<F>(cb:F) -> Self where F:FnMut(&str,Vec<f64>)->Option<f64> + 'a {
-        let mut ns = ScopedNamespace{
+        let mut ns = CachedScopedNamespace{
             maps:Vec::with_capacity(2),
             cb  :Box::new(cb),
         };
@@ -188,7 +201,7 @@ impl<'a> ScopedNamespace<'a> {
 }
 
 impl Bubble<'_,'_> {
-    pub fn new<'a,'b:'a>(ns:&'a mut ScopedNamespace<'b>) -> Bubble<'a,'b> {
+    pub fn new<'a,'b:'a>(ns:&'a mut CachedScopedNamespace<'b>) -> Bubble<'a,'b> {
         Bubble{
             ns,
             count:0,
@@ -241,7 +254,7 @@ mod internal_tests {
 
     #[test]
     fn bubble() {
-        let mut ns = ScopedNamespace::new(|_,_| None);
+        let mut ns = CachedScopedNamespace::new(|_,_| None);
         assert_eq!(ns.maps.len(), 1);
         {
             let mut bub = Bubble::new(&mut ns);  bub.push();

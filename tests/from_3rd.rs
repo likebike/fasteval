@@ -1,4 +1,4 @@
-use al::{parse, Compiler, Evaler, Error, Slab, FlatNamespace, eval_compiled_ref};
+use al::{parse, Compiler, Evaler, Error, Slab, CachedFlatNamespace, eval_compiled_ref};
 
 use std::str::from_utf8;
 
@@ -24,7 +24,7 @@ fn chk_ok(expr_str:&str, expect_compile_str:&str, expect_slab_str:&str, expect_e
     assert_eq!(format!("{:?}",slab), expect_slab_str);
 
     (|| -> Result<(),Error> {
-        let mut ns = FlatNamespace::new(evalns_cb);
+        let mut ns = CachedFlatNamespace::new(evalns_cb);
         assert_eq!(eval_compiled_ref!(&instr, &slab, &mut ns), expect_eval);
 
         // Make sure Instruction eval matches normal eval:
@@ -44,7 +44,7 @@ fn chk_eerr(expr_str:&str, expect_err:Error) {
     let mut slab = Slab::new();
     let expr = parse(expr_str, &mut slab.ps).unwrap().from(&slab.ps);
     let instr = expr.compile(&slab.ps, &mut slab.cs);
-    let mut ns = FlatNamespace::new(evalns_cb);
+    let mut ns = CachedFlatNamespace::new(evalns_cb);
     assert_eq!(instr.eval(&slab, &mut ns), Err(expect_err));
 }
 

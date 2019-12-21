@@ -423,7 +423,7 @@
 extern crate test;  // 'extern crate' seems to be required for this scenario: https://github.com/rust-lang/rust/issues/57288
 use test::{Bencher, black_box};
 
-use al::{parse, Compiler, Evaler, Layered, Slab, EmptyNamespace, FlatNamespace, ScopedNamespace, Bubble, ez_eval, eval_compiled, eval_compiled_ref};
+use al::{parse, Compiler, Evaler, Layered, Slab, EmptyNamespace, CachedFlatNamespace, CachedScopedNamespace, Bubble, ez_eval, eval_compiled, eval_compiled_ref};
 
 use std::collections::BTreeMap;
 use std::f64::NAN;
@@ -453,9 +453,9 @@ macro_rules! Namespace {
 
         //EmptyNamespace
 
-        //FlatNamespace::new(evalcb)
+        //CachedFlatNamespace::new(evalcb)
 
-        //ScopedNamespace::new(evalcb)
+        //CachedScopedNamespace::new(evalcb)
     }
 }
 
@@ -470,7 +470,7 @@ static EXPR : &'static str = "(-z + (z^2 - 4*x*y)^0.5) / (2*x)";
 #[bench]
 fn native_1000x(bencher:&mut Bencher) {
     // Silence compiler warnings about unused imports:
-    let _ = EmptyNamespace;  let _ = FlatNamespace::new(|_,_| None);
+    let _ = EmptyNamespace;  let _ = CachedFlatNamespace::new(|_,_| None);
 
 
     #[allow(dead_code)]
@@ -524,7 +524,7 @@ fn parse_eval_1000x(b:&mut Bencher) {
 #[bench]
 fn parse_nsbubble_eval_1000x(b:&mut Bencher) {
     let mut slab = Slab::new();
-    let mut ns = ScopedNamespace::new(evalcb);
+    let mut ns = CachedScopedNamespace::new(evalcb);
 
     b.iter(|| {
         let _ = (|| -> Result<(),al::Error> {
@@ -641,9 +641,29 @@ fn preparse_precompile_eval_1000x(b:&mut Bencher) {
 }
 
 #[bench]
+fn preparse_precompile_eval_closure_1000x(b:&mut Bencher) {
+    let mut slab = Slab::new();
+    let mut ns = evalcb;
+    let instr = match parse(EXPR, &mut slab.ps) {
+        Ok(expr_i) => expr_i.from(&slab.ps).compile(&slab.ps, &mut slab.cs),
+        Err(_) => return,
+    };
+
+    b.iter(|| {
+        let _ = (|| -> Result<(),al::Error> {
+            let (instr_ref, slab_ref, ns_mut) = (&instr, &slab, &mut ns);  // Localize (doesn't help much)
+            for _ in 0..1000 {
+                black_box( eval_compiled_ref!(instr_ref, slab_ref, ns_mut));
+            }
+            Ok(())
+        })();
+    });
+}
+
+#[bench]
 fn preparse_precompile_nsbubble_eval_1000x(b:&mut Bencher) {
     let mut slab = Slab::new();
-    let mut ns = ScopedNamespace::new(evalcb);
+    let mut ns = CachedScopedNamespace::new(evalcb);
     let instr = match parse(EXPR, &mut slab.ps) {
         Ok(expr_i) => expr_i.from(&slab.ps).compile(&slab.ps, &mut slab.cs),
         Err(_) => return,

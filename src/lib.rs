@@ -90,7 +90,7 @@
 //!
 //! ```
 //! fn main() -> Result<(), al::Error> {
-//!     let mut ns = al::FlatNamespace::new(|name:&str, args:Vec<f64>| -> Option<f64> {
+//!     let mut ns = al::CachedFlatNamespace::new(|name:&str, args:Vec<f64>| -> Option<f64> {
 //!         let mydata : [f64; 3] = [11.1, 22.2, 33.3];
 //!         match name {
 //!             "x" => Some(3.0),
@@ -347,6 +347,6 @@ pub use self::compiler::{Compiler, Instruction::{self, IConst}, InstructionI};
 pub use self::compiler::Instruction::IUnsafeVar;
 pub use self::evaler::Evaler;
 pub use self::slab::Slab;
-pub use self::evalns::{EvalNamespace, Layered, EmptyNamespace, FlatNamespace, ScopedNamespace, Bubble};
+pub use self::evalns::{EvalNamespace, Layered, EmptyNamespace, CachedFlatNamespace, CachedScopedNamespace, Bubble};
 pub use self::ez::ez_eval;
 
