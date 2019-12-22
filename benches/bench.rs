@@ -1,5 +1,9 @@
+// https://easyperf.net/blog/2019/08/02/Perf-measurement-environment-on-Linux
 
 // Here is how I run benchmarks:
+//     for F in /sys/devices/system/cpu/cpufreq/policy*/scaling_governor; do echo $F; cat $F; done
+//     for F in /sys/devices/system/cpu/cpufreq/policy*/scaling_governor; do echo performance >$F; done
+//
 //     while true; do echo "time: $(date +%s)"; RUSTFLAGS="--emit=asm" cargo bench; done >bench.out
 //     while true; do echo "time: $(date +%s)"; RUSTFLAGS="--emit=asm" cargo bench --features unsafe-vars; done >bench.out
 //     cat bench.out | awk -v "now=$(date +%s)" '$1=="time:"{when=$2}  $3=="..." && $4=="bench:" {gsub(/,/, "", $5); v=$5+0; if (t[$2]=="" || v<t[$2]){t[$2]=v; w[$2]=when;}} END{for (k in t) { printf "%-40s %9d ns/iter    %5ds ago\n",k,t[k],now-w[k] }}' | sort
@@ -130,7 +134,17 @@
 //
 //     "(-z + (z^2 - 4*x*y)^0.5) / (2*x)"
 //     BTreeMap, --emit=asm:
-//     ez                                            1408 ns/iter    10889s ago
+//     ez                                            1408 ns/iter     2263s ago with optimized IC structure (should only affect compiled)
+//     native_1000x                                   319 ns/iter     3530s ago
+//     parse_compile_eval_1000x                   2339325 ns/iter     2824s ago
+//     parse_eval_1000x                           1162480 ns/iter     3122s ago
+//     parse_nsbubble_eval_1000x                  1384925 ns/iter     2305s ago
+//     parser::internal_tests::spaces_1M            11623 ns/iter     2804s ago
+//     preparse_eval_1000x                         445473 ns/iter     1619s ago
+//     preparse_precompile_eval_1000x              238740 ns/iter     3007s ago
+//     preparse_precompile_eval_closure_1000x      203248 ns/iter      622s ago
+//     preparse_precompile_nsbubble_eval_1000x     381305 ns/iter     1070s ago
+//     ez                                            1408 ns/iter    10889s ago orig (with unsafe to avoid allocation)
 //     native_1000x                                   322 ns/iter    14196s ago
 //     parse_compile_eval_1000x                   2357775 ns/iter     6273s ago
 //     parse_eval_1000x                           1184392 ns/iter     1455s ago
@@ -140,6 +154,30 @@
 //     preparse_precompile_eval_1000x              201106 ns/iter     8788s ago
 //     preparse_precompile_nsbubble_eval_1000x     367644 ns/iter    10012s ago
 //     BTreeMap, --emit=asm, --features unsafe-vars:
+//     ez                                            1456 ns/iter     2231s ago after eval_ic_ref!()
+//     native_1000x                                   324 ns/iter     2750s ago
+//     parse_compile_eval_1000x                   2432552 ns/iter     1375s ago
+//     parse_eval_1000x                           1188058 ns/iter     2091s ago
+//     parse_eval_unsafe_1000x                    1172911 ns/iter     1989s ago
+//     parse_nsbubble_eval_1000x                  1412912 ns/iter      540s ago
+//     parser::internal_tests::spaces_1M            11619 ns/iter     2639s ago
+//     preparse_eval_1000x                         454185 ns/iter      944s ago
+//     preparse_precompile_eval_1000x              193043 ns/iter     2250s ago
+//     preparse_precompile_eval_closure_1000x      148787 ns/iter     2474s ago
+//     preparse_precompile_eval_unsafe_1000x       116499 ns/iter     1375s ago
+//     preparse_precompile_nsbubble_eval_1000x     350373 ns/iter     1908s ago
+//     ez                                            1526 ns/iter    15427s ago with optimized IC structure
+//     native_1000x                                   340 ns/iter    21477s ago
+//     parse_compile_eval_1000x                   2678870 ns/iter    31892s ago
+//     parse_eval_1000x                           1286602 ns/iter    25736s ago
+//     parse_eval_unsafe_1000x                    1249145 ns/iter     7797s ago
+//     parse_nsbubble_eval_1000x                  1484355 ns/iter    13963s ago
+//     parser::internal_tests::spaces_1M            12231 ns/iter    17415s ago
+//     preparse_eval_1000x                         480832 ns/iter    15587s ago
+//     preparse_precompile_eval_1000x              258302 ns/iter    20827s ago
+//     preparse_precompile_eval_closure_1000x      220831 ns/iter    24553s ago
+//     preparse_precompile_eval_unsafe_1000x       161558 ns/iter    14452s ago
+//     preparse_precompile_nsbubble_eval_1000x     413490 ns/iter    28210s ago
 //     ez                                            1476 ns/iter     7876s ago with unsafe to avoid allocation
 //     native_1000x                                   318 ns/iter     8786s ago
 //     parse_compile_eval_1000x                   2436218 ns/iter     4501s ago
@@ -710,40 +748,40 @@ fn preparse_precompile_eval_unsafe_1000x(b:&mut Bencher) {
     });
 }
 
-#[bench]
-#[cfg(feature="unsafe-vars")]
-#[allow(non_snake_case)]
-fn preparse_precompile_eval_unsafe_100B(_:&mut Bencher) {
-    let _ = (|| -> Result<(),al::Error> {
-        let mut slab = Slab::new();
-        let x = 1.0;
-        let y = 2.0;
-        let z = 3.0;
-        let foo = 0.0;
-        let bar = 0.0;
-        unsafe {
-            slab.ps.add_unsafe_var("x".to_string(), &x);
-            slab.ps.add_unsafe_var("y".to_string(), &y);
-            slab.ps.add_unsafe_var("z".to_string(), &z);
-            slab.ps.add_unsafe_var("foo".to_string(), &foo);
-            slab.ps.add_unsafe_var("bar".to_string(), &bar);
-        }
-
-        let mut ns = EmptyNamespace;
-        let instr = parse(EXPR, &mut slab.ps).unwrap().from(&slab.ps).compile(&slab.ps, &mut slab.cs);
-        eprintln!("slab: {:?}  instr: {:?}", slab, instr);
-
-        let start = std::time::Instant::now();
-        //for _ in 0..100 {
-            for _ in 0..1_000_000_000 {
-                black_box(eval_compiled_ref!(&instr, &slab, &mut ns));
-            }
-        //}
-        eprintln!("bench time: {}", start.elapsed().as_secs_f64());
-
-        Ok(())
-    })();
-}
+// #[bench]
+// #[cfg(feature="unsafe-vars")]
+// #[allow(non_snake_case)]
+// fn preparse_precompile_eval_unsafe_100B(_:&mut Bencher) {
+//     let _ = (|| -> Result<(),al::Error> {
+//         let mut slab = Slab::new();
+//         let x = 1.0;
+//         let y = 2.0;
+//         let z = 3.0;
+//         let foo = 0.0;
+//         let bar = 0.0;
+//         unsafe {
+//             slab.ps.add_unsafe_var("x".to_string(), &x);
+//             slab.ps.add_unsafe_var("y".to_string(), &y);
+//             slab.ps.add_unsafe_var("z".to_string(), &z);
+//             slab.ps.add_unsafe_var("foo".to_string(), &foo);
+//             slab.ps.add_unsafe_var("bar".to_string(), &bar);
+//         }
+//
+//         let mut ns = EmptyNamespace;
+//         let instr = parse(EXPR, &mut slab.ps).unwrap().from(&slab.ps).compile(&slab.ps, &mut slab.cs);
+//         eprintln!("slab: {:?}  instr: {:?}", slab, instr);
+//
+//         let start = std::time::Instant::now();
+//         //for _ in 0..100 {
+//             for _ in 0..1_000_000_000 {
+//                 black_box(eval_compiled_ref!(&instr, &slab, &mut ns));
+//             }
+//         //}
+//         eprintln!("bench time: {}", start.elapsed().as_secs_f64());
+//
+//         Ok(())
+//     })();
+// }
 
 // #[bench]
 // #[allow(non_snake_case)]
