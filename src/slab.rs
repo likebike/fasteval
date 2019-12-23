@@ -13,18 +13,18 @@
 //!
 //! Here is an example of re-using one `Slab` for multiple parse/eval cycles:
 //! ```
-//! use al::Evaler;  // import this trait so we can call eval().
-//! fn main() -> Result<(), al::Error> {
-//!     let mut slab = al::Slab::new();
+//! use fasteval::Evaler;  // import this trait so we can call eval().
+//! fn main() -> Result<(), fasteval::Error> {
+//!     let mut slab = fasteval::Slab::new();
 //!
-//!     let val = al::parse("1+2*3-4", &mut slab.ps)?.from(&slab.ps).eval(&slab, &mut al::EmptyNamespace)?;
+//!     let val = fasteval::parse("1+2*3-4", &mut slab.ps)?.from(&slab.ps).eval(&slab, &mut fasteval::EmptyNamespace)?;
 //!     assert_eq!(val, 3.0);
 //!
 //!     // Let's re-use the same slab again to save memory operations.
 //!     // Clear out the previous data:
 //!     slab.clear();
 //!
-//!     let val = al::parse("5+6*7-8", &mut slab.ps)?.from(&slab.ps).eval(&slab, &mut al::EmptyNamespace)?;
+//!     let val = fasteval::parse("5+6*7-8", &mut slab.ps)?.from(&slab.ps).eval(&slab, &mut fasteval::EmptyNamespace)?;
 //!     assert_eq!(val, 39.0);
 //!
 //!     Ok(())

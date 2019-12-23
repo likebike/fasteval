@@ -1,4 +1,4 @@
-use al::{ez_eval, Error};
+use fasteval::{ez_eval, Error};
 
 use std::collections::BTreeMap;
 

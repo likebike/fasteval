@@ -2,7 +2,7 @@
 // I know the test names suck, but I'm not going to change them because I want line-for-line compatibility with the Go tests.
 
 
-use al::{Evaler, ExpressionI, parse, Error, Slab, EmptyNamespace, CachedFlatNamespace};
+use fasteval::{Evaler, ExpressionI, parse, Error, Slab, EmptyNamespace, CachedFlatNamespace};
 
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;

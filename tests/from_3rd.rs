@@ -1,4 +1,4 @@
-use al::{parse, Compiler, Evaler, Error, Slab, CachedFlatNamespace, eval_compiled_ref};
+use fasteval::{parse, Compiler, Evaler, Error, Slab, CachedFlatNamespace, eval_compiled_ref};
 
 use std::str::from_utf8;
 

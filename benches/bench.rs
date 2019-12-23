@@ -11,105 +11,114 @@
 
 
 // ---- Results (2019-12-04 on a 2012 laptop with Intel(R) Core(TM) i7-3610QM CPU @ 2.30GHz) ----
-// al:
+// fasteval:
 //     "(3 * (3 + 3) / 3)"
 //     BTreeMap, --emit=asm:
-//     ez                                             610 ns/iter     1934s ago
-//     native_1000x                                   320 ns/iter     2087s ago
-//     parse_compile_eval_1000x                    724547 ns/iter      940s ago
-//     parse_eval_1000x                            477833 ns/iter     1841s ago
-//     parse_nsbubble_eval_1000x                   487980 ns/iter     1861s ago
-//     parser::internal_tests::spaces_1M            11631 ns/iter     1994s ago
-//     preparse_eval_1000x                         170040 ns/iter     1919s ago
-//     preparse_precompile_eval_1000x                 618 ns/iter     2070s ago
-//     preparse_precompile_nsbubble_eval_1000x       9797 ns/iter     1934s ago
+//     ez                                             591 ns/iter      632s ago eval_ic_ref!()
+//     native_1000x                                   319 ns/iter      470s ago
+//     parse_compile_eval_1000x                    704383 ns/iter      789s ago
+//     parse_eval_1000x                            473303 ns/iter      365s ago
+//     parse_nsbubble_eval_1000x                   489977 ns/iter      272s ago
+//     parser::internal_tests::spaces_1M            11629 ns/iter       50s ago
+//     preparse_eval_1000x                         166261 ns/iter      184s ago
+//     preparse_precompile_eval_1000x                 616 ns/iter      809s ago
+//     preparse_precompile_eval_closure_1000x         617 ns/iter      463s ago
+//     preparse_precompile_nsbubble_eval_1000x       9773 ns/iter      488s ago
 //     BTreeMap, --emit=asm, --features unsafe-vars:
-//     ez                                             624 ns/iter     1115s ago
-//     native_1000x                                   325 ns/iter     1518s ago
-//     parse_compile_eval_1000x                    775976 ns/iter     1572s ago
-//     parse_eval_1000x                            499386 ns/iter     1572s ago
-//     parse_eval_unsafe_1000x                     495709 ns/iter     1659s ago
-//     parse_nsbubble_eval_1000x                   509171 ns/iter     1489s ago
-//     parser::internal_tests::spaces_1M            11853 ns/iter     1489s ago
-//     preparse_eval_1000x                         169035 ns/iter     1451s ago
-//     preparse_precompile_eval_1000x                 945 ns/iter     2369s ago
-//     preparse_precompile_eval_unsafe_1000x          939 ns/iter      950s ago
-//     preparse_precompile_nsbubble_eval_1000x      10004 ns/iter     1543s ago
+//     ez                                             583 ns/iter     1181s ago eval_ic_ref!()
+//     native_1000x                                   324 ns/iter     1651s ago
+//     parse_compile_eval_1000x                    750526 ns/iter      377s ago
+//     parse_eval_1000x                            480434 ns/iter      399s ago
+//     parse_eval_unsafe_1000x                     482036 ns/iter     1529s ago
+//     parse_nsbubble_eval_1000x                   495585 ns/iter      116s ago
+//     parser::internal_tests::spaces_1M            11578 ns/iter       54s ago
+//     preparse_eval_1000x                         169097 ns/iter      867s ago
+//     preparse_precompile_eval_1000x                 923 ns/iter     1572s ago
+//     preparse_precompile_eval_closure_1000x         923 ns/iter      905s ago
+//     preparse_precompile_eval_unsafe_1000x          923 ns/iter      629s ago
+//     preparse_precompile_nsbubble_eval_1000x       9770 ns/iter     1312s ago
 //
 //     "3 * 3 - 3 / 3"
 //     BTreeMap, --emit=asm:
-//     ez                                             390 ns/iter     1152s ago
-//     native_1000x                                   321 ns/iter     3181s ago
-//     parse_compile_eval_1000x                    572960 ns/iter     1119s ago
-//     parse_eval_1000x                            293849 ns/iter     1170s ago
-//     parse_nsbubble_eval_1000x                   303399 ns/iter     1152s ago
-//     parser::internal_tests::spaces_1M            11680 ns/iter     2434s ago
-//     preparse_eval_1000x                          87054 ns/iter     1119s ago
-//     preparse_precompile_eval_1000x                 620 ns/iter     1170s ago
-//     preparse_precompile_nsbubble_eval_1000x       9813 ns/iter     1119s ago
+//     ez                                             401 ns/iter    11430s ago eval_ic_ref!()
+//     native_1000x                                   318 ns/iter     5104s ago
+//     parse_compile_eval_1000x                    557642 ns/iter     8997s ago
+//     parse_eval_1000x                            289469 ns/iter      968s ago
+//     parse_nsbubble_eval_1000x                   307711 ns/iter     5898s ago
+//     parser::internal_tests::spaces_1M            11561 ns/iter     9405s ago
+//     preparse_eval_1000x                          79998 ns/iter     9403s ago
+//     preparse_precompile_eval_1000x                 615 ns/iter     6266s ago
+//     preparse_precompile_eval_closure_1000x         615 ns/iter     6680s ago
+//     preparse_precompile_nsbubble_eval_1000x       9731 ns/iter     3282s ago
 //     BTreeMap, --emit=asm, --features unsafe-vars:
-//     ez                                             407 ns/iter     1530s ago
-//     native_1000x                                   319 ns/iter     1439s ago
-//     parse_compile_eval_1000x                    601357 ns/iter      965s ago
-//     parse_eval_1000x                            292443 ns/iter     1279s ago
-//     parse_eval_unsafe_1000x                     290481 ns/iter     1258s ago
-//     parse_nsbubble_eval_1000x                   307644 ns/iter     1126s ago
-//     parser::internal_tests::spaces_1M            11659 ns/iter     2111s ago
-//     preparse_eval_1000x                          83932 ns/iter     1682s ago
-//     preparse_precompile_eval_1000x                 925 ns/iter     1302s ago
-//     preparse_precompile_eval_unsafe_1000x          923 ns/iter     1279s ago
-//     preparse_precompile_nsbubble_eval_1000x       9812 ns/iter     2055s ago
+//     ez                                             397 ns/iter     2473s ago eval_ic_ref!()
+//     native_1000x                                   322 ns/iter     2043s ago
+//     parse_compile_eval_1000x                    589180 ns/iter     2104s ago
+//     parse_eval_1000x                            285362 ns/iter      947s ago
+//     parse_eval_unsafe_1000x                     282690 ns/iter     1915s ago
+//     parse_nsbubble_eval_1000x                   301117 ns/iter      883s ago
+//     parser::internal_tests::spaces_1M            11558 ns/iter      101s ago
+//     preparse_eval_1000x                          78434 ns/iter     1764s ago
+//     preparse_precompile_eval_1000x                 923 ns/iter     3150s ago
+//     preparse_precompile_eval_closure_1000x         920 ns/iter     1114s ago
+//     preparse_precompile_eval_unsafe_1000x          923 ns/iter     3553s ago
+//     preparse_precompile_nsbubble_eval_1000x       9770 ns/iter     2203s ago
 //
 //     "2 ^ 3 ^ 4"  = 2417851639229258300000000
 //     BTreeMap, --emit=asm:
-//     ez                                             458 ns/iter      546s ago
-//     native_1000x                                   322 ns/iter     1017s ago
-//     parse_compile_eval_1000x                    447158 ns/iter     1441s ago
-//     parse_eval_1000x                            327303 ns/iter      572s ago
-//     parse_nsbubble_eval_1000x                   341402 ns/iter     1112s ago
-//     parser::internal_tests::spaces_1M            11770 ns/iter     1098s ago
-//     preparse_eval_1000x                         180946 ns/iter     3283s ago
-//     preparse_precompile_eval_1000x                 622 ns/iter     1274s ago
-//     preparse_precompile_nsbubble_eval_1000x       9928 ns/iter      992s ago
+//     ez                                             422 ns/iter     1466s ago eval_ic_ref!()
+//     native_1000x                                   319 ns/iter     1769s ago
+//     parse_compile_eval_1000x                    436220 ns/iter     1018s ago
+//     parse_eval_1000x                            323837 ns/iter      655s ago
+//     parse_nsbubble_eval_1000x                   338085 ns/iter     1952s ago
+//     parser::internal_tests::spaces_1M            11628 ns/iter     1204s ago
+//     preparse_eval_1000x                         178083 ns/iter     2019s ago
+//     preparse_precompile_eval_1000x                 618 ns/iter     1910s ago
+//     preparse_precompile_eval_closure_1000x         617 ns/iter     2036s ago
+//     preparse_precompile_nsbubble_eval_1000x       9773 ns/iter     1328s ago
 //     BTreeMap, --emit=asm, --features unsafe-vars:
-//     ez                                             432 ns/iter     7823s ago
-//     native_1000x                                   324 ns/iter    10067s ago
-//     parse_compile_eval_1000x                    459533 ns/iter     3670s ago
-//     parse_eval_1000x                            328942 ns/iter     7215s ago
-//     parse_eval_unsafe_1000x                     327694 ns/iter     7402s ago
-//     parse_nsbubble_eval_1000x                   343165 ns/iter     8167s ago
-//     parser::internal_tests::spaces_1M            11755 ns/iter    12199s ago
-//     preparse_eval_1000x                         181459 ns/iter     2964s ago
-//     preparse_precompile_eval_1000x                 933 ns/iter    12999s ago
-//     preparse_precompile_eval_unsafe_1000x          935 ns/iter    10733s ago
-//     preparse_precompile_nsbubble_eval_1000x       9849 ns/iter     7720s ago
+//     ez                                             457 ns/iter      819s ago eval_ic_ref!()
+//     native_1000x                                   324 ns/iter     1847s ago
+//     parse_compile_eval_1000x                    448440 ns/iter     1124s ago
+//     parse_eval_1000x                            320781 ns/iter      755s ago
+//     parse_eval_unsafe_1000x                     320422 ns/iter      636s ago
+//     parse_nsbubble_eval_1000x                   336635 ns/iter      508s ago
+//     parser::internal_tests::spaces_1M            11625 ns/iter      413s ago
+//     preparse_eval_1000x                         177317 ns/iter     1094s ago
+//     preparse_precompile_eval_1000x                 923 ns/iter      750s ago
+//     preparse_precompile_eval_closure_1000x         923 ns/iter     1456s ago
+//     preparse_precompile_eval_unsafe_1000x          923 ns/iter     1662s ago
+//     preparse_precompile_nsbubble_eval_1000x       9772 ns/iter     1028s ago
 //
 //     "x * 2"
 //     BTreeMap, --emit=asm:
-//     ez                                             316 ns/iter      538s ago
-//     native_1000x                                   687 ns/iter     1615s ago
-//     parse_compile_eval_1000x                    297842 ns/iter     1615s ago
-//     parse_eval_1000x                            182330 ns/iter     3751s ago
-//     parse_nsbubble_eval_1000x                   262956 ns/iter     3857s ago
-//     parser::internal_tests::spaces_1M            11812 ns/iter     2248s ago
-//     preparse_eval_1000x                          70666 ns/iter     3324s ago
-//     preparse_precompile_eval_1000x               21366 ns/iter     3459s ago
-//     preparse_precompile_nsbubble_eval_1000x      91714 ns/iter     5514s ago
+//     ez                                             277 ns/iter    28096s ago eval_ic_ref!()
+//     native_1000x                                   679 ns/iter    29062s ago
+//     parse_compile_eval_1000x                    284595 ns/iter     2736s ago
+//     parse_eval_1000x                            179107 ns/iter    10798s ago
+//     parse_nsbubble_eval_1000x                   260312 ns/iter     8722s ago
+//     parser::internal_tests::spaces_1M            11595 ns/iter    10088s ago
+//     preparse_eval_1000x                          64427 ns/iter    18578s ago
+//     preparse_precompile_eval_1000x               17636 ns/iter     3662s ago
+//     preparse_precompile_eval_closure_1000x       12771 ns/iter    24117s ago
+//     preparse_precompile_nsbubble_eval_1000x      91065 ns/iter    26106s ago
 //     BTreeMap, --emit=asm, --features unsafe-vars:
-//     ez                                             291 ns/iter     3200s ago
-//     native_1000x                                   689 ns/iter     1082s ago
-//     parse_compile_eval_1000x                    312200 ns/iter      500s ago
-//     parse_eval_1000x                            189106 ns/iter     1599s ago
-//     parse_eval_unsafe_1000x                     182333 ns/iter     1102s ago
-//     parse_nsbubble_eval_1000x                   280231 ns/iter      715s ago
-//     parser::internal_tests::spaces_1M            11649 ns/iter      938s ago
-//     preparse_eval_1000x                          69640 ns/iter      654s ago
-//     preparse_precompile_eval_1000x               21497 ns/iter     1833s ago
-//     preparse_precompile_eval_unsafe_1000x         7977 ns/iter      740s ago
-//     preparse_precompile_nsbubble_eval_1000x      94730 ns/iter     2498s ago
+//     ez                                             316 ns/iter     2777s ago eval_ic_ref!()
+//     native_1000x                                   680 ns/iter     1623s ago
+//     parse_compile_eval_1000x                    295780 ns/iter     1233s ago
+//     parse_eval_1000x                            180192 ns/iter      658s ago
+//     parse_eval_unsafe_1000x                     176062 ns/iter      517s ago
+//     parse_nsbubble_eval_1000x                   261934 ns/iter      872s ago
+//     parser::internal_tests::spaces_1M            11624 ns/iter     2486s ago
+//     preparse_eval_1000x                          61570 ns/iter     2506s ago
+//     preparse_precompile_eval_1000x               20450 ns/iter     1358s ago
+//     preparse_precompile_eval_closure_1000x       14041 ns/iter     1282s ago
+//     preparse_precompile_eval_unsafe_1000x         7939 ns/iter     1699s ago
+//     preparse_precompile_nsbubble_eval_1000x      90555 ns/iter     2506s ago
 //
 //     "sin(x)"
 //     BTreeMap, --emit=asm:
+
 //     ez                                             374 ns/iter      511s ago
 //     native_1000x                                 16791 ns/iter     1214s ago
 //     parse_compile_eval_1000x                    294037 ns/iter      821s ago
@@ -461,7 +470,7 @@
 extern crate test;  // 'extern crate' seems to be required for this scenario: https://github.com/rust-lang/rust/issues/57288
 use test::{Bencher, black_box};
 
-use al::{parse, Compiler, Evaler, Layered, Slab, EmptyNamespace, CachedFlatNamespace, CachedScopedNamespace, Bubble, ez_eval, eval_compiled, eval_compiled_ref};
+use fasteval::{parse, Compiler, Evaler, Layered, Slab, EmptyNamespace, CachedFlatNamespace, CachedScopedNamespace, Bubble, ez_eval, eval_compiled, eval_compiled_ref};
 
 use std::collections::BTreeMap;
 use std::f64::NAN;
@@ -501,8 +510,8 @@ macro_rules! Namespace {
 //static EXPR : &'static str = "3 * 3 - 3 / 3";
 //static EXPR : &'static str = "2 ^ 3 ^ 4";
 //static EXPR : &'static str = "x * 2";
-//static EXPR : &'static str = "sin(x)";
-static EXPR : &'static str = "(-z + (z^2 - 4*x*y)^0.5) / (2*x)";
+static EXPR : &'static str = "sin(x)";
+//static EXPR : &'static str = "(-z + (z^2 - 4*x*y)^0.5) / (2*x)";
 //static EXPR : &'static str = "((((87))) - 73) + (97 + (((15 / 55 * ((31)) + 35))) + (15 - (9)) - (39 / 26) / 20 / 91 + 27 / (33 * 26 + 28 - (7) / 10 + 66 * 6) + 60 / 35 - ((29) - (69) / 44 / (92)) / (89) + 2 + 87 / 47 * ((2)) * 83 / 98 * 42 / (((67)) * ((97))) / (34 / 89 + 77) - 29 + 70 * (20)) + ((((((92))) + 23 * (98) / (95) + (((99) * (41))) + (5 + 41) + 10) - (36) / (6 + 80 * 52 + (90))))";
 
 #[bench]
@@ -522,8 +531,8 @@ fn native_1000x(bencher:&mut Bencher) {
             //black_box(3.0 * 3.0 - 3.0 / 3.0);
             //black_box(2.0f64.powf(3.0).powf(4.0));
             //black_box(x() * 2.0);
-            //black_box(x().sin());
-            black_box( (-b + (b.powf(2.0) - 4.0*a*c).powf(0.5)) / (2.0*a) );
+            black_box(x().sin());
+            //black_box( (-b + (b.powf(2.0) - 4.0*a*c).powf(0.5)) / (2.0*a) );
             //black_box( ((((87.))) - 73.) + (97. + (((15. / 55. * ((31.)) + 35.))) + (15. - (9.)) - (39. / 26.) / 20. / 91. + 27. / (33. * 26. + 28. - (7.) / 10. + 66. * 6.) + 60. / 35. - ((29.) - (69.) / 44. / (92.)) / (89.) + 2. + 87. / 47. * ((2.)) * 83. / 98. * 42. / (((67.)) * ((97.))) / (34. / 89. + 77.) - 29. + 70. * (20.)) + ((((((92.))) + 23. * (98.) / (95.) + (((99.) * (41.))) + (5. + 41.) + 10.) - (36.) / (6. + 80. * 52. + (90.)))) );
         }
     });

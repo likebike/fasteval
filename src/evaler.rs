@@ -1,4 +1,4 @@
-use crate as al;
+use crate as fasteval;
 
 use crate::error::Error;
 use crate::slab::Slab;
@@ -26,12 +26,12 @@ use std::fmt;
 #[macro_export]
 macro_rules! eval_compiled {
     ($evaler:ident, $slab_ref:expr, $ns_mut:expr) => {
-        if let al::IConst(c) = $evaler {
+        if let fasteval::IConst(c) = $evaler {
             c
         } else {
             #[cfg(feature="unsafe-vars")]
             {
-                if let al::IUnsafeVar{ptr, ..} = $evaler {
+                if let fasteval::IUnsafeVar{ptr, ..} = $evaler {
                     unsafe { *ptr }
                 } else {
                     $evaler.eval($slab_ref, $ns_mut)?
@@ -53,12 +53,12 @@ macro_rules! eval_compiled {
 #[macro_export]
 macro_rules! eval_compiled_ref {
     ($evaler:ident, $slab_ref:expr, $ns_mut:expr) => {
-        if let al::IConst(c) = $evaler {
+        if let fasteval::IConst(c) = $evaler {
             *c
         } else {
             #[cfg(feature="unsafe-vars")]
             {
-                if let al::IUnsafeVar{ptr, ..} = $evaler {
+                if let fasteval::IUnsafeVar{ptr, ..} = $evaler {
                     unsafe { **ptr }
                 } else {
                     $evaler.eval($slab_ref, $ns_mut)?
@@ -86,7 +86,7 @@ macro_rules! eval_ic_ref {
 
                 #[cfg(feature="unsafe-vars")]
                 {
-                    if let al::IUnsafeVar{ptr, ..} = instr_ref {
+                    if let fasteval::IUnsafeVar{ptr, ..} = instr_ref {
                         unsafe { **ptr }
                     } else {
                         instr_ref.eval($slab_ref, $ns_mut)?

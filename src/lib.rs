@@ -42,9 +42,9 @@
 //! fresh Slab, but it is very simple to use:
 //!
 //! ```
-//! fn main() -> Result<(), al::Error> {
-//!     let val = al::ez_eval(
-//!         "1+2*3/4^5%6 + log(100) + log(e(),100) + [3*(3-3)/3] + (2<3) && 1.23",    &mut al::EmptyNamespace)?;
+//! fn main() -> Result<(), fasteval::Error> {
+//!     let val = fasteval::ez_eval(
+//!         "1+2*3/4^5%6 + log(100) + log(e(),100) + [3*(3-3)/3] + (2<3) && 1.23",    &mut fasteval::EmptyNamespace)?;
 //!     //    |            |          |   |          |               |   |
 //!     //    |            |          |   |          |               |   boolean logic with ternary support
 //!     //    |            |          |   |          |               comparisons
@@ -67,13 +67,13 @@
 //!
 //! ```
 //! use std::collections::BTreeMap;
-//! fn main() -> Result<(), al::Error> {
+//! fn main() -> Result<(), fasteval::Error> {
 //!     let mut map : BTreeMap<String,f64> = BTreeMap::new();
 //!     map.insert("x".to_string(), 1.0);
 //!     map.insert("y".to_string(), 2.0);
 //!     map.insert("z".to_string(), 3.0);
 //!
-//!     let val = al::ez_eval(r#"x + print("y:",y) + z"#,    &mut map)?;
+//!     let val = fasteval::ez_eval(r#"x + print("y:",y) + z"#,    &mut map)?;
 //!     //                           |
 //!     //                           prints "y: 2" to stderr and then evaluates to 2.0
 //!
@@ -89,8 +89,8 @@
 //! functions and array-like objects:
 //!
 //! ```
-//! fn main() -> Result<(), al::Error> {
-//!     let mut ns = al::CachedFlatNamespace::new(|name:&str, args:Vec<f64>| -> Option<f64> {
+//! fn main() -> Result<(), fasteval::Error> {
+//!     let mut ns = fasteval::CachedFlatNamespace::new(|name:&str, args:Vec<f64>| -> Option<f64> {
 //!         let mydata : [f64; 3] = [11.1, 22.2, 33.3];
 //!         match name {
 //!             "x" => Some(3.0),
@@ -101,7 +101,7 @@
 //!         }
 //!     });
 //!
-//!     let val = al::ez_eval("sum(x^2, y^2)^0.5 + data[0]",    &mut ns)?;
+//!     let val = fasteval::ez_eval("sum(x^2, y^2)^0.5 + data[0]",    &mut ns)?;
 //!     //                     |   |               |
 //!     //                     |   |               square-brackets act like parenthesis
 //!     //                     |   variables are like custom functions with zero args
@@ -121,11 +121,11 @@
 //!
 //! ```
 //! use std::collections::BTreeMap;
-//! use al::Evaler;  // import this trait so we can call eval().
-//! fn main() -> Result<(), al::Error> {
-//!     let mut slab = al::Slab::new();
+//! use fasteval::Evaler;  // import this trait so we can call eval().
+//! fn main() -> Result<(), fasteval::Error> {
+//!     let mut slab = fasteval::Slab::new();
 //!
-//!     let expr_ref = al::parse("x + 1", &mut slab.ps)?.from(&slab.ps);
+//!     let expr_ref = fasteval::parse("x + 1", &mut slab.ps)?.from(&slab.ps);
 //!
 //!     // Let's evaluate the expression a couple times with different 'x' values:
 //!
@@ -142,7 +142,7 @@
 //!     // (This is much cheaper than allocating a new Slab.)
 //!
 //!     slab.clear();
-//!     let expr_ref = al::parse("x * 10", &mut slab.ps)?.from(&slab.ps);
+//!     let expr_ref = fasteval::parse("x * 10", &mut slab.ps)?.from(&slab.ps);
 //!
 //!     let val = expr_ref.eval(&slab, &mut map)?;
 //!     assert_eq!(val, 25.0);
@@ -160,19 +160,19 @@
 //! usually more than 200 times faster.
 //! ```
 //! use std::collections::BTreeMap;
-//! use al::Compiler;  // import this trait so we can call compile().
-//! use al::Evaler;    // import this trait so we can call eval().
-//! fn main() -> Result<(), al::Error> {
-//!     let mut slab = al::Slab::new();
+//! use fasteval::Compiler;  // import this trait so we can call compile().
+//! use fasteval::Evaler;    // import this trait so we can call eval().
+//! fn main() -> Result<(), fasteval::Error> {
+//!     let mut slab = fasteval::Slab::new();
 //!     let mut map = BTreeMap::new();
 //!
 //!     let expr_str = "sin(deg/360 * 2*pi())";
-//!     let compiled = al::parse(expr_str, &mut slab.ps)?.from(&slab.ps).compile(&slab.ps, &mut slab.cs);
+//!     let compiled = fasteval::parse(expr_str, &mut slab.ps)?.from(&slab.ps).compile(&slab.ps, &mut slab.cs);
 //!     for deg in 0..360 {
 //!         map.insert("deg".to_string(), deg as f64);
 //!         // When working with compiled constant expressions, you can use the
 //!         // eval_compiled*!() macros to save a function call:
-//!         let val = al::eval_compiled!(compiled, &slab, &mut map);
+//!         let val = fasteval::eval_compiled!(compiled, &slab, &mut map);
 //!         eprintln!("sin({}°) = {}", deg, val);
 //!     }
 //!
@@ -188,21 +188,21 @@
 //! feature is not enabled by default because it slightly slows down other
 //! non-variable operations.
 //! ```
-//! use al::Compiler;  // import this trait so we can call compile().
-//! use al::Evaler;    // import this trait so we can call eval().
-//! fn main() -> Result<(), al::Error> {
-//!     let mut slab = al::Slab::new();
+//! use fasteval::Compiler;  // import this trait so we can call compile().
+//! use fasteval::Evaler;    // import this trait so we can call eval().
+//! fn main() -> Result<(), fasteval::Error> {
+//!     let mut slab = fasteval::Slab::new();
 //!     let mut deg : f64 = 0.0;
 //!     unsafe { slab.ps.add_unsafe_var("deg".to_string(), &deg); }  // Saves a pointer to 'deg'.
 //!
-//!     let mut ns = al::EmptyNamespace;  // We only define unsafe variables, not normal variables,
+//!     let mut ns = fasteval::EmptyNamespace;  // We only define unsafe variables, not normal variables,
 //!                                       // so EmptyNamespace is fine.
 //!
 //!     let expr_str = "sin(deg/360 * 2*pi())";
-//!     let compiled = al::parse(expr_str, &mut slab.ps)?.from(&slab.ps).compile(&slab.ps, &mut slab.cs);
+//!     let compiled = fasteval::parse(expr_str, &mut slab.ps)?.from(&slab.ps).compile(&slab.ps, &mut slab.cs);
 //!     for d in 0..360 {
 //!         deg = d as f64;
-//!         let val = al::eval_compiled!(compiled, &slab, &mut ns);
+//!         let val = fasteval::eval_compiled!(compiled, &slab, &mut ns);
 //!         eprintln!("sin({}°) = {}", deg, val);
 //!     }
 //!
@@ -216,7 +216,7 @@
 //! These benchmarks were performed on 2019-12-16.
 //!
 //! Here are links to all the libraries/tools included in these benchmarks:
-//!     * [al (this library)](https://github.com/likebike/al)
+//!     * [fasteval (this library)](https://github.com/likebike/fasteval)
 //!     * [caldyn](https://github.com/Luthaf/caldyn)
 //!     * [rsc](https://github.com/codemessiah/rsc)
 //!     * [meval](https://github.com/rekka/meval-rs)
@@ -235,10 +235,10 @@
 //!       Since the expression is quite simple, it does a good job of showing
 //!       the intrinsic performance costs of a library.
 //!       Results:
-//!           * For compiled expressions, 'al' is 5x as fast as the closest
+//!           * For compiled expressions, 'fasteval' is 5x as fast as the closest
 //!             competitor (caldyn) because the eval_compiled!() macro is able to
 //!             eliminate all function calls.
-//!           * For interpreted expressions, 'al' is 1.6x as fast as the
+//!           * For interpreted expressions, 'fasteval' is 1.6x as fast as the
 //!             tinyexpr C lib, and 2.3x as fast as the tinyexpr Rust lib.
 //!             This is because 'al' eliminates redundant work and memory
 //!             allocation during the parse phase.
@@ -246,11 +246,11 @@
 //!     * power = `2 ^ 3 ^ 4`
 //!               `2 ^ (3 ^ 4)` for 'tinyexpr' and 'rsc'
 //!       This test shows the associativity of the exponent operator.
-//!       Most libraries (including 'al') use right-associativity,
+//!       Most libraries (including 'fasteval') use right-associativity,
 //!       but some libraries (particularly tinyexpr and rsc) use
 //!       left-associativity.
 //!       This test is also interesting because it shows the precision of a
-//!       library's number system.  'al' just uses f64 and therefore truncates
+//!       library's number system.  'fasteval' just uses f64 and therefore truncates
 //!       the result (2417851639229258300000000), while python, bc, and the
 //!       tinyexpr C library produce a higher precision result
 //!       (2417851639229258349412352).
@@ -263,11 +263,11 @@
 //!       performance costs of a library.
 //!       Results:
 //!           * The tinyexpr Rust library does not currently support variables.
-//!           * For safe compiled evaluation, 'al' is 3x as fast as the closest
+//!           * For safe compiled evaluation, 'fasteval' is 3x as fast as the closest
 //!             competitor (caldyn).
-//!           * For safe interpretation, 'al' is 2.4x as fast as the closest
+//!           * For safe interpretation, 'fasteval' is 2.4x as fast as the closest
 //!             competitor (caldyn).
-//!           * For unsafe operations, 'al' performance is similar to the
+//!           * For unsafe operations, 'fasteval' performance is similar to the
 //!             tinyexpr C library.
 //!
 //!     * trig = `sin(x)`
@@ -275,11 +275,11 @@
 //!       Results:
 //!           * The tinyexpr Rust library does not currently support variables.
 //!           * The 'calc' library does not support trigonometry.
-//!           * For safe compiled evaluation, 'al' is 1.9x as fast as the
+//!           * For safe compiled evaluation, 'fasteval' is 1.9x as fast as the
 //!             closest competitor (caldyn).
-//!           * For safe interpretation, 'al' is 1.6x as fast as the closest
+//!           * For safe interpretation, 'fasteval' is 1.6x as fast as the closest
 //!             competitor (caldyn).
-//!           * For unsafe operation, 'al' performance is similar to the
+//!           * For unsafe operation, 'fasteval' performance is similar to the
 //!             tinyexpr C library.
 //!
 //!     * quadratic = `(-z + (z^2 - 4*x*y)^0.5) / (2*x)`
@@ -297,23 +297,23 @@
 //! differences.
 //!
 //! Performance of evaluation of a compiled expression:
-//! ![abc](http://hk.likebike.com/code/al/benches/al-compiled-20191214.png)
+//! ![abc](http://hk.likebike.com/code/fasteval/benches/fasteval-compiled-20191214.png)
 //!
 //! Performance of one-time interpretation (parse and eval):
-//! ![abc](http://hk.likebike.com/code/al/benches/al-interp-20191214.png)
+//! ![abc](http://hk.likebike.com/code/fasteval/benches/fasteval-interp-20191214.png)
 //!
 //! Performance of Unsafe Variables, compared to the tinyexpr C library (the
 //! only other library in our test set that supports this mode):
-//! ![abc](http://hk.likebike.com/code/al/benches/al-unsafe-20191214.png)
+//! ![abc](http://hk.likebike.com/code/fasteval/benches/fasteval-unsafe-20191214.png)
 //!
 //! ## Methodology
 //! I am benchmarking on an Asus G55V (a 2012 laptop with Intel(R) Core(TM) i7-3610QM CPU @ 2.30GHz).
 //!
 //! I run 
 //!
-//! All numeric results can be found in `al/benches/bench.rs`.
+//! All numeric results can be found in `fasteval/benches/bench.rs`.
 //!
-//! # How is `al` so fast?
+//! # How is `fasteval` so fast?
 //!
 //! A variety of techniques are used to improve performance:
 //!   * Minimization of memory allocations/deallocations;

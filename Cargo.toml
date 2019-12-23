@@ -1,9 +1,9 @@
 [package]
-name = "al"
-version = "0.1.4"
+name = "fasteval"
+version = "0.1.5"
 authors = ["Christopher Sebastian <csebastian3@gmail.com>"]
 license = "MIT"
-repository = "https://github.com/likebike/al"
+repository = "https://github.com/likebike/fasteval"
 description = """Fast evaluation of algebraic expressions"""
 edition = "2018"
 
@@ -12,9 +12,6 @@ edition = "2018"
 [profile.bench]
 debug = true
 lto = true
-# opt-level = 3
-# overflow-checks = false
-# debug-assertions = false
 
 [features]
 default = ["alpha-keywords"]

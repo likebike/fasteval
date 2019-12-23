@@ -1,4 +1,4 @@
-# al (short for "algebra")
+# fastmath
 Fast evaluation of algebraic expressions
 
 

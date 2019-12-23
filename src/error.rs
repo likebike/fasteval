@@ -1,11 +1,11 @@
-//! This module contains `al`'s Error type: an `enum` that contains all errors
-//! that can be produced by the `al` API.
+//! This module contains `fasteval`'s Error type: an `enum` that contains all errors
+//! that can be produced by the `fasteval` API.
 
 use std::fmt;
 
-/// This is the error type used in `al`'s `Result`s.
+/// This is the error type used in `fasteval`'s `Result`s.
 ///
-/// For performance reasons, `al` makes an effort to always return `Error`s
+/// For performance reasons, `fasteval` makes an effort to always return `Error`s
 /// instead of using `panic!()`.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Error {

@@ -1,11 +1,11 @@
-use al::{parse, Compiler, Evaler, Error, Slab, EmptyNamespace, CachedFlatNamespace, ExpressionI, InstructionI, eval_compiled, eval_compiled_ref};
-use al::parser::{PrintFunc, ExpressionOrString::{EExpr, EStr}};
+use fasteval::{parse, Compiler, Evaler, Error, Slab, EmptyNamespace, CachedFlatNamespace, ExpressionI, InstructionI, eval_compiled, eval_compiled_ref};
+use fasteval::parser::{PrintFunc, ExpressionOrString::{EExpr, EStr}};
 #[cfg(feature="eval-builtin")]
-use al::parser::{EvalFunc, KWArg};
-use al::compiler::IC;
-use al::compiler::Instruction::{self, IConst, INeg, INot, IInv, IAdd, IMul, IMod, IExp, ILT, ILTE, IEQ, INE, IGTE, IGT, IAND, IOR, IVar, IFunc, IFuncInt, IFuncCeil, IFuncFloor, IFuncAbs, IFuncSign, IFuncLog, IFuncRound, IFuncMin, IFuncMax, IFuncSin, IFuncCos, IFuncTan, IFuncASin, IFuncACos, IFuncATan, IFuncSinH, IFuncCosH, IFuncTanH, IFuncASinH, IFuncACosH, IFuncATanH, IPrintFunc};
+use fasteval::parser::{EvalFunc, KWArg};
+use fasteval::compiler::IC;
+use fasteval::compiler::Instruction::{self, IConst, INeg, INot, IInv, IAdd, IMul, IMod, IExp, ILT, ILTE, IEQ, INE, IGTE, IGT, IAND, IOR, IVar, IFunc, IFuncInt, IFuncCeil, IFuncFloor, IFuncAbs, IFuncSign, IFuncLog, IFuncRound, IFuncMin, IFuncMax, IFuncSin, IFuncCos, IFuncTan, IFuncASin, IFuncACos, IFuncATan, IFuncSinH, IFuncCosH, IFuncTanH, IFuncASinH, IFuncACosH, IFuncATanH, IPrintFunc};
 #[cfg(feature="eval-builtin")]
-use al::compiler::Instruction::IEvalFunc;
+use fasteval::compiler::Instruction::IEvalFunc;
 
 #[test]
 fn slab_overflow() {

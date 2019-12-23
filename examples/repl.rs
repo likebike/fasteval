@@ -1,7 +1,7 @@
 // usage: rlwrap cargo run --release --example repl
 
-use al::Evaler;  // Import this trait for '.eval()' functionality.
-use al::{parse, Slab};
+use fasteval::Evaler;  // Import this trait for '.eval()' functionality.
+use fasteval::{parse, Slab};
 
 use std::collections::BTreeMap;
 use std::io::{self, BufRead, Write};

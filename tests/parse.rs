@@ -1,4 +1,4 @@
-use al::{Error, Slab, parse};
+use fasteval::{Error, Slab, parse};
 
 #[test]
 fn basics() {
