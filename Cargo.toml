@@ -1,23 +1,13 @@
 [package]
 name = "al"
-version = "0.1.4"
+version = "0.1.5"
 authors = ["Christopher Sebastian <csebastian3@gmail.com>"]
 license = "MIT"
-repository = "https://github.com/likebike/al"
-description = """Fast evaluation of algebraic expressions"""
+repository = "https://github.com/likebike/fasteval"
+description = """Renamed to 'fasteval'."""
 edition = "2018"
 
 [dependencies]
 
-[profile.bench]
-debug = true
-lto = true
-# opt-level = 3
-# overflow-checks = false
-# debug-assertions = false
-
 [features]
-default = ["alpha-keywords"]
-alpha-keywords = []  # Enable 'NaN', 'inf', 'and', 'or'
-unsafe-vars = []     # tinyexpr-style pointer-based variables.
 
