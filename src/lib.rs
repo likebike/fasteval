@@ -74,8 +74,8 @@
 //!     map.insert("z".to_string(), 3.0);
 //!
 //!     let val = fasteval::ez_eval(r#"x + print("y:",y) + z"#,    &mut map)?;
-//!     //                           |
-//!     //                           prints "y: 2" to stderr and then evaluates to 2.0
+//!     //                                 |
+//!     //                                 prints "y: 2" to stderr and then evaluates to 2.0
 //!
 //!     assert_eq!(val, 6.0);
 //!
@@ -102,10 +102,10 @@
 //!     });
 //!
 //!     let val = fasteval::ez_eval("sum(x^2, y^2)^0.5 + data[0]",    &mut ns)?;
-//!     //                     |   |               |
-//!     //                     |   |               square-brackets act like parenthesis
-//!     //                     |   variables are like custom functions with zero args
-//!     //                     custom function
+//!     //                           |   |                   |
+//!     //                           |   |                   square-brackets act like parenthesis
+//!     //                           |   variables are like custom functions with zero args
+//!     //                           custom function
 //!
 //!     assert_eq!(val, 16.1);
 //!
@@ -196,7 +196,7 @@
 //!     unsafe { slab.ps.add_unsafe_var("deg".to_string(), &deg); }  // Saves a pointer to 'deg'.
 //!
 //!     let mut ns = fasteval::EmptyNamespace;  // We only define unsafe variables, not normal variables,
-//!                                       // so EmptyNamespace is fine.
+//!                                             // so EmptyNamespace is fine.
 //!
 //!     let expr_str = "sin(deg/360 * 2*pi())";
 //!     let compiled = fasteval::parse(expr_str, &mut slab.ps)?.from(&slab.ps).compile(&slab.ps, &mut slab.cs);
@@ -213,34 +213,67 @@
 //!
 //! # Performance Benchmarks
 //!
-//! These benchmarks were performed on 2019-12-16.
+//! These benchmarks were performed on 2019-12-25.
 //!
 //! Here are links to all the libraries/tools included in these benchmarks:
-//!     * [fasteval (this library)](https://github.com/likebike/fasteval)
-//!     * [caldyn](https://github.com/Luthaf/caldyn)
-//!     * [rsc](https://github.com/codemessiah/rsc)
-//!     * [meval](https://github.com/rekka/meval-rs)
-//!     * [calc](https://github.com/redox-os/calc/tree/master/src)
-//!     * [tinyexpr (Rust)](https://github.com/kondrak/tinyexpr-rs)
-//!     * [tinyexpr (C)](https://github.com/codeplea/tinyexpr)
-//!     * [bc](https://www.gnu.org/software/bc/)
-//!     * [python3](https://www.python.org/)
 //!
-//! ## Summary & Analysis
+//! * [fasteval (this library)](https://github.com/likebike/fasteval)
+//! * [caldyn](https://github.com/Luthaf/caldyn)
+//! * [rsc](https://github.com/codemessiah/rsc)
+//! * [meval](https://github.com/rekka/meval-rs)
+//! * [calc](https://github.com/redox-os/calc/tree/master/src)
+//! * [tinyexpr (Rust)](https://github.com/kondrak/tinyexpr-rs)
+//! * [tinyexpr (C)](https://github.com/codeplea/tinyexpr)
+//! * [bc](https://www.gnu.org/software/bc/)
+//! * [python3](https://www.python.org/)
 //!
-//! ## Benchmark Descriptions
+//! ## Charts
+//! Note that the following charts use logarithmic scales.  Therefore, tiny
+//! visual differences actually represent very significant performance
+//! differences.
+//!
+//!
+//! **Performance of evaluation of a compiled expression:**  
+//! ![abc](http://hk.likebike.com/code/fasteval/benches/fasteval-compiled-20191225.png)
+//!
+//! **Performance of one-time interpretation (parse and eval):**  
+//! ![abc](http://hk.likebike.com/code/fasteval/benches/fasteval-interp-20191225.png)
+//!
+//! **Performance of compiled Unsafe Variables, compared to the tinyexpr C library (the
+//! only other library in our test set that supports this mode):**  
+//! ![abc](http://hk.likebike.com/code/fasteval/benches/fasteval-compiled-unsafe-20191225.png)
+//!
+//! **Performance of interpreted Unsafe Variables, compared to the tinyexpr C library (the
+//! only other library in our test set that supports this mode):**  
+//! ![abc](http://hk.likebike.com/code/fasteval/benches/fasteval-interp-unsafe-20191225.png)
+//!
+//! ## Summary
+//!
+//! The impressive thing about these results is that 'fasteval' consistently
+//! achieves the fastest times across every benchmark and in every mode of
+//! operation (interpreted, compiled, and unsafe).  It's easy to create a
+//! design to claim the #1 spot in any one of these metrics by sacrificing
+//! performance in another, but it is difficult to create a design that can be
+//! #1 across-the-board.
+//!
+//! Because of the broad and robust performance advantages, 'fasteval' is very
+//! likely to be an excellent choice for your dynamic evaluation needs.
+//!
+//! ## Benchmark Descriptions & Analysis
 //! ```text
 //!     * simple = `3 * 3 - 3 / 3`
 //!       This is a simple test with primitive binary operators.
 //!       Since the expression is quite simple, it does a good job of showing
 //!       the intrinsic performance costs of a library.
 //!       Results:
-//!           * For compiled expressions, 'fasteval' is 5x as fast as the closest
-//!             competitor (caldyn) because the eval_compiled!() macro is able to
-//!             eliminate all function calls.
-//!           * For interpreted expressions, 'fasteval' is 1.6x as fast as the
-//!             tinyexpr C lib, and 2.3x as fast as the tinyexpr Rust lib.
-//!             This is because 'al' eliminates redundant work and memory
+//!           * For compiled expressions, 'fasteval' is 6x as fast as the closest
+//!             competitor (caldyn) because the `eval_compiled!()` macro is able to
+//!             eliminate all function calls.  If the macro is not used and a
+//!             normal `expr.eval()` function call is performed instead, then
+//!             performance is very similar to caldyn's.
+//!           * For interpreted expressions, 'fasteval' is 2x as fast as the
+//!             tinyexpr C lib, and 3x as fast as the tinyexpr Rust lib.
+//!             This is because 'fasteval' eliminates redundant work and memory
 //!             allocation during the parse phase.
 //!
 //!     * power = `2 ^ 3 ^ 4`
@@ -260,14 +293,14 @@
 //!     * variable = `x * 2`
 //!       This is a simple test of variable support.
 //!       Since the expression is quite simple, it shows the intrinsic
-//!       performance costs of a library.
+//!       performance costs of a library's variables.
 //!       Results:
 //!           * The tinyexpr Rust library does not currently support variables.
-//!           * For safe compiled evaluation, 'fasteval' is 3x as fast as the closest
+//!           * For safe compiled evaluation, 'fasteval' is 4.4x as fast as the closest
 //!             competitor (caldyn).
-//!           * For safe interpretation, 'fasteval' is 2.4x as fast as the closest
+//!           * For safe interpretation, 'fasteval' is 3.3x as fast as the closest
 //!             competitor (caldyn).
-//!           * For unsafe operations, 'fasteval' performance is similar to the
+//!           * For unsafe variables, 'fasteval' is 1.2x as fast as the
 //!             tinyexpr C library.
 //!
 //!     * trig = `sin(x)`
@@ -275,56 +308,116 @@
 //!       Results:
 //!           * The tinyexpr Rust library does not currently support variables.
 //!           * The 'calc' library does not support trigonometry.
-//!           * For safe compiled evaluation, 'fasteval' is 1.9x as fast as the
+//!           * For safe compiled evaluation, 'fasteval' is 2.6x as fast as the
 //!             closest competitor (caldyn).
-//!           * For safe interpretation, 'fasteval' is 1.6x as fast as the closest
+//!           * For safe interpretation, 'fasteval' is 2.3x as fast as the closest
 //!             competitor (caldyn).
-//!           * For unsafe operation, 'fasteval' performance is similar to the
-//!             tinyexpr C library.
+//!           * Comparing unsafe variables with the tinyexpr C library,
+//!             'fasteval' is 8% slower for compiled expressions (tinyexpr uses a
+//!             faster 'sin' implementation) and 4% faster for interpreted
+//!             expressions ('fasteval' performs less memory allocation).
 //!
 //!     * quadratic = `(-z + (z^2 - 4*x*y)^0.5) / (2*x)`
 //!       This test demonstrates a more complex expression, involving several
 //!       variables, some of which are accessed more than once.
 //!       Results:
-//!           * 
+//!           * The tinyexpr Rust library does not currently support variables.
+//!           * For safe compiled evaluation, 'fasteval' is 2x as fast as the
+//!             closest competitor (rsc).
+//!           * For safe interpretation, 'fasteval' is 3.7x as fast as the
+//!             closest competitor (caldyn).
+//!           * Comparing unsafe variables with the tinyexpr C library,
+//!             'fasteval' is the same speed for compiled expressions,
+//!             and 1.2x as fast for interpretation.
 //!
 //!     * big = `((((87))) - 73) + (97 + (((15 / 55 * ((31)) + 35))) + (15 - (9)) - (39 / 26) / 20 / 91 + 27 / (33 * 26 + 28 - (7) / 10 + 66 * 6) + 60 / 35 - ((29) - (69) / 44 / (92)) / (89) + 2 + 87 / 47 * ((2)) * 83 / 98 * 42 / (((67)) * ((97))) / (34 / 89 + 77) - 29 + 70 * (20)) + ((((((92))) + 23 * (98) / (95) + (((99) * (41))) + (5 + 41) + 10) - (36) / (6 + 80 * 52 + (90))))`
+//!       This is a fairly large expression that highlights parsing costs.
+//!       Results:
+//!           * Since there are no variables in the expression, 'fasteval' and
+//!             'caldyn' compile this down to a single constant value.  That's
+//!             why these two libraries are so much faster than the rest.
+//!           * For compiled evaluation, 'fasteval' is 6x as fast as 'caldyn'
+//!             because it is able to eliminate function calls with the
+//!             `eval_compiled!()` macro.
+//!           * For interpretation, 'fasteval' is 2x as fast as the closest
+//!             competitor (rsc).
+//!           * Comparing unsafe variables with the tinyexpr C library,
+//!             'fasteval' is 3x as fast for compiled evaluation, and
+//!             1.2x as fast for interpretation.
 //! ```
 //!
-//! ## Charts
-//! Note that the following charts use logarithmic scales.  Therefore, tiny
-//! visual differences actually represent very significant performance
-//! differences.
-//!
-//! Performance of evaluation of a compiled expression:
-//! ![abc](http://hk.likebike.com/code/fasteval/benches/fasteval-compiled-20191214.png)
-//!
-//! Performance of one-time interpretation (parse and eval):
-//! ![abc](http://hk.likebike.com/code/fasteval/benches/fasteval-interp-20191214.png)
-//!
-//! Performance of Unsafe Variables, compared to the tinyexpr C library (the
-//! only other library in our test set that supports this mode):
-//! ![abc](http://hk.likebike.com/code/fasteval/benches/fasteval-unsafe-20191214.png)
-//!
 //! ## Methodology
-//! I am benchmarking on an Asus G55V (a 2012 laptop with Intel(R) Core(TM) i7-3610QM CPU @ 2.30GHz).
-//!
-//! I run 
+//! I am running Ubuntu 18.04 on an Asus G55V (a 2012 laptop with Intel Core i7-3610QM CPU @ 2.3GHz - 3.3GHz).
 //!
 //! All numeric results can be found in `fasteval/benches/bench.rs`.
 //!
+//! ### Disable Power Saving Mode
+//! 
+//!     for F in /sys/devices/system/cpu/cpufreq/policy*/scaling_governor; do echo $F; cat $F; done
+//!     for F in /sys/devices/system/cpu/cpufreq/policy*/scaling_governor; do echo performance >$F; done
+//!
+//! ### Always Use `RUSTFLAGS="--emit=asm"`
+//! For some reason which I have been unable to find any documentation about, the emission of assembly code during compilation causes LLVM to dramatically improve the optimization of the resulting binary (often a 3x difference for critical sections!).  In particular, it makes better choices regarding variable localization and function inlining.  I suggest that you *always* use this option for everything you do.
+//!
+//! ### Layout Randomization
+//! I use a poor-man's Layout Randomization method similar to [Coz](https://www.youtube.com/watch?v=r-TLSBdHe1A).  The size and location of your code has significant impact on its performance.  The compiler often makes poor decisions about code placement, which results in up to 40% performance differences!  When benchmarking, it is important to remove this source of noise so that you can see the real effects of your changes.
+//!
+//! Rather than using [Coz](https://github.com/alexcrichton/coz-rs), I use a poor-man's approach which has no dependencies and works across languages:  During each iteration of my benchmark loop, I inject a random number of no-op instructions into my benchmark code (using 'sed').  This shifts everything around in the address space so that I end up hitting all fast and slow scenarios.
+//!
+//! I then run the benchmark loop many times, keeping track of the fastest-seen times until I no longer observe any improvements in any part of the banchmark suite for 500 seconds.  At that point, I say that I have reached a stable point and can draw conclusions from the statistics.
+//! 
+//! Here is my benchmark loop, which performs Layout Randomization:
+//!
+//! ```text
+//! while true; do echo "time: $(date +%s)"; cat benches/bench.rs.tmpl | sed "s|//SHIFT_CODE|$( N=$(( 1 + $RANDOM % 1024 )); while [[ $N > 0 ]]; do N=$(( $N - 1 )); echo -n 'let x=black_box(x+1);'; done )|g" >benches/bench.rs; RUSTFLAGS="--emit=asm" cargo bench; done >bench.out
+//! ```
+//!
+//! I monitor the results with this:
+//!
+//! ```text
+//! cat bench.out | awk -v "now=$(date +%s)" '$1=="time:"{when=$2}  $3=="..." && $4=="bench:" {gsub(/,/, "", $5); v=$5+0; if (t[$2]=="" || v<t[$2]){t[$2]=v; w[$2]=when;}} END{for (k in t) { printf "%-40s %9d ns/iter    %5ds ago\n",k,t[k],now-w[k] }}' | sort
+//! ```
+//!
 //! # How is `fasteval` so fast?
 //!
-//! A variety of techniques are used to improve performance:
+//! A variety of techniques are used to optimize performance:
 //!   * Minimization of memory allocations/deallocations;
 //!     I just pre-allocate a large slab during initialization.
 //!   * Elimination of redundant work, especially when parsing.
 //!   * Compilation: Constant Folding and Expression Simplification.
 //!     Boosts performance up to 1000x.
 //!   * Profile-driven application of inlining.  Don't inline too much or too little.
-//!   * Use of macros to eliminate call overhead for the most-frequently-used functions.
-//!   * Don't panic.
+//!   * Use of macros to eliminate call overhead for the most-frequently-used
+//!     functions.  (Macros are often more efficient than inlined functions.)
+//!   * Don't `panic!()`.  If *anything* in your code can panic, then much code
+//!     must be run on every function call to handle stack unwinding.
 //!   * Localize variables.  Use "--emit asm" as a guide.
+//!
+//! # Can `fasteval` be faster?
+//!
+//! Yes, but not easily, and not by much.
+//!
+//! To boost the 'eval' phase, we would really need to perform compilation to
+//! machine code, which is difficult and non-portable across platforms.  Also,
+//! the potential gains are limited: We already run at
+//! half-the-speed-of-compiled-optimized-Rust for constant expressions (the
+//! most common case).  So for constant expressions, the most you could gain
+//! from compilation-to-machine-code is a 2x performance boost.  We are already
+//! operating close to the theoretical limit!
+//!
+//! It is possible to perform faster evaluation of non-constant expressions by
+//! introducing more constraints or complexity:
+//!   * If I introduce a 'const' var type, then I can transform variable
+//!     expressions into constant expressions.  I don't think this would be
+//!     useful-enough in real-life to justify the extra complexity.
+//!   * Evaluation could be paralellized (with a more complex design).
+//!
+//! It is possible to boost overall speed by improving the parsing algoritm
+//! to produce a Reverse Polish Notation AST directly, rather than the currennt
+//! infix AST which is then converted to RPN during compilation.  However, this
+//! isn't as simple as just copying the Shunting-Yard algorithm because I
+//! support more advanced (and customizable) syntax (such as function calls and
+//! strings), while Shunting-Yard is designed only for algebraic expressions.
 
 
 #![feature(test)]

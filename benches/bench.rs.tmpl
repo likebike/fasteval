@@ -4,8 +4,8 @@
 //     for F in /sys/devices/system/cpu/cpufreq/policy*/scaling_governor; do echo $F; cat $F; done
 //     for F in /sys/devices/system/cpu/cpufreq/policy*/scaling_governor; do echo performance >$F; done
 //
-//     while true; do echo "time: $(date +%s)"; RUSTFLAGS="--emit=asm" cargo bench; done >bench.out
-//     while true; do echo "time: $(date +%s)"; RUSTFLAGS="--emit=asm" cargo bench --features unsafe-vars; done >bench.out
+//     while true; do echo "time: $(date +%s)"; cat benches/bench.rs.tmpl | sed "s|//SHIFT_CODE|$( N=$(( 1 + $RANDOM % 1024 )); while [[ $N > 0 ]]; do N=$(( $N - 1 )); echo -n 'let x=black_box(x+1);'; done )|g" >benches/bench.rs; RUSTFLAGS="--emit=asm" cargo bench; done >bench.out
+//     while true; do echo "time: $(date +%s)"; cat benches/bench.rs.tmpl | sed "s|//SHIFT_CODE|$( N=$(( 1 + $RANDOM % 1024 )); while [[ $N > 0 ]]; do N=$(( $N - 1 )); echo -n 'let x=black_box(x+1);'; done )|g" >benches/bench.rs; RUSTFLAGS="--emit=asm" cargo bench --features unsafe-vars; done >bench.out
 //     cat bench.out | awk -v "now=$(date +%s)" '$1=="time:"{when=$2}  $3=="..." && $4=="bench:" {gsub(/,/, "", $5); v=$5+0; if (t[$2]=="" || v<t[$2]){t[$2]=v; w[$2]=when;}} END{for (k in t) { printf "%-40s %9d ns/iter    %5ds ago\n",k,t[k],now-w[k] }}' | sort
 
 
@@ -118,121 +118,81 @@
 //
 //     "sin(x)"
 //     BTreeMap, --emit=asm:
-
-//     ez                                             374 ns/iter      511s ago
-//     native_1000x                                 16791 ns/iter     1214s ago
-//     parse_compile_eval_1000x                    294037 ns/iter      821s ago
-//     parse_eval_1000x                            242237 ns/iter      895s ago
-//     parse_nsbubble_eval_1000x                   342756 ns/iter      771s ago
-//     parser::internal_tests::spaces_1M            11670 ns/iter      806s ago
-//     preparse_eval_1000x                          79784 ns/iter      771s ago
-//     preparse_precompile_eval_1000x               38181 ns/iter      755s ago
-//     preparse_precompile_nsbubble_eval_1000x     110285 ns/iter     1029s ago
+//     ez                                             357 ns/iter     1022s ago eval_ic_ref!()
+//     native_1000x                                 16661 ns/iter      210s ago
+//     parse_compile_eval_1000x                    288987 ns/iter      745s ago
+//     parse_eval_1000x                            242037 ns/iter      759s ago
+//     parse_nsbubble_eval_1000x                   323260 ns/iter     1201s ago
+//     parser::internal_tests::spaces_1M            11622 ns/iter     1251s ago
+//     preparse_eval_1000x                          75891 ns/iter      717s ago
+//     preparse_precompile_eval_1000x               37213 ns/iter      759s ago
+//     preparse_precompile_eval_closure_1000x       29987 ns/iter     1392s ago
+//     preparse_precompile_nsbubble_eval_1000x     107116 ns/iter     1468s ago
 //     BTreeMap, --emit=asm, --features unsafe-vars:
-//     ez                                             379 ns/iter     5094s ago
-//     native_1000x                                 16804 ns/iter     5386s ago
-//     parse_compile_eval_1000x                    302278 ns/iter     1342s ago
-//     parse_eval_1000x                            273672 ns/iter     3506s ago
-//     parse_eval_unsafe_1000x                     248795 ns/iter     4559s ago
-//     parse_nsbubble_eval_1000x                   334456 ns/iter     3222s ago
-//     parser::internal_tests::spaces_1M            11655 ns/iter     1868s ago
-//     preparse_eval_1000x                          76958 ns/iter     4811s ago
-//     preparse_precompile_eval_1000x               37705 ns/iter     2437s ago
-//     preparse_precompile_eval_unsafe_1000x        23471 ns/iter     5686s ago
-//     preparse_precompile_nsbubble_eval_1000x     110606 ns/iter     5062s ago
+//     ez                                             380 ns/iter     3344s ago eval_ic_ref!()
+//     native_1000x                                 16599 ns/iter    31069s ago
+//     parse_compile_eval_1000x                    297220 ns/iter    26363s ago
+//     parse_eval_1000x                            243847 ns/iter     7116s ago
+//     parse_eval_unsafe_1000x                     239089 ns/iter    17857s ago
+//     parse_nsbubble_eval_1000x                   323920 ns/iter    13683s ago
+//     parser::internal_tests::spaces_1M            11602 ns/iter    31808s ago
+//     preparse_eval_1000x                          75835 ns/iter    12617s ago
+//     preparse_precompile_eval_1000x               36971 ns/iter    30510s ago
+//     preparse_precompile_eval_closure_1000x       29860 ns/iter     1355s ago
+//     preparse_precompile_eval_unsafe_1000x        23351 ns/iter    31685s ago
+//     preparse_precompile_nsbubble_eval_1000x     105957 ns/iter     3190s ago
 //
 //     "(-z + (z^2 - 4*x*y)^0.5) / (2*x)"
 //     BTreeMap, --emit=asm:
-//     ez                                            1408 ns/iter     2263s ago with optimized IC structure (should only affect compiled)
-//     native_1000x                                   319 ns/iter     3530s ago
-//     parse_compile_eval_1000x                   2339325 ns/iter     2824s ago
-//     parse_eval_1000x                           1162480 ns/iter     3122s ago
-//     parse_nsbubble_eval_1000x                  1384925 ns/iter     2305s ago
-//     parser::internal_tests::spaces_1M            11623 ns/iter     2804s ago
-//     preparse_eval_1000x                         445473 ns/iter     1619s ago
-//     preparse_precompile_eval_1000x              238740 ns/iter     3007s ago
-//     preparse_precompile_eval_closure_1000x      203248 ns/iter      622s ago
-//     preparse_precompile_nsbubble_eval_1000x     381305 ns/iter     1070s ago
-//     ez                                            1408 ns/iter    10889s ago orig (with unsafe to avoid allocation)
-//     native_1000x                                   322 ns/iter    14196s ago
-//     parse_compile_eval_1000x                   2357775 ns/iter     6273s ago
-//     parse_eval_1000x                           1184392 ns/iter     1455s ago
-//     parse_nsbubble_eval_1000x                  1419954 ns/iter    11039s ago
-//     parser::internal_tests::spaces_1M            11644 ns/iter     9840s ago
-//     preparse_eval_1000x                         472655 ns/iter     8178s ago
-//     preparse_precompile_eval_1000x              201106 ns/iter     8788s ago
-//     preparse_precompile_nsbubble_eval_1000x     367644 ns/iter    10012s ago
+//     ez                                            1407 ns/iter     1043s ago eval_ic_ref!()
+//     native_1000x                                   319 ns/iter     5514s ago
+//     parse_compile_eval_1000x                   2296192 ns/iter     3917s ago
+//     parse_eval_1000x                           1177906 ns/iter     2428s ago
+//     parse_nsbubble_eval_1000x                  1346214 ns/iter     2250s ago
+//     parser::internal_tests::spaces_1M            11603 ns/iter     2576s ago
+//     preparse_eval_1000x                         448529 ns/iter     1851s ago
+//     preparse_precompile_eval_1000x              185588 ns/iter     2065s ago
+//     preparse_precompile_eval_closure_1000x      144374 ns/iter     5135s ago
+//     preparse_precompile_nsbubble_eval_1000x     342331 ns/iter     3026s ago
 //     BTreeMap, --emit=asm, --features unsafe-vars:
-//     ez                                            1456 ns/iter     2231s ago after eval_ic_ref!()
-//     native_1000x                                   324 ns/iter     2750s ago
-//     parse_compile_eval_1000x                   2432552 ns/iter     1375s ago
-//     parse_eval_1000x                           1188058 ns/iter     2091s ago
-//     parse_eval_unsafe_1000x                    1172911 ns/iter     1989s ago
-//     parse_nsbubble_eval_1000x                  1412912 ns/iter      540s ago
-//     parser::internal_tests::spaces_1M            11619 ns/iter     2639s ago
-//     preparse_eval_1000x                         454185 ns/iter      944s ago
-//     preparse_precompile_eval_1000x              193043 ns/iter     2250s ago
-//     preparse_precompile_eval_closure_1000x      148787 ns/iter     2474s ago
-//     preparse_precompile_eval_unsafe_1000x       116499 ns/iter     1375s ago
-//     preparse_precompile_nsbubble_eval_1000x     350373 ns/iter     1908s ago
-//     ez                                            1526 ns/iter    15427s ago with optimized IC structure
-//     native_1000x                                   340 ns/iter    21477s ago
-//     parse_compile_eval_1000x                   2678870 ns/iter    31892s ago
-//     parse_eval_1000x                           1286602 ns/iter    25736s ago
-//     parse_eval_unsafe_1000x                    1249145 ns/iter     7797s ago
-//     parse_nsbubble_eval_1000x                  1484355 ns/iter    13963s ago
-//     parser::internal_tests::spaces_1M            12231 ns/iter    17415s ago
-//     preparse_eval_1000x                         480832 ns/iter    15587s ago
-//     preparse_precompile_eval_1000x              258302 ns/iter    20827s ago
-//     preparse_precompile_eval_closure_1000x      220831 ns/iter    24553s ago
-//     preparse_precompile_eval_unsafe_1000x       161558 ns/iter    14452s ago
-//     preparse_precompile_nsbubble_eval_1000x     413490 ns/iter    28210s ago
-//     ez                                            1476 ns/iter     7876s ago with unsafe to avoid allocation
-//     native_1000x                                   318 ns/iter     8786s ago
-//     parse_compile_eval_1000x                   2436218 ns/iter     4501s ago
-//     parse_eval_1000x                           1222108 ns/iter     4652s ago
-//     parse_eval_unsafe_1000x                    1187956 ns/iter     8751s ago
-//     parse_nsbubble_eval_1000x                  1416827 ns/iter     8946s ago
-//     parser::internal_tests::spaces_1M            11557 ns/iter     4236s ago
-//     preparse_eval_1000x                         467931 ns/iter     2673s ago
-//     preparse_precompile_eval_1000x              199312 ns/iter     1985s ago
-//     preparse_precompile_eval_unsafe_1000x       121572 ns/iter     2687s ago
-//     preparse_precompile_nsbubble_eval_1000x     353696 ns/iter     8603s ago
-//     ez                                            1487 ns/iter     4958s ago with String allocation
-//     native_1000x                                   321 ns/iter     4794s ago
-//     parse_compile_eval_1000x                   2528829 ns/iter     3995s ago
-//     parse_eval_1000x                           1200250 ns/iter      871s ago
-//     parse_eval_unsafe_1000x                    1166532 ns/iter     2900s ago
-//     parse_nsbubble_eval_1000x                  1411843 ns/iter      500s ago
-//     parser::internal_tests::spaces_1M            11671 ns/iter     4536s ago
-//     preparse_eval_1000x                         479185 ns/iter     3359s ago
-//     preparse_precompile_eval_1000x              200055 ns/iter     1515s ago
-//     preparse_precompile_eval_unsafe_1000x       122676 ns/iter     4763s ago
-//     preparse_precompile_nsbubble_eval_1000x     368102 ns/iter     3134s ago
+//     ez                                            1456 ns/iter     1148s ago eval_ic_ref!()
+//     native_1000x                                   320 ns/iter     1963s ago
+//     parse_compile_eval_1000x                   2451196 ns/iter     1013s ago
+//     parse_eval_1000x                           1204616 ns/iter     1148s ago
+//     parse_eval_unsafe_1000x                    1189381 ns/iter      925s ago
+//     parse_nsbubble_eval_1000x                  1393907 ns/iter      585s ago
+//     parser::internal_tests::spaces_1M            11640 ns/iter     1257s ago
+//     preparse_eval_1000x                         451742 ns/iter     1390s ago
+//     preparse_precompile_eval_1000x              187067 ns/iter     1320s ago
+//     preparse_precompile_eval_closure_1000x      145993 ns/iter      646s ago
+//     preparse_precompile_eval_unsafe_1000x       116063 ns/iter     2332s ago
+//     preparse_precompile_nsbubble_eval_1000x     348860 ns/iter      861s ago
 //
 //     "((((87))) - 73) + (97 + (((15 / 55 * ((31)) + 35))) + (15 - (9)) - (39 / 26) / 20 / 91 + 27 / (33 * 26 + 28 - (7) / 10 + 66 * 6) + 60 / 35 - ((29) - (69) / 44 / (92)) / (89) + 2 + 87 / 47 * ((2)) * 83 / 98 * 42 / (((67)) * ((97))) / (34 / 89 + 77) - 29 + 70 * (20)) + ((((((92))) + 23 * (98) / (95) + (((99) * (41))) + (5 + 41) + 10) - (36) / (6 + 80 * 52 + (90))))"
 //     BTreeMap, --emit=asm:
-//     ez                                            9376 ns/iter     8285s ago
-//     native_1000x                                   320 ns/iter    33906s ago
-//     parse_compile_eval_1000x                  14659614 ns/iter    19760s ago
-//     parse_eval_1000x                           9432013 ns/iter    24311s ago
-//     parse_nsbubble_eval_1000x                  9496883 ns/iter    23521s ago
-//     parser::internal_tests::spaces_1M            11642 ns/iter    33047s ago
-//     preparse_eval_1000x                        2916288 ns/iter     3344s ago
-//     preparse_precompile_eval_1000x                 618 ns/iter    12722s ago
-//     preparse_precompile_nsbubble_eval_1000x       9798 ns/iter     3098s ago
+//     ez                                            9179 ns/iter     1987s ago eval_ic_ref!()
+//     native_1000x                                   319 ns/iter     4215s ago
+//     parse_compile_eval_1000x                  14503940 ns/iter     3584s ago
+//     parse_eval_1000x                           9402799 ns/iter     4382s ago
+//     parse_nsbubble_eval_1000x                  9226554 ns/iter      667s ago
+//     parser::internal_tests::spaces_1M            11635 ns/iter     2790s ago
+//     preparse_eval_1000x                        2874974 ns/iter     4215s ago
+//     preparse_precompile_eval_1000x                 615 ns/iter     1078s ago
+//     preparse_precompile_eval_closure_1000x         618 ns/iter     2790s ago
+//     preparse_precompile_nsbubble_eval_1000x       9480 ns/iter     4215s ago
 //     BTreeMap, --emit=asm, --features unsafe-vars:
-//     ez                                            9542 ns/iter     1751s ago
-//     native_1000x                                   320 ns/iter      585s ago
-//     parse_compile_eval_1000x                  15370356 ns/iter     2463s ago
-//     parse_eval_1000x                           9782538 ns/iter     1489s ago
-//     parse_eval_unsafe_1000x                    9687478 ns/iter     1164s ago
-//     parse_nsbubble_eval_1000x                  9739020 ns/iter      502s ago
-//     parser::internal_tests::spaces_1M            11657 ns/iter      627s ago
-//     preparse_eval_1000x                        2914600 ns/iter     2975s ago
-//     preparse_precompile_eval_1000x                 927 ns/iter     2742s ago
-//     preparse_precompile_eval_unsafe_1000x          927 ns/iter     2586s ago
-//     preparse_precompile_nsbubble_eval_1000x       9812 ns/iter     2769s ago
+//     ez                                            9418 ns/iter      995s ago eval_ic_ref!()
+//     native_1000x                                   319 ns/iter      171s ago
+//     parse_compile_eval_1000x                  15532033 ns/iter      935s ago
+//     parse_eval_1000x                           9503323 ns/iter      995s ago
+//     parse_eval_unsafe_1000x                    9499499 ns/iter      995s ago
+//     parse_nsbubble_eval_1000x                  9629130 ns/iter     1298s ago
+//     parser::internal_tests::spaces_1M            11630 ns/iter     1464s ago
+//     preparse_eval_1000x                        2921451 ns/iter      995s ago
+//     preparse_precompile_eval_1000x                 924 ns/iter      668s ago
+//     preparse_precompile_eval_closure_1000x         924 ns/iter     1519s ago
+//     preparse_precompile_eval_unsafe_1000x          923 ns/iter      579s ago
+//     preparse_precompile_nsbubble_eval_1000x       9787 ns/iter     1379s ago
 //
 //
 // python3:
@@ -506,16 +466,31 @@ macro_rules! Namespace {
     }
 }
 
+macro_rules! memshift {
+    () => {
+        {
+            let x = black_box(0);
+            let x = black_box(x+1);
+
+            //SHIFT_CODE
+
+            black_box(x);  // Silence 'unused variable' warning.
+        }
+    }
+}
+
 //static EXPR : &'static str = "(3 * (3 + 3) / 3)";
 //static EXPR : &'static str = "3 * 3 - 3 / 3";
 //static EXPR : &'static str = "2 ^ 3 ^ 4";
 //static EXPR : &'static str = "x * 2";
-static EXPR : &'static str = "sin(x)";
+//static EXPR : &'static str = "sin(x)";
 //static EXPR : &'static str = "(-z + (z^2 - 4*x*y)^0.5) / (2*x)";
-//static EXPR : &'static str = "((((87))) - 73) + (97 + (((15 / 55 * ((31)) + 35))) + (15 - (9)) - (39 / 26) / 20 / 91 + 27 / (33 * 26 + 28 - (7) / 10 + 66 * 6) + 60 / 35 - ((29) - (69) / 44 / (92)) / (89) + 2 + 87 / 47 * ((2)) * 83 / 98 * 42 / (((67)) * ((97))) / (34 / 89 + 77) - 29 + 70 * (20)) + ((((((92))) + 23 * (98) / (95) + (((99) * (41))) + (5 + 41) + 10) - (36) / (6 + 80 * 52 + (90))))";
+static EXPR : &'static str = "((((87))) - 73) + (97 + (((15 / 55 * ((31)) + 35))) + (15 - (9)) - (39 / 26) / 20 / 91 + 27 / (33 * 26 + 28 - (7) / 10 + 66 * 6) + 60 / 35 - ((29) - (69) / 44 / (92)) / (89) + 2 + 87 / 47 * ((2)) * 83 / 98 * 42 / (((67)) * ((97))) / (34 / 89 + 77) - 29 + 70 * (20)) + ((((((92))) + 23 * (98) / (95) + (((99) * (41))) + (5 + 41) + 10) - (36) / (6 + 80 * 52 + (90))))";
 
 #[bench]
 fn native_1000x(bencher:&mut Bencher) {
+    memshift!();
+
     // Silence compiler warnings about unused imports:
     let _ = EmptyNamespace;  let _ = CachedFlatNamespace::new(|_,_| None);
 
@@ -531,15 +506,17 @@ fn native_1000x(bencher:&mut Bencher) {
             //black_box(3.0 * 3.0 - 3.0 / 3.0);
             //black_box(2.0f64.powf(3.0).powf(4.0));
             //black_box(x() * 2.0);
-            black_box(x().sin());
+            //black_box(x().sin());
             //black_box( (-b + (b.powf(2.0) - 4.0*a*c).powf(0.5)) / (2.0*a) );
-            //black_box( ((((87.))) - 73.) + (97. + (((15. / 55. * ((31.)) + 35.))) + (15. - (9.)) - (39. / 26.) / 20. / 91. + 27. / (33. * 26. + 28. - (7.) / 10. + 66. * 6.) + 60. / 35. - ((29.) - (69.) / 44. / (92.)) / (89.) + 2. + 87. / 47. * ((2.)) * 83. / 98. * 42. / (((67.)) * ((97.))) / (34. / 89. + 77.) - 29. + 70. * (20.)) + ((((((92.))) + 23. * (98.) / (95.) + (((99.) * (41.))) + (5. + 41.) + 10.) - (36.) / (6. + 80. * 52. + (90.)))) );
+            black_box( ((((87.))) - 73.) + (97. + (((15. / 55. * ((31.)) + 35.))) + (15. - (9.)) - (39. / 26.) / 20. / 91. + 27. / (33. * 26. + 28. - (7.) / 10. + 66. * 6.) + 60. / 35. - ((29.) - (69.) / 44. / (92.)) / (89.) + 2. + 87. / 47. * ((2.)) * 83. / 98. * 42. / (((67.)) * ((97.))) / (34. / 89. + 77.) - 29. + 70. * (20.)) + ((((((92.))) + 23. * (98.) / (95.) + (((99.) * (41.))) + (5. + 41.) + 10.) - (36.) / (6. + 80. * 52. + (90.)))) );
         }
     });
 }
 
 #[bench]
 fn ez(b:&mut Bencher) {
+    memshift!();
+
     let mut vars=BTreeMap::new();
     vars.insert("x".to_string(),1.0);
     vars.insert("y".to_string(),2.0);
@@ -555,11 +532,13 @@ fn ez(b:&mut Bencher) {
 
 #[bench]
 fn parse_eval_1000x(b:&mut Bencher) {
+    memshift!();
+
     let mut slab = Slab::new();
     let mut ns = Namespace!();
 
     b.iter(|| {
-        let _ = (|| -> Result<(),al::Error> {
+        let _ = (|| -> Result<(),fasteval::Error> {
             for _ in 0..1000 {
                 black_box(parse(EXPR, {slab.clear(); &mut slab.ps})?.from(&slab.ps).eval(&slab, &mut ns)?);
             }
@@ -570,11 +549,13 @@ fn parse_eval_1000x(b:&mut Bencher) {
 
 #[bench]
 fn parse_nsbubble_eval_1000x(b:&mut Bencher) {
+    memshift!();
+
     let mut slab = Slab::new();
     let mut ns = CachedScopedNamespace::new(evalcb);
 
     b.iter(|| {
-        let _ = (|| -> Result<(),al::Error> {
+        let _ = (|| -> Result<(),fasteval::Error> {
             for _ in 0..1000 {
                 let expr_ref = parse(EXPR, {slab.clear(); &mut slab.ps})?.from(&slab.ps);
                 let mut bub = Bubble::new(&mut ns);  bub.push();
@@ -588,6 +569,8 @@ fn parse_nsbubble_eval_1000x(b:&mut Bencher) {
 #[bench]
 #[cfg(feature="unsafe-vars")]
 fn parse_eval_unsafe_1000x(b:&mut Bencher) {
+    memshift!();
+
     let mut slab = Slab::new();
     let x = 1.0;
     let y = 2.0;
@@ -605,7 +588,7 @@ fn parse_eval_unsafe_1000x(b:&mut Bencher) {
     let mut ns = EmptyNamespace;
 
     b.iter(|| {
-        let _ = (|| -> Result<(),al::Error> {
+        let _ = (|| -> Result<(),fasteval::Error> {
             for _ in 0..1000 {
                 black_box(parse(EXPR, {slab.clear(); &mut slab.ps})?.from(&slab.ps).eval(&slab, &mut ns)?);
             }
@@ -616,6 +599,8 @@ fn parse_eval_unsafe_1000x(b:&mut Bencher) {
 
 #[bench]
 fn preparse_eval_1000x(b:&mut Bencher) {
+    memshift!();
+
     let mut slab = Slab::new();
     let mut ns = Namespace!();
     let expr_ref = match parse(EXPR, &mut slab.ps) {
@@ -624,7 +609,7 @@ fn preparse_eval_1000x(b:&mut Bencher) {
     };
 
     b.iter(|| {
-        let _ = (|| -> Result<(),al::Error> {
+        let _ = (|| -> Result<(),fasteval::Error> {
             for _ in 0..1000 {
                 black_box( expr_ref.eval(&slab, &mut ns)? );
             }
@@ -635,11 +620,13 @@ fn preparse_eval_1000x(b:&mut Bencher) {
 
 #[bench]
 fn parse_compile_eval_1000x(b:&mut Bencher) {
+    memshift!();
+
     let mut slab = Slab::new();
     let mut ns = Namespace!();
 
     b.iter(|| {
-        let _ = (|| -> Result<(),al::Error> {
+        let _ = (|| -> Result<(),fasteval::Error> {
             for _ in 0..1000 {
                 let instr = parse(EXPR, {slab.clear(); &mut slab.ps})?.from(&slab.ps).compile(&slab.ps, &mut slab.cs);
                 black_box(eval_compiled!(instr, &slab, &mut ns));
@@ -651,6 +638,8 @@ fn parse_compile_eval_1000x(b:&mut Bencher) {
 
 #[bench]
 fn preparse_precompile_eval_1000x(b:&mut Bencher) {
+    memshift!();
+
     let mut slab = Slab::new();
     let mut ns = Namespace!();
     let instr = match parse(EXPR, &mut slab.ps) {
@@ -659,7 +648,7 @@ fn preparse_precompile_eval_1000x(b:&mut Bencher) {
     };
 
     b.iter(|| {
-        let _ = (|| -> Result<(),al::Error> {
+        let _ = (|| -> Result<(),fasteval::Error> {
             let (instr_ref, slab_ref, ns_mut) = (&instr, &slab, &mut ns);  // Localize (doesn't help much)
             for _ in 0..1000 {
                 black_box( eval_compiled_ref!(instr_ref, slab_ref, ns_mut));
@@ -669,7 +658,7 @@ fn preparse_precompile_eval_1000x(b:&mut Bencher) {
     });
 
     //// Produces basically the same results, proving that the --emit=asm performanace boost is not coming from this test function -- it's coming from the evaluation, and I'm not able to replicate it.
-    // let _ = (|| -> Result<(),al::Error> {
+    // let _ = (|| -> Result<(),fasteval::Error> {
     //     let mut slab = Slab::new();
     //     let mut ns = Namespace!();
     //     let instr = match parse(EXPR, &mut slab.ps) {
@@ -689,6 +678,8 @@ fn preparse_precompile_eval_1000x(b:&mut Bencher) {
 
 #[bench]
 fn preparse_precompile_eval_closure_1000x(b:&mut Bencher) {
+    memshift!();
+
     let mut slab = Slab::new();
     let mut ns = evalcb;
     let instr = match parse(EXPR, &mut slab.ps) {
@@ -697,7 +688,7 @@ fn preparse_precompile_eval_closure_1000x(b:&mut Bencher) {
     };
 
     b.iter(|| {
-        let _ = (|| -> Result<(),al::Error> {
+        let _ = (|| -> Result<(),fasteval::Error> {
             let (instr_ref, slab_ref, ns_mut) = (&instr, &slab, &mut ns);  // Localize (doesn't help much)
             for _ in 0..1000 {
                 black_box( eval_compiled_ref!(instr_ref, slab_ref, ns_mut));
@@ -709,6 +700,8 @@ fn preparse_precompile_eval_closure_1000x(b:&mut Bencher) {
 
 #[bench]
 fn preparse_precompile_nsbubble_eval_1000x(b:&mut Bencher) {
+    memshift!();
+
     let mut slab = Slab::new();
     let mut ns = CachedScopedNamespace::new(evalcb);
     let instr = match parse(EXPR, &mut slab.ps) {
@@ -717,7 +710,7 @@ fn preparse_precompile_nsbubble_eval_1000x(b:&mut Bencher) {
     };
 
     b.iter(|| {
-        let _ = (|| -> Result<(),al::Error> {
+        let _ = (|| -> Result<(),fasteval::Error> {
             for _ in 0..1000 {
                 let mut bub = Bubble::new(&mut ns);  bub.push();
                 black_box( eval_compiled_ref!(&instr, &slab, &mut bub) );
@@ -730,6 +723,8 @@ fn preparse_precompile_nsbubble_eval_1000x(b:&mut Bencher) {
 #[bench]
 #[cfg(feature="unsafe-vars")]
 fn preparse_precompile_eval_unsafe_1000x(b:&mut Bencher) {
+    memshift!();
+
     let mut slab = Slab::new();
     let x = 1.0;
     let y = 2.0;
@@ -748,7 +743,7 @@ fn preparse_precompile_eval_unsafe_1000x(b:&mut Bencher) {
     let instr = parse(EXPR, &mut slab.ps).unwrap().from(&slab.ps).compile(&slab.ps, &mut slab.cs);
 
     b.iter(|| {
-        (|| -> Result<(),al::Error> {
+        (|| -> Result<(),fasteval::Error> {
             for _ in 0..1000 {
                 black_box(eval_compiled_ref!(&instr, &slab, &mut ns));
             }
@@ -761,7 +756,7 @@ fn preparse_precompile_eval_unsafe_1000x(b:&mut Bencher) {
 // #[cfg(feature="unsafe-vars")]
 // #[allow(non_snake_case)]
 // fn preparse_precompile_eval_unsafe_100B(_:&mut Bencher) {
-//     let _ = (|| -> Result<(),al::Error> {
+//     let _ = (|| -> Result<(),fasteval::Error> {
 //         let mut slab = Slab::new();
 //         let x = 1.0;
 //         let y = 2.0;
