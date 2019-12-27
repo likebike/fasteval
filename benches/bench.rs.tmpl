@@ -431,6 +431,7 @@ extern crate test;  // 'extern crate' seems to be required for this scenario: ht
 use test::{Bencher, black_box};
 
 use fasteval::{parse, Compiler, Evaler, Layered, Slab, EmptyNamespace, CachedFlatNamespace, CachedScopedNamespace, Bubble, ez_eval, eval_compiled, eval_compiled_ref};
+use fasteval::parser::parse_noclear;
 
 use std::collections::BTreeMap;
 use std::f64::NAN;
@@ -540,7 +541,7 @@ fn parse_eval_1000x(b:&mut Bencher) {
     b.iter(|| {
         let _ = (|| -> Result<(),fasteval::Error> {
             for _ in 0..1000 {
-                black_box(parse(EXPR, {slab.clear(); &mut slab.ps})?.from(&slab.ps).eval(&slab, &mut ns)?);
+                black_box(parse(EXPR, &mut slab.ps)?.from(&slab.ps).eval(&slab, &mut ns)?);
             }
             Ok(())
         })();
@@ -557,7 +558,7 @@ fn parse_nsbubble_eval_1000x(b:&mut Bencher) {
     b.iter(|| {
         let _ = (|| -> Result<(),fasteval::Error> {
             for _ in 0..1000 {
-                let expr_ref = parse(EXPR, {slab.clear(); &mut slab.ps})?.from(&slab.ps);
+                let expr_ref = parse(EXPR, &mut slab.ps)?.from(&slab.ps);
                 let mut bub = Bubble::new(&mut ns);  bub.push();
                 black_box( expr_ref.eval(&slab, &mut bub)? );
             }
@@ -590,7 +591,7 @@ fn parse_eval_unsafe_1000x(b:&mut Bencher) {
     b.iter(|| {
         let _ = (|| -> Result<(),fasteval::Error> {
             for _ in 0..1000 {
-                black_box(parse(EXPR, {slab.clear(); &mut slab.ps})?.from(&slab.ps).eval(&slab, &mut ns)?);
+                black_box(parse(EXPR, &mut slab.ps)?.from(&slab.ps).eval(&slab, &mut ns)?);
             }
             Ok(())
         })();
@@ -628,7 +629,7 @@ fn parse_compile_eval_1000x(b:&mut Bencher) {
     b.iter(|| {
         let _ = (|| -> Result<(),fasteval::Error> {
             for _ in 0..1000 {
-                let instr = parse(EXPR, {slab.clear(); &mut slab.ps})?.from(&slab.ps).compile(&slab.ps, &mut slab.cs);
+                let instr = parse(EXPR, &mut slab.ps)?.from(&slab.ps).compile(&slab.ps, &mut slab.cs);
                 black_box(eval_compiled!(instr, &slab, &mut ns));
             }
             Ok(())
@@ -642,7 +643,7 @@ fn preparse_precompile_eval_1000x(b:&mut Bencher) {
 
     let mut slab = Slab::new();
     let mut ns = Namespace!();
-    let instr = match parse(EXPR, &mut slab.ps) {
+    let instr = match parse_noclear(EXPR, &mut slab.ps) {
         Ok(expr_i) => expr_i.from(&slab.ps).compile(&slab.ps, &mut slab.cs),
         Err(_) => return,
     };
@@ -661,7 +662,7 @@ fn preparse_precompile_eval_1000x(b:&mut Bencher) {
     // let _ = (|| -> Result<(),fasteval::Error> {
     //     let mut slab = Slab::new();
     //     let mut ns = Namespace!();
-    //     let instr = match parse(EXPR, &mut slab.ps) {
+    //     let instr = match parse_noclear(EXPR, &mut slab.ps) {
     //         Ok(expr_i) => expr_i.from(&slab.ps).compile(&slab.ps, &mut slab.cs),
     //         Err(e) => return Err(e),
     //     };
@@ -682,7 +683,7 @@ fn preparse_precompile_eval_closure_1000x(b:&mut Bencher) {
 
     let mut slab = Slab::new();
     let mut ns = evalcb;
-    let instr = match parse(EXPR, &mut slab.ps) {
+    let instr = match parse_noclear(EXPR, &mut slab.ps) {
         Ok(expr_i) => expr_i.from(&slab.ps).compile(&slab.ps, &mut slab.cs),
         Err(_) => return,
     };
@@ -704,7 +705,7 @@ fn preparse_precompile_nsbubble_eval_1000x(b:&mut Bencher) {
 
     let mut slab = Slab::new();
     let mut ns = CachedScopedNamespace::new(evalcb);
-    let instr = match parse(EXPR, &mut slab.ps) {
+    let instr = match parse_noclear(EXPR, &mut slab.ps) {
         Ok(expr_i) => expr_i.from(&slab.ps).compile(&slab.ps, &mut slab.cs),
         Err(_) => return,
     };
@@ -740,7 +741,7 @@ fn preparse_precompile_eval_unsafe_1000x(b:&mut Bencher) {
     }
 
     let mut ns = EmptyNamespace;
-    let instr = parse(EXPR, &mut slab.ps).unwrap().from(&slab.ps).compile(&slab.ps, &mut slab.cs);
+    let instr = parse_noclear(EXPR, &mut slab.ps).unwrap().from(&slab.ps).compile(&slab.ps, &mut slab.cs);
 
     b.iter(|| {
         (|| -> Result<(),fasteval::Error> {
@@ -772,7 +773,7 @@ fn preparse_precompile_eval_unsafe_1000x(b:&mut Bencher) {
 //         }
 //
 //         let mut ns = EmptyNamespace;
-//         let instr = parse(EXPR, &mut slab.ps).unwrap().from(&slab.ps).compile(&slab.ps, &mut slab.cs);
+//         let instr = parse_noclear(EXPR, &mut slab.ps).unwrap().from(&slab.ps).compile(&slab.ps, &mut slab.cs);
 //         eprintln!("slab: {:?}  instr: {:?}", slab, instr);
 //
 //         let start = std::time::Instant::now();
@@ -791,7 +792,7 @@ fn preparse_precompile_eval_unsafe_1000x(b:&mut Bencher) {
 // #[allow(non_snake_case)]
 // fn preparse_compile_100M(_:&mut Bencher) {
 //     let mut slab = Slab::new();
-//     let expr_ref = parse(EXPR, &mut slab.ps).unwrap().from(&slab.ps);
+//     let expr_ref = parse_noclear(EXPR, &mut slab.ps).unwrap().from(&slab.ps);
 //
 //
 //     let start = std::time::Instant::now();

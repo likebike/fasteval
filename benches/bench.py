@@ -15,7 +15,7 @@ for i in range(100):
 
 avg = sum(stats)/len(stats)
 stdev = statistics.stdev(stats, avg)
-    
+
 print("python_eval_only_100x:", int(avg), "ns  +/-", int(stdev))
 print("It's very difficult to estimate the parse time in a fair way.  (Maybe 'time' the run of a PYC?  But that includes many proc startup costs...)")
 

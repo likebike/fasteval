@@ -1,5 +1,5 @@
 use crate::error::Error;
-use crate::parser::parse;
+use crate::parser::parse_noclear;
 use crate::evaler::Evaler;
 use crate::slab::Slab;
 use crate::evalns::EvalNamespace;
@@ -13,7 +13,8 @@ pub fn ez_eval(expr_str:&str, ns:&mut impl EvalNamespace) -> Result<f64,Error> {
     // Here is the same process, broken into steps:
 
     // First, parse the string:
-    let expr_i = parse(expr_str, &mut slab.ps)?;
+    // We use the 'parse_noclear' function instead of 'parse' because we know the slab is empty.
+    let expr_i = parse_noclear(expr_str, &mut slab.ps)?;
 
     // 'expr_i' is an index into the Slab.  You can extract the Expression object with either of these:
     //     slab.get_expr(expr_i)  ...OR...  expr_i.from(&slab.ps)

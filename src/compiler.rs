@@ -1,5 +1,3 @@
-// TODO: Make compilation more efficient.  Right now, it does a lot of memory allocation.  I bet I can use a slab cache...
-
 use crate::slab::{ParseSlab, CompileSlab};
 use crate::parser::{Expression, ExprPair, Value, UnaryOp::{self, EPos, ENeg, ENot, EParentheses}, BinaryOp::{self, EOR, EAND, ENE, EEQ, EGTE, ELTE, EGT, ELT, EAdd, ESub, EMul, EDiv, EMod, EExp}, StdFunc::{self, EVar, EFunc, EFuncInt, EFuncCeil, EFuncFloor, EFuncAbs, EFuncSign, EFuncLog, EFuncRound, EFuncMin, EFuncMax, EFuncE, EFuncPi, EFuncSin, EFuncCos, EFuncTan, EFuncASin, EFuncACos, EFuncATan, EFuncSinH, EFuncCosH, EFuncTanH, EFuncASinH, EFuncACosH, EFuncATanH}, PrintFunc};
 #[cfg(feature="unsafe-vars")]

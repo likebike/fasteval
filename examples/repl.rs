@@ -38,7 +38,7 @@ fn repl() {
             line = pieces[3..].join(" ");
         } else if pieces[0] == "push" {
             ns_stack.push(BTreeMap::new());
-            eprintln!("Entered scope #{}", ns_stack.len());
+            eprintln!("Entered scope[{}]", ns_stack.len()-1);
             continue;
         } else if pieces[0] == "pop" {
             let mut return_value = std::f64::NAN;  let mut has_return_value = false;
@@ -48,7 +48,7 @@ fn repl() {
             }
 
             ns_stack.pop();
-            eprintln!("Exited scope #{}", ns_stack.len()+1);
+            eprintln!("Exited scope[{}]", ns_stack.len());
             if ns_stack.is_empty() { ns_stack.push(BTreeMap::new()); }  // All scopes have been removed.  Add a new one.
 
             if has_return_value {

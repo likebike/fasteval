@@ -147,11 +147,11 @@ impl Clone for PrintFunc {
 
 
 
-enum Tok<T> {
+enum Token<T> {
     Pass,
     Bite(T),
 }
-use Tok::{Pass, Bite};
+use Token::{Pass, Bite};
 
 macro_rules! peek {
     ($bs:ident) =>  {
@@ -233,6 +233,11 @@ macro_rules! spaces {
 
 #[inline]
 pub fn parse(expr_str:&str, slab:&mut ParseSlab) -> Result<ExpressionI,Error> {
+    slab.clear();
+    Parser.parse(expr_str, slab)
+}
+#[inline]
+pub fn parse_noclear(expr_str:&str, slab:&mut ParseSlab) -> Result<ExpressionI,Error> {
     Parser.parse(expr_str, slab)
 }
 
@@ -309,7 +314,7 @@ impl Parser {
         Err(Error::InvalidValue)
     }
 
-    fn read_const(slab:&mut ParseSlab, bs:&mut &[u8]) -> Result<Tok<f64>,Error> {
+    fn read_const(slab:&mut ParseSlab, bs:&mut &[u8]) -> Result<Token<f64>,Error> {
         spaces!(bs);
 
         let mut toklen=0;  let mut sign_ok=true;  let mut specials_ok=true;  let mut suffix_ok=true;  let mut saw_val=false;
@@ -392,7 +397,7 @@ impl Parser {
     // //
     // // As a side-note, It's surprising how similar these algorithms are (which I created from scratch at 3am with no reference),
     // // compared to the dec2flt::parse module.
-    // fn read_const(&mut self, bs:&mut &[u8]) -> Result<Tok<f64>, KErr> {
+    // fn read_const(&mut self, bs:&mut &[u8]) -> Result<Token<f64>, KErr> {
     //     spaces!(bs);
     //
     //     // Grammar: [+-]?[0-9]*(\.[0-9]+)?( ([eE][+-]?[0-9]+) || [pnuµmkKMGT] )?
@@ -429,11 +434,11 @@ impl Parser {
     //     let mut toread=0;  let mut toskip=0;  let mut exp=0;
     //
     //     match peek(bs, 0) {
-    //         None => return Ok(Pass), 
+    //         None => return Ok(Pass),
     //         Some(b) => {
     //             if b==b'-' || b==b'+' { toread+=1; }
     //         }
-    //         
+    //
     //     }
     //
     //     let predec = peek_digits(&bs[toread..]);
@@ -468,7 +473,7 @@ impl Parser {
     //     Ok(Bite(val))
     // }
 
-    fn read_unaryop(slab:&mut ParseSlab, bs:&mut &[u8], depth:usize) -> Result<Tok<UnaryOp>,Error> {
+    fn read_unaryop(slab:&mut ParseSlab, bs:&mut &[u8], depth:usize) -> Result<Token<UnaryOp>,Error> {
         spaces!(bs);
         match peek!(bs) {
             None => Ok(Pass),  // Err(KErr::new("EOF at UnaryOp position")), -- Instead of erroring, let the higher level decide what to do.
@@ -507,7 +512,7 @@ impl Parser {
         }
     }
 
-    fn read_binaryop(bs:&mut &[u8]) -> Result<Tok<BinaryOp>,Error> {
+    fn read_binaryop(bs:&mut &[u8]) -> Result<Token<BinaryOp>,Error> {
         spaces!(bs);
         match peek!(bs) {
             None => Ok(Pass), // Err(KErr::new("EOF")), -- EOF is usually OK in a BinaryOp position.
@@ -543,7 +548,7 @@ impl Parser {
         }
     }
 
-    fn read_callable(slab:&mut ParseSlab, bs:&mut &[u8], depth:usize) -> Result<Tok<Value>,Error> {
+    fn read_callable(slab:&mut ParseSlab, bs:&mut &[u8], depth:usize) -> Result<Token<Value>,Error> {
         match Self::read_varname(bs)? {
             Pass => Ok(Pass),
             Bite(varname) => {
@@ -572,7 +577,7 @@ impl Parser {
         }
     }
 
-    fn read_varname(bs:&mut &[u8]) -> Result<Tok<String>,Error> {
+    fn read_varname(bs:&mut &[u8]) -> Result<Token<String>,Error> {
         spaces!(bs);
 
         let mut toklen = 0;
@@ -585,7 +590,7 @@ impl Parser {
         Ok(Bite(out))
     }
 
-    fn read_open_parenthesis(bs:&mut &[u8]) -> Result<Tok<u8>,Error> {
+    fn read_open_parenthesis(bs:&mut &[u8]) -> Result<Token<u8>,Error> {
         spaces!(bs);
 
         match peek!(bs) {
@@ -859,7 +864,7 @@ impl Parser {
         Ok(EExpr(Self::read_expression(slab,bs,depth+1,false)?))
     }
 
-    fn read_string(bs:&mut &[u8]) -> Result<Tok<String>,Error> {
+    fn read_string(bs:&mut &[u8]) -> Result<Token<String>,Error> {
         spaces!(bs);
 
         match peek!(bs) {
@@ -991,7 +996,7 @@ mod internal_tests {
         assert!(Parser::is_varname_byte_opt(Some(b'a'),0));
 
         let mut slab = Slab::new();
-        
+
         {
             let bsarr = b"12.34";
             let bs = &mut &bsarr[..];

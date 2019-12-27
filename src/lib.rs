@@ -1,15 +1,20 @@
 //! A fast algebraic expression evaluation library.
 //!
-//! # Built-in Functions and Constants
+//! # The `fasteval` Mini-Language
+//!
+//! ## Built-in Functions and Constants
+//!
+//! These are the built-in functions that the `fasteval` mini-language supports.  (You can also add your own custom functions and variables -- see the [Examples](#advanced-variables-and-custom-functions) section.)
 //!
 //! ```text
 //!   * print(...strings and values...) -- Prints to stderr.  Very useful to 'probe' an expression.
 //!                                        Evaluates to the last value.
 //!                                        Example: `print("x is", x, "and y is", y)`
-//!                                        Example: `x + print("y:",y) + z == x+y+z`
+//!                                        Example: `x + print("y:", y) + z == x+y+z`
 //!
 //!   * log(base=10, val) -- Logarithm with optional 'base' as first argument.
-//!                          Example: `log(100) + log(e(),100)`
+//!                          If not provided, 'base' defaults to '10'.
+//!                          Example: `log(100) + log(e(), 100)`
 //!
 //!   * e()  -- Euler's number (2.718281828459045)
 //!   * pi() -- π (3.141592653589793)
@@ -23,8 +28,8 @@
 //!   * abs(val)
 //!   * sign(val)
 //!
-//!   * min(val, ...) -- Example: `min(1,-2,3,-4) == -4`
-//!   * max(val, ...) -- Example: `max(1,-2,3,-4) == 3`
+//!   * min(val, ...) -- Example: `min(1, -2, 3, -4) == -4`
+//!   * max(val, ...) -- Example: `max(1, -2, 3, -4) == 3`
 //!
 //!   * sin(radians)    * asin(val)
 //!   * cos(radians)    * acos(val)
@@ -34,19 +39,41 @@
 //!   * tanh(val)       * atanh(val)
 //! ```
 //!
+//! ## Operators
+//!
+//! The `and` and `or` operators are enabled by default, but if your application wants to use those words for something else, they can be disabled by turning off the `alpha-keywords` feature (`cargo build --no-default-features`).
+//!
+//! ```text
+//! Listed in order of precedence:
+//!
+//!     (Highest Precedence) ^               Exponentiation
+//!                          %               Modulo
+//!                          /               Division
+//!                          *               Multiplication
+//!                          -               Subtraction
+//!                          +               Addition
+//!                          == != < <= >= > Comparisons (all have equal precedence)
+//!                          && and          Logical AND with short-circuit
+//!     (Lowest Precedence)  || or           Logical OR with short-circuit
+//!
+//! ```
+//!
 //! # Examples
 //!
-//! ## Easy evaluation of constant expressions
-//! The `ez_eval()` function performs the entire allocation-parse-eval process
-//! for you.  It is a little bit inefficient because it always allocates a
-//! fresh Slab, but it is very simple to use:
+//! ## Easy evaluation
+//! The [ez_eval()](#todo) function performs the entire allocation-parse-eval process
+//! for you.  It is slightly inefficient because it always allocates a
+//! fresh [Slab](#todo), but it is very simple to use:
 //!
 //! ```
 //! fn main() -> Result<(), fasteval::Error> {
+//!     // This example doesn't use any variables, so just use an EmptyNamespace:
+//!     let mut ns = fasteval::EmptyNamespace;
+//!
 //!     let val = fasteval::ez_eval(
-//!         "1+2*3/4^5%6 + log(100) + log(e(),100) + [3*(3-3)/3] + (2<3) && 1.23",    &mut fasteval::EmptyNamespace)?;
+//!         "1+2*3/4^5%6 + log(100) + log(e(),100) + [3*(3-3)/3] + (2<3) && 1.23",    &mut ns)?;
 //!     //    |            |          |   |          |               |   |
-//!     //    |            |          |   |          |               |   boolean logic with ternary support
+//!     //    |            |          |   |          |               |   boolean logic with short-circuit support
 //!     //    |            |          |   |          |               comparisons
 //!     //    |            |          |   |          square-brackets act like parenthesis
 //!     //    |            |          |   built-in constants: e(), pi()
@@ -62,8 +89,9 @@
 //!
 //!
 //! ## Simple variables
-//! Several namespace types are supported, each designed for different
-//! situations.  ([See the various Namespace types here.](evalns/index.html))  For simple cases, you can define variables with a `BTreeMap`:
+//! Several namespace types are supported, each designed for different situations.
+//! ([See the various Namespace types here.](evalns/index.html))  For simple cases, you can define variables with a
+//! `[BTreeMap](https://doc.rust-lang.org/std/collections/struct.BTreeMap.html)`:
 //!
 //! ```
 //! use std::collections::BTreeMap;
@@ -84,19 +112,28 @@
 //! ```
 //!
 //! ## Advanced variables and custom functions
-//! This time, instead of using a map, we will use a namespace with a callback
-//! function, which enables us to do advanced things, like define custom
-//! functions and array-like objects:
+//! This time, instead of using a map, we will use a namespace with a callback function,
+//! which defines custom variables, functions, and array-like objects:
 //!
 //! ```
 //! fn main() -> Result<(), fasteval::Error> {
 //!     let mut ns = fasteval::CachedFlatNamespace::new(|name:&str, args:Vec<f64>| -> Option<f64> {
 //!         let mydata : [f64; 3] = [11.1, 22.2, 33.3];
 //!         match name {
+//!             // Custom constants/variables:
 //!             "x" => Some(3.0),
 //!             "y" => Some(4.0),
+//!
+//!             // Custom function:
 //!             "sum" => Some(args.into_iter().fold(0.0, |s,f| s+f)),
+//!
+//!             // Custom array-like objects:
+//!             // The `args.get...` code is the same as:
+//!             //     mydata[args[0] as usize]
+//!             // ...but it won't panic if either index is out-of-bounds.
 //!             "data" => args.get(0).and_then(|f| mydata.get(*f as usize).copied()),
+//!
+//!             // A wildcard to handle all undefined names:
 //!             _ => None,
 //!         }
 //!     });
@@ -115,16 +152,17 @@
 //!
 //! ## Re-use the Slab to go faster
 //! If we perform the parse and eval ourselves (without relying on the 'ez'
-//! interface), then we can re-use the Slab allocation for subsequent parsing
+//! interface), then we can re-use the [Slab](#todo) allocation for subsequent parsing
 //! and evaluations.  This avoids a significant amount of slow memory
 //! operations:
 //!
 //! ```
 //! use std::collections::BTreeMap;
-//! use fasteval::Evaler;  // import this trait so we can call eval().
+//! use fasteval::Evaler;  // use this trait so we can call eval().
 //! fn main() -> Result<(), fasteval::Error> {
 //!     let mut slab = fasteval::Slab::new();
 //!
+//!     // See the `parse` documentation to understand why we use `from` like this:
 //!     let expr_ref = fasteval::parse("x + 1", &mut slab.ps)?.from(&slab.ps);
 //!
 //!     // Let's evaluate the expression a couple times with different 'x' values:
@@ -140,8 +178,10 @@
 //!
 //!     // Now, let's re-use the Slab for a new expression.
 //!     // (This is much cheaper than allocating a new Slab.)
+//!     // The Slab gets cleared by 'parse()', so you must avoid using
+//!     // the old expr_ref after parsing the new expression.
+//!     // One simple way to avoid this problem is to shadow the old variable:
 //!
-//!     slab.clear();
 //!     let expr_ref = fasteval::parse("x * 10", &mut slab.ps)?.from(&slab.ps);
 //!
 //!     let val = expr_ref.eval(&slab, &mut map)?;
@@ -160,8 +200,8 @@
 //! usually more than 200 times faster.
 //! ```
 //! use std::collections::BTreeMap;
-//! use fasteval::Compiler;  // import this trait so we can call compile().
-//! use fasteval::Evaler;    // import this trait so we can call eval().
+//! use fasteval::Compiler;  // use this trait so we can call compile().
+//! use fasteval::Evaler;    // use this trait so we can call eval().
 //! fn main() -> Result<(), fasteval::Error> {
 //!     let mut slab = fasteval::Slab::new();
 //!     let mut map = BTreeMap::new();
@@ -188,18 +228,26 @@
 //! feature is not enabled by default because it slightly slows down other
 //! non-variable operations.
 //! ```
-//! use fasteval::Compiler;  // import this trait so we can call compile().
-//! use fasteval::Evaler;    // import this trait so we can call eval().
+//! use fasteval::Compiler;  // use this trait so we can call compile().
+//! use fasteval::Evaler;    // use this trait so we can call eval().
 //! fn main() -> Result<(), fasteval::Error> {
 //!     let mut slab = fasteval::Slab::new();
+//!
+//!     // The Unsafe Variable will use a pointer to read this memory location:
+//!     // You must make sure that this variable stays in-scope as long as the
+//!     // expression is in-use.
 //!     let mut deg : f64 = 0.0;
+//!
+//!     // Unsafe Variables must be registered before 'parse()'.
+//!     // (Normal Variables only need definitions during the 'eval' phase.)
 //!     unsafe { slab.ps.add_unsafe_var("deg".to_string(), &deg); }  // Saves a pointer to 'deg'.
+//!
+//!     let expr_str = "sin(deg/360 * 2*pi())";
+//!     let compiled = fasteval::parse(expr_str, &mut slab.ps)?.from(&slab.ps).compile(&slab.ps, &mut slab.cs);
 //!
 //!     let mut ns = fasteval::EmptyNamespace;  // We only define unsafe variables, not normal variables,
 //!                                             // so EmptyNamespace is fine.
 //!
-//!     let expr_str = "sin(deg/360 * 2*pi())";
-//!     let compiled = fasteval::parse(expr_str, &mut slab.ps)?.from(&slab.ps).compile(&slab.ps, &mut slab.cs);
 //!     for d in 0..360 {
 //!         deg = d as f64;
 //!         let val = fasteval::eval_compiled!(compiled, &slab, &mut ns);
@@ -209,11 +257,11 @@
 //!     Ok(())
 //! }
 //! ```
-//! 
+//!
 //!
 //! # Performance Benchmarks
 //!
-//! These benchmarks were performed on 2019-12-25.
+//! These benchmarks were performed on 2019-12-25.  Merry Christmas.
 //!
 //! Here are links to all the libraries/tools included in these benchmarks:
 //!
@@ -330,7 +378,7 @@
 //!             'fasteval' is the same speed for compiled expressions,
 //!             and 1.2x as fast for interpretation.
 //!
-//!     * big = `((((87))) - 73) + (97 + (((15 / 55 * ((31)) + 35))) + (15 - (9)) - (39 / 26) / 20 / 91 + 27 / (33 * 26 + 28 - (7) / 10 + 66 * 6) + 60 / 35 - ((29) - (69) / 44 / (92)) / (89) + 2 + 87 / 47 * ((2)) * 83 / 98 * 42 / (((67)) * ((97))) / (34 / 89 + 77) - 29 + 70 * (20)) + ((((((92))) + 23 * (98) / (95) + (((99) * (41))) + (5 + 41) + 10) - (36) / (6 + 80 * 52 + (90))))`
+//!     * large = `((((87))) - 73) + (97 + (((15 / 55 * ((31)) + 35))) + (15 - (9)) - (39 / 26) / 20 / 91 + 27 / (33 * 26 + 28 - (7) / 10 + 66 * 6) + 60 / 35 - ((29) - (69) / 44 / (92)) / (89) + 2 + 87 / 47 * ((2)) * 83 / 98 * 42 / (((67)) * ((97))) / (34 / 89 + 77) - 29 + 70 * (20)) + ((((((92))) + 23 * (98) / (95) + (((99) * (41))) + (5 + 41) + 10) - (36) / (6 + 80 * 52 + (90))))`
 //!       This is a fairly large expression that highlights parsing costs.
 //!       Results:
 //!           * Since there are no variables in the expression, 'fasteval' and
@@ -351,13 +399,18 @@
 //!
 //! All numeric results can be found in `fasteval/benches/bench.rs`.
 //!
+//! ### Close All Running Applications
+//! ...especially web browsers!  Don't allow other running processes to slow down the benchmarks.
+//!
 //! ### Disable Power Saving Mode
-//! 
-//!     for F in /sys/devices/system/cpu/cpufreq/policy*/scaling_governor; do echo $F; cat $F; done
-//!     for F in /sys/devices/system/cpu/cpufreq/policy*/scaling_governor; do echo performance >$F; done
+//!
+//! ```text
+//! for F in /sys/devices/system/cpu/cpufreq/policy*/scaling_governor; do echo $F; cat $F; done
+//! for F in /sys/devices/system/cpu/cpufreq/policy*/scaling_governor; do echo performance >$F; done
+//! ```
 //!
 //! ### Always Use `RUSTFLAGS="--emit=asm"`
-//! For some reason which I have been unable to find any documentation about, the emission of assembly code during compilation causes LLVM to dramatically improve the optimization of the resulting binary (often a 3x difference for critical sections!).  In particular, it makes better choices regarding variable localization and function inlining.  I suggest that you *always* use this option for everything you do.
+//! For some reason, which I have been unable to find any documentation about, the emission of assembly code during compilation causes LLVM to dramatically improve the optimization of the resulting binary (often a 3x difference for critical sections!).  In particular, it makes better choices regarding variable localization and function inlining.  I suggest that you *always* use this option for everything you do.
 //!
 //! ### Layout Randomization
 //! I use a poor-man's Layout Randomization method similar to [Coz](https://www.youtube.com/watch?v=r-TLSBdHe1A).  The size and location of your code has significant impact on its performance.  The compiler often makes poor decisions about code placement, which results in up to 40% performance differences!  When benchmarking, it is important to remove this source of noise so that you can see the real effects of your changes.
@@ -365,7 +418,7 @@
 //! Rather than using [Coz](https://github.com/alexcrichton/coz-rs), I use a poor-man's approach which has no dependencies and works across languages:  During each iteration of my benchmark loop, I inject a random number of no-op instructions into my benchmark code (using 'sed').  This shifts everything around in the address space so that I end up hitting all fast and slow scenarios.
 //!
 //! I then run the benchmark loop many times, keeping track of the fastest-seen times until I no longer observe any improvements in any part of the banchmark suite for 500 seconds.  At that point, I say that I have reached a stable point and can draw conclusions from the statistics.
-//! 
+//!
 //! Here is my benchmark loop, which performs Layout Randomization:
 //!
 //! ```text
@@ -398,8 +451,9 @@
 //! Yes, but not easily, and not by much.
 //!
 //! To boost the 'eval' phase, we would really need to perform compilation to
-//! machine code, which is difficult and non-portable across platforms.  Also,
-//! the potential gains are limited: We already run at
+//! machine code, which is difficult and non-portable across platforms, and
+//! increases the likelyhood of security vulnerabilities.  Also, the potential
+//! gains are limited: We already run at
 //! half-the-speed-of-compiled-optimized-Rust for constant expressions (the
 //! most common case).  So for constant expressions, the most you could gain
 //! from compilation-to-machine-code is a 2x performance boost.  We are already
@@ -412,12 +466,20 @@
 //!     useful-enough in real-life to justify the extra complexity.
 //!   * Evaluation could be paralellized (with a more complex design).
 //!
-//! It is possible to boost overall speed by improving the parsing algoritm
+//! It is possible to boost overall speed by improving the parsing algorithm
 //! to produce a Reverse Polish Notation AST directly, rather than the currennt
 //! infix AST which is then converted to RPN during compilation.  However, this
 //! isn't as simple as just copying the Shunting-Yard algorithm because I
 //! support more advanced (and customizable) syntax (such as function calls and
 //! strings), while Shunting-Yard is designed only for algebraic expressions.
+//!
+//! # List of Projects that use `fasteval`
+//!
+//! [Send me a message](mailto:csebastian3@gmail.com) if you would like to list your project here.
+//!
+//! * [koin.cx](http://koin.cx/)
+//! * [robit](#coming-soon)
+//! * [openpinescript](#coming-soon)
 
 
 #![feature(test)]
