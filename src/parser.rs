@@ -29,8 +29,17 @@ use std::ptr;
 
 
 
+/// An `ExpressionI` represents an index into `Slab.ps.exprs`.
+///
+/// It behaves much like a pointer or reference, but it is 'safe' (unlike a raw
+/// pointer) and is not managed by the Rust borrow checker (unlike a reference).
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub struct ExpressionI(pub usize);
+
+/// A `ValueI` represents an index into `Slab.ps.vals`.
+///
+/// It behaves much like a pointer or reference, but it is 'safe' (unlike a raw
+/// pointer) and is not managed by the Rust borrow checker (unlike a reference).
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub struct ValueI(pub usize);
 

@@ -1,3 +1,7 @@
+//! Namespaces are fun.
+//!
+//! abc 123.
+
 use crate::error::Error;
 
 use std::collections::BTreeMap;

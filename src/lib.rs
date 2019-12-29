@@ -1,10 +1,10 @@
 //! A fast algebraic expression evaluation library.
 //!
-//! # The `fasteval` Mini-Language
+//! # The `fasteval` Expression "Mini-Language"
 //!
 //! ## Built-in Functions and Constants
 //!
-//! These are the built-in functions that the `fasteval` mini-language supports.  (You can also add your own custom functions and variables -- see the [Examples](#advanced-variables-and-custom-functions) section.)
+//! These are the built-in functions that `fasteval` expressions support.  (You can also add your own custom functions and variables -- see the [Examples](#advanced-variables-and-custom-functions) section.)
 //!
 //! ```text
 //!   * print(...strings and values...) -- Prints to stderr.  Very useful to 'probe' an expression.
@@ -61,9 +61,9 @@
 //! # Examples
 //!
 //! ## Easy evaluation
-//! The [ez_eval()](#todo) function performs the entire allocation-parse-eval process
+//! The [`ez_eval()`](#todo) function performs the entire allocation-parse-eval process
 //! for you.  It is slightly inefficient because it always allocates a
-//! fresh [Slab](#todo), but it is very simple to use:
+//! fresh [`Slab`](slab/index.html), but it is very simple to use:
 //!
 //! ```
 //! fn main() -> Result<(), fasteval::Error> {
@@ -91,7 +91,7 @@
 //! ## Simple variables
 //! Several namespace types are supported, each designed for different situations.
 //! ([See the various Namespace types here.](evalns/index.html))  For simple cases, you can define variables with a
-//! `[BTreeMap](https://doc.rust-lang.org/std/collections/struct.BTreeMap.html)`:
+//! [`BTreeMap`](https://doc.rust-lang.org/std/collections/struct.BTreeMap.html):
 //!
 //! ```
 //! use std::collections::BTreeMap;
@@ -152,7 +152,7 @@
 //!
 //! ## Re-use the Slab to go faster
 //! If we perform the parse and eval ourselves (without relying on the 'ez'
-//! interface), then we can re-use the [Slab](#todo) allocation for subsequent parsing
+//! interface), then we can re-use the [`Slab`](slab/index.html) allocation for subsequent parsing
 //! and evaluations.  This avoids a significant amount of slow memory
 //! operations:
 //!
@@ -200,8 +200,8 @@
 //! usually more than 200 times faster.
 //! ```
 //! use std::collections::BTreeMap;
-//! use fasteval::Compiler;  // use this trait so we can call compile().
 //! use fasteval::Evaler;    // use this trait so we can call eval().
+//! use fasteval::Compiler;  // use this trait so we can call compile().
 //! fn main() -> Result<(), fasteval::Error> {
 //!     let mut slab = fasteval::Slab::new();
 //!     let mut map = BTreeMap::new();
@@ -228,8 +228,8 @@
 //! feature is not enabled by default because it slightly slows down other
 //! non-variable operations.
 //! ```
-//! use fasteval::Compiler;  // use this trait so we can call compile().
 //! use fasteval::Evaler;    // use this trait so we can call eval().
+//! use fasteval::Compiler;  // use this trait so we can call compile().
 //! fn main() -> Result<(), fasteval::Error> {
 //!     let mut slab = fasteval::Slab::new();
 //!
@@ -282,18 +282,18 @@
 //!
 //!
 //! **Performance of evaluation of a compiled expression:**  
-//! ![abc](http://hk.likebike.com/code/fasteval/benches/fasteval-compiled-20191225.png)
+//! ![Compiled Eval Performance](http://hk.likebike.com/code/fasteval/benches/fasteval-compiled-20191225.png)
 //!
 //! **Performance of one-time interpretation (parse and eval):**  
-//! ![abc](http://hk.likebike.com/code/fasteval/benches/fasteval-interp-20191225.png)
+//! ![Interpretation Performance](http://hk.likebike.com/code/fasteval/benches/fasteval-interp-20191225.png)
 //!
 //! **Performance of compiled Unsafe Variables, compared to the tinyexpr C library (the
 //! only other library in our test set that supports this mode):**  
-//! ![abc](http://hk.likebike.com/code/fasteval/benches/fasteval-compiled-unsafe-20191225.png)
+//! ![Unsafe Compiled Eval Performance](http://hk.likebike.com/code/fasteval/benches/fasteval-compiled-unsafe-20191225.png)
 //!
 //! **Performance of interpreted Unsafe Variables, compared to the tinyexpr C library (the
 //! only other library in our test set that supports this mode):**  
-//! ![abc](http://hk.likebike.com/code/fasteval/benches/fasteval-interp-unsafe-20191225.png)
+//! ![Unsafe Interpretation Performance](http://hk.likebike.com/code/fasteval/benches/fasteval-interp-unsafe-20191225.png)
 //!
 //! ## Summary
 //!
@@ -472,6 +472,15 @@
 //! isn't as simple as just copying the Shunting-Yard algorithm because I
 //! support more advanced (and customizable) syntax (such as function calls and
 //! strings), while Shunting-Yard is designed only for algebraic expressions.
+//!
+//!
+//! # Future Work
+//! Here are some features that I plan to add in the future:
+//!
+//! * Dynamic `sprintf` string formatting for the `print()` built-in expression function.
+//! * FFI so this library can be used from other languages.
+//! * Ability to copy the contents of a Slab into a perfectly-sized container
+//!   ("Packed Slab") to reduce wasted memory.
 //!
 //! # List of Projects that use `fasteval`
 //!
