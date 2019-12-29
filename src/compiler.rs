@@ -4,6 +4,7 @@ use crate::parser::{Expression, ExprPair, Value, UnaryOp::{self, EPos, ENeg, ENo
 use crate::parser::StdFunc::EUnsafeVar;
 
 
+/// `true` --> `1.0`,  `false` --> `0.0`
 #[macro_export]
 macro_rules! bool_to_f64 {
     ($b:expr) => {
@@ -165,6 +166,7 @@ impl<'s> ExprSlice<'s> {
     }
 }
 
+/// Uses `EPSILON` to determine equality of two `f64`s.
 #[macro_export]
 macro_rules! f64_eq {
     ($l:ident, $r:literal) => {
@@ -180,6 +182,10 @@ macro_rules! f64_eq {
         (($l)-($r)).abs() <= 8.0*std::f64::EPSILON
     };
 }
+
+/// Uses `EPSILON` to determine inequality of two `f64`s.
+///
+/// This is exactly the same as saying `!f64_eq(x,y)` but it is slightly more efficient.
 #[macro_export]
 macro_rules! f64_ne {
     ($l:ident, $r:literal) => {

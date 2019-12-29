@@ -430,7 +430,7 @@
 extern crate test;  // 'extern crate' seems to be required for this scenario: https://github.com/rust-lang/rust/issues/57288
 use test::{Bencher, black_box};
 
-use fasteval::{parse, Compiler, Evaler, Layered, Slab, EmptyNamespace, CachedFlatNamespace, CachedScopedNamespace, Bubble, ez_eval, eval_compiled, eval_compiled_ref};
+use fasteval::{parse, Compiler, Evaler, Layered, Slab, EmptyNamespace, CachedFlatNamespace, CachedLayeredNamespace, Bubble, ez_eval, eval_compiled, eval_compiled_ref};
 use fasteval::parser::parse_noclear;
 
 use std::collections::BTreeMap;
@@ -463,7 +463,7 @@ macro_rules! Namespace {
 
         //CachedFlatNamespace::new(evalcb)
 
-        //CachedScopedNamespace::new(evalcb)
+        //CachedLayeredNamespace::new(evalcb)
     }
 }
 
@@ -553,7 +553,7 @@ fn parse_nsbubble_eval_1000x(b:&mut Bencher) {
     memshift!();
 
     let mut slab = Slab::new();
-    let mut ns = CachedScopedNamespace::new(evalcb);
+    let mut ns = CachedLayeredNamespace::new(evalcb);
 
     b.iter(|| {
         let _ = (|| -> Result<(),fasteval::Error> {
@@ -704,7 +704,7 @@ fn preparse_precompile_nsbubble_eval_1000x(b:&mut Bencher) {
     memshift!();
 
     let mut slab = Slab::new();
-    let mut ns = CachedScopedNamespace::new(evalcb);
+    let mut ns = CachedLayeredNamespace::new(evalcb);
     let instr = match parse_noclear(EXPR, &mut slab.ps) {
         Ok(expr_i) => expr_i.from(&slab.ps).compile(&slab.ps, &mut slab.cs),
         Err(_) => return,

@@ -23,6 +23,18 @@ use std::fmt;
 
 
 
+/// The same as `evaler.eval(&slab, &mut ns)`, but more efficient for common cases.
+///
+/// This macro is exactly the same as [`eval_compiled_ref!()`](macro.eval_compiled_ref.html)
+/// but is more efficient if you have ownership of the evaler.
+///
+/// Only use this for compiled expressions.  (If you use it for interpreted
+/// expressions, it will work but will always be slower than calling `eval()` directly.)
+///
+/// This macro is able to eliminate function calls for constants and Unsafe Variables.
+/// Since evaluation is a performance-critical operation, saving some function
+/// calls actually makes a huge performance difference.
+///
 #[macro_export]
 macro_rules! eval_compiled {
     ($evaler:ident, $slab_ref:expr, $ns_mut:expr) => {
@@ -50,6 +62,18 @@ macro_rules! eval_compiled {
     };
 }
 
+/// The same as `evaler_ref.eval(&slab, &mut ns)`, but more efficient for common cases.
+///
+/// This macro is exactly the same as [`eval_compiled!()`](macro.eval_compiled.html) but
+/// is useful when you hold a reference to the evaler, rather than having ownership of it.
+///
+/// Only use this for compiled expressions.  (If you use it for interpreted
+/// expressions, it will work but will always be slower than calling `eval()` directly.)
+///
+/// This macro is able to eliminate function calls for constants and Unsafe Variables.
+/// Since evaluation is a performance-critical operation, saving some function
+/// calls actually makes a huge performance difference.
+///
 #[macro_export]
 macro_rules! eval_compiled_ref {
     ($evaler:ident, $slab_ref:expr, $ns_mut:expr) => {

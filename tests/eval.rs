@@ -1,4 +1,4 @@
-use fasteval::{Evaler, Error, Slab, EvalNamespace, Layered, EmptyNamespace, CachedFlatNamespace, CachedScopedNamespace, parse};
+use fasteval::{Evaler, Error, Slab, EvalNamespace, Layered, EmptyNamespace, CachedFlatNamespace, CachedLayeredNamespace, parse};
 use fasteval::bool_to_f64;
 
 use std::mem;
@@ -221,7 +221,7 @@ impl Evaler for TestEvaler {
 #[test]
 fn aaa_evalns_basics() {
     let slab = Slab::new();
-    let mut ns = CachedScopedNamespace::new(|_,_| Some(5.4321));
+    let mut ns = CachedLayeredNamespace::new(|_,_| Some(5.4321));
     assert_eq!({ ns.push(); let out=TestEvaler{}.eval(&slab, &mut ns); ns.pop(); out }.unwrap(), 5.4321);
     ns.create_cached("x".to_string(),1.111).unwrap();
     assert_eq!({ ns.push(); let out=TestEvaler{}.eval(&slab, &mut ns); ns.pop(); out }.unwrap(), 1.111);

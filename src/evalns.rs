@@ -1,6 +1,95 @@
-//! Namespaces are fun.
+//! Evaluation Namespaces used for Variable-lookups and custom Functions.
 //!
-//! abc 123.
+//! Several Evaluation Namespace types are supported, each with their own advantages:
+//! * [`EmptyNamespace`](#todo) -- Useful when you know that your expressions don't need to look up any variables.
+//! * [`BTreeMap`](#todo) -- A simple way to define variables with a map.
+//! * [`FnMut(&str,Vec<f64>)`](#todo) -- Define variables and custom functions using a callback function.
+//! * [`CachedFlatNamespace`](#todo) -- Like the above callback-based Namespace, but results are cached so the callback is not queried more than once for a given variable.
+//! * [`Vec<BTreeMap<String,f64>>`](#todo) -- Define variables with layered maps.  Each layer is a separate 'scope'.  Higher layers take precedence over lower layers.  Very useful for creating scoped higher-level-languages.
+//! * [`CachedLayeredNamespace`](#todo) -- Define variables and custom functions using a callback function and layers.  Results are cached in the layers so the callback is not queried more than once for a given variable (unless the layer holding the cache is popped).  Very useful for creating scoped higher-level-languages.
+//!
+//! # Examples
+//!
+//! ## EmptyNamespace
+//! ```
+//! fn main() -> Result<(), fasteval::Error> {
+//!     let mut ns = fasteval::EmptyNamespace;
+//!
+//!     let val = fasteval::ez_eval("sin(pi()/2)", &mut ns)?;
+//!     assert_eq!(val, 1.0);
+//!
+//!     Ok(())
+//! }
+//! ```
+//!
+//! ## BTreeMap
+//! ```
+//! use std::collections::BTreeMap;
+//! use fasteval::EvalNamespace;  // use this trait so namespaces work properly.
+//! fn main() -> Result<(), fasteval::Error> {
+//!     let mut map : BTreeMap<String,f64> = BTreeMap::new();
+//!     map.insert("x".to_string(), 2.0);
+//!
+//!     let val = fasteval::ez_eval("x * (x + 1)", &mut map)?;
+//!     assert_eq!(val, 6.0);
+//!
+//!     Ok(())
+//! }
+//! ```
+//!
+//! ## Callback
+//! ```
+//! use fasteval::EvalNamespace;  // use this trait so namespaces work properly.
+//! fn main() -> Result<(), fasteval::Error> {
+//!     let mut num_lookups = 0;
+//!     let mut cb = |name:&str, args:Vec<f64>| -> Option<f64> {
+//!         num_lookups += 1;
+//!         match name {
+//!             "x" => Some(2.0),
+//!             _ => None,
+//!         }
+//!     };
+//!
+//!     let val = fasteval::ez_eval("x * (x + 1)", &mut cb)?;
+//!     assert_eq!(val, 6.0);
+//!     assert_eq!(num_lookups, 2);  // Notice that 2 lookups occurred.
+//!
+//!     Ok(())
+//! }
+//! ```
+//!
+//! ## CachedFlatNamespace
+//! ```
+//! use fasteval::EvalNamespace;  // use this trait so namespaces work properly.
+//! fn main() -> Result<(), fasteval::Error> {
+//!     let mut num_lookups = 0;
+//!     let val = {
+//!         let cb = |name:&str, args:Vec<f64>| -> Option<f64> {
+//!             num_lookups += 1;
+//!             match name {
+//!                 "x" => Some(2.0),
+//!                 _ => None,
+//!             }
+//!         };
+//!         let mut ns = fasteval::CachedFlatNamespace::new(cb);
+//!    
+//!         fasteval::ez_eval("x * (x + 1)", &mut ns)?
+//!     };
+//!     assert_eq!(val, 6.0);
+//!     assert_eq!(num_lookups, 1);  // Notice that only 1 lookup occurred.
+//!
+//!     Ok(())
+//! }
+//! ```
+//! ## Vec<BTreeMap<String,f64>>
+//! ```
+//! ```
+//!
+//! ## CachedLayeredNamespace
+//! ```
+//! ```
+
+
 
 use crate::error::Error;
 
@@ -27,12 +116,12 @@ pub struct CachedFlatNamespace<'a> {
     cb :Box<dyn FnMut(&str, Vec<f64>)->Option<f64> + 'a>,  // I think a reference would be more efficient than a Box, but then I would need to use a funky 'let cb=|n|{}; Namespace::new(&cb)' syntax.  The Box results in a super convenient pass-the-cb-by-value API interface.
 }
 
-pub struct CachedScopedNamespace<'a> {
+pub struct CachedLayeredNamespace<'a> {
     maps:Vec<BTreeMap<String,f64>>,
     cb  :Box<dyn FnMut(&str, Vec<f64>)->Option<f64> + 'a>,
 }
 pub struct Bubble<'a,'b:'a> {
-    ns   :&'a mut CachedScopedNamespace<'b>,
+    ns   :&'a mut CachedLayeredNamespace<'b>,
     count:usize,
 }
 
@@ -141,7 +230,7 @@ impl<'a> CachedFlatNamespace<'a> {
     }
 }
 
-impl EvalNamespace for CachedScopedNamespace<'_> {
+impl EvalNamespace for CachedLayeredNamespace<'_> {
     fn get_cached(&mut self, name:&str, args:Vec<f64>, keybuf:&mut String) -> Option<f64> {
         let key = key_from_nameargs(keybuf, name, &args);
 
@@ -182,7 +271,7 @@ impl EvalNamespace for CachedScopedNamespace<'_> {
         self.push();
     }
 }
-impl Layered for CachedScopedNamespace<'_> {
+impl Layered for CachedLayeredNamespace<'_> {
     #[inline]
     fn push(&mut self) {
         self.maps.push(BTreeMap::new());
@@ -192,10 +281,10 @@ impl Layered for CachedScopedNamespace<'_> {
         self.maps.pop();
     }
 }
-impl<'a> CachedScopedNamespace<'a> {
+impl<'a> CachedLayeredNamespace<'a> {
     #[inline]
     pub fn new<F>(cb:F) -> Self where F:FnMut(&str,Vec<f64>)->Option<f64> + 'a {
-        let mut ns = CachedScopedNamespace{
+        let mut ns = CachedLayeredNamespace{
             maps:Vec::with_capacity(2),
             cb  :Box::new(cb),
         };
@@ -205,7 +294,7 @@ impl<'a> CachedScopedNamespace<'a> {
 }
 
 impl Bubble<'_,'_> {
-    pub fn new<'a,'b:'a>(ns:&'a mut CachedScopedNamespace<'b>) -> Bubble<'a,'b> {
+    pub fn new<'a,'b:'a>(ns:&'a mut CachedLayeredNamespace<'b>) -> Bubble<'a,'b> {
         Bubble{
             ns,
             count:0,
@@ -258,7 +347,7 @@ mod internal_tests {
 
     #[test]
     fn bubble() {
-        let mut ns = CachedScopedNamespace::new(|_,_| None);
+        let mut ns = CachedLayeredNamespace::new(|_,_| None);
         assert_eq!(ns.maps.len(), 1);
         {
             let mut bub = Bubble::new(&mut ns);  bub.push();
