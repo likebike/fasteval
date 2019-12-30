@@ -7,7 +7,14 @@ an excellent foundation for building higher-level-languages.
 
 Documentation:
 
-    * [API Reference (docs.rs)](https://docs.rs/fasteval/)
+* [API Reference (docs.rs)](https://docs.rs/fasteval/)
+
+# Getting `fasteval`
+
+Usually, `cargo` will automatically fetch your depdendencies for you.
+
+You can also do: `git clone https://github.com/likebike/fasteval.git`
+
 
 # Example
 
@@ -16,7 +23,7 @@ Here is one simple example.  See the [API Reference](https://docs.rs/fasteval/) 
 ## Easy evaluation
 The `ez_eval()` function performs the entire allocation-parse-eval process
 for you.  It is slightly inefficient because it always allocates a
-fresh [`Slab`](slab/index.html), but it is very simple to use:
+fresh `Slab`, but it is very simple to use:
 
 ```rust
 fn main() -> Result<(), fasteval::Error> {
