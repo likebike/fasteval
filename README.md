@@ -11,7 +11,7 @@ Documentation:
 
 ## Getting `fasteval`
 
-Usually, `cargo` will automatically fetch your depdendencies for you.
+Usually, `cargo` will automatically fetch your depdendencies for you from [crates.io](https://crates.io/crates/fasteval/).
 
 You can also do: `git clone https://github.com/likebike/fasteval.git`
 
