@@ -16,6 +16,16 @@ Usually, `cargo` will automatically fetch your depdendencies for you.
 You can also do: `git clone https://github.com/likebike/fasteval.git`
 
 
+## Features
+* Supports interpretation (i.e. parse & eval) as well as compiled execution (i.e. parse, compile, eval).
+* Variables and Custom Functions.
+* Good base for building higher-level languages.
+* Many built-in functions and constants.
+* Supports all the standard algebraic unary and binary operators (+ - * / ^ %), as well as comparisons (< <= == != >= >) and logical operators (&& ||).
+* Easy integration into many different types of applications, including scoped evaluation.
+* Very fast performance.
+
+
 ## Easy Example
 
 Here is one simple example.  See the [API Reference](https://docs.rs/fasteval/#examples) for many more!

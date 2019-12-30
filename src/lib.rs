@@ -1,5 +1,14 @@
 //! A fast algebraic expression evaluation library.
 //!
+//! # Features
+//! * Supports interpretation (i.e. parse & eval) as well as compiled execution (i.e. parse, compile, eval).
+//! * Variables and Custom Functions.
+//! * Good base for building higher-level languages.
+//! * Many built-in functions and constants.
+//! * Supports all the standard algebraic unary and binary operators (+ - * / ^ %), as well as comparisons (< <= == != >= >) and logical operators (&& ||).
+//! * Easy integration into many different types of applications, including scoped evaluation.
+//! * Very fast performance.
+//!
 //! # The `fasteval` Expression "Mini-Language"
 //!
 //! ## Built-in Functions and Constants
