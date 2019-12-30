@@ -18,7 +18,7 @@ You can also do: `git clone https://github.com/likebike/fasteval.git`
 
 ## Easy Example
 
-Here is one simple example.  See the [API Reference](https://docs.rs/fasteval/) for many more!
+Here is one simple example.  See the [API Reference](https://docs.rs/fasteval/#examples) for many more!
 
 The `ez_eval()` function performs the entire allocation-parse-eval process
 for you.  It is slightly inefficient because it always allocates a
