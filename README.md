@@ -19,6 +19,7 @@ You can also do: `git clone https://github.com/likebike/fasteval.git`
 ## Features
 * Supports interpretation (i.e. parse & eval) as well as compiled execution (i.e. parse, compile, eval).
 * Variables and Custom Functions.
+* Safe for execution of untrusted expressions.
 * Good base for building higher-level languages.
 * Many built-in functions and constants.
 * Supports all the standard algebraic unary and binary operators (+ - * / ^ %), as well as comparisons (< <= == != >= >) and logical operators (&& ||).
