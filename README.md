@@ -9,18 +9,17 @@ Documentation:
 
 * [API Reference (docs.rs)](https://docs.rs/fasteval/)
 
-# Getting `fasteval`
+## Getting `fasteval`
 
 Usually, `cargo` will automatically fetch your depdendencies for you.
 
 You can also do: `git clone https://github.com/likebike/fasteval.git`
 
 
-# Example
+## Easy Example
 
 Here is one simple example.  See the [API Reference](https://docs.rs/fasteval/) for many more!
 
-## Easy evaluation
 The `ez_eval()` function performs the entire allocation-parse-eval process
 for you.  It is slightly inefficient because it always allocates a
 fresh `Slab`, but it is very simple to use:
@@ -49,11 +48,11 @@ fn main() -> Result<(), fasteval::Error> {
 ```
 
 
-# Performance Benchmarks
+## Performance Benchmarks
 
 Here is a short summary of the performance benchmarks.  For a more complete report and anlysis, see the [API Reference](https://docs.rs/fasteval/#performance-benchmarks).
 
-## Charts
+### Charts
 Note that the following charts use logarithmic scales.  Therefore, tiny
 visual differences actually represent very significant performance
 differences.
@@ -72,7 +71,7 @@ only other library in our test set that supports this mode):**
 only other library in our test set that supports this mode):**  
 ![Unsafe Interpretation Performance](http://hk.likebike.com/code/fasteval/benches/fasteval-interp-unsafe-20191225.png)
 
-## Summary
+### Summary
 
 The impressive thing about these results is that `fasteval` consistently
 achieves the fastest times across every benchmark and in every mode of
@@ -85,7 +84,7 @@ Because of the broad and robust performance advantages, `fasteval` is very
 likely to be an excellent choice for your dynamic evaluation needs.
 
 
-# License
+## License
 `fasteval` is distributed under the terms of both the MIT license.
 
 See [LICENSE](https://github.com/likebike/fasteval/blob/master/LICENSE) for details.
