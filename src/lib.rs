@@ -93,12 +93,12 @@
 //!
 //!     let val = fasteval::ez_eval(
 //!         "1+2*3/4^5%6 + log(100K) + log(e(),100) + [3*(3-3)/3] + (2<3) && 1.23",    &mut ns)?;
-//!     //    |            |      |   |   |          |               |   |
-//!     //    |            |      |   |   |          |               |   boolean logic with short-circuit support
-//!     //    |            |      |   |   |          |               comparisons
-//!     //    |            |      |   |   |          square-brackets act like parenthesis
-//!     //    |            |      |   |   built-in constants: e(), pi()
-//!     //    |            |      |   'log' can take an optional first 'base' argument, defaults to 10
+//!     //    |            |      |  |   |          |               |   |
+//!     //    |            |      |  |   |          |               |   boolean logic with short-circuit support
+//!     //    |            |      |  |   |          |               comparisons
+//!     //    |            |      |  |   |          square-brackets act like parenthesis
+//!     //    |            |      |  |   built-in constants: e(), pi()
+//!     //    |            |      |  'log' can take an optional first 'base' argument, defaults to 10
 //!     //    |            |      numeric literal with suffix: n, µ, m, K, M, G, T
 //!     //    |            many built-in functions: print, int, ceil, floor, abs, sign, log, round, min, max, sin, asin, ...
 //!     //    standard binary operators
@@ -348,7 +348,6 @@
 //! Note that the following charts use logarithmic scales.  Therefore, tiny
 //! visual differences actually represent very significant performance
 //! differences.
-//!
 //!
 //! **Performance of evaluation of a compiled expression:**  
 //! ![Compiled Eval Performance](http://hk.likebike.com/code/fasteval/benches/fasteval-compiled-20191225.png)
