@@ -430,7 +430,7 @@
 extern crate test;  // 'extern crate' seems to be required for this scenario: https://github.com/rust-lang/rust/issues/57288
 use test::{Bencher, black_box};
 
-use fasteval::{parse, Compiler, Evaler, Layered, Slab, EmptyNamespace, CachedFlatNamespace, CachedLayeredNamespace, Bubble, ez_eval, eval_compiled, eval_compiled_ref};
+use fasteval::{parse, Compiler, Evaler, Slab, EmptyNamespace, CachedCallbackNamespace, ez_eval, eval_compiled, eval_compiled_ref};
 use fasteval::parser::parse_noclear;
 
 use std::collections::BTreeMap;
@@ -461,7 +461,7 @@ macro_rules! Namespace {
 
         //EmptyNamespace
 
-        //CachedFlatNamespace::new(evalcb)
+        //CachedCallbackNamespace::new(evalcb)
 
         //CachedLayeredNamespace::new(evalcb)
     }
@@ -493,7 +493,7 @@ fn native_1000x(bencher:&mut Bencher) {
     memshift!();
 
     // Silence compiler warnings about unused imports:
-    let _ = EmptyNamespace;  let _ = CachedFlatNamespace::new(|_,_| None);
+    let _ = EmptyNamespace;  let _ = CachedCallbackNamespace::new(|_,_| None);
 
 
     #[allow(dead_code)]
@@ -548,24 +548,25 @@ fn parse_eval_1000x(b:&mut Bencher) {
     });
 }
 
-#[bench]
-fn parse_nsbubble_eval_1000x(b:&mut Bencher) {
-    memshift!();
-
-    let mut slab = Slab::new();
-    let mut ns = CachedLayeredNamespace::new(evalcb);
-
-    b.iter(|| {
-        let _ = (|| -> Result<(),fasteval::Error> {
-            for _ in 0..1000 {
-                let expr_ref = parse(EXPR, &mut slab.ps)?.from(&slab.ps);
-                let mut bub = Bubble::new(&mut ns);  bub.push();
-                black_box( expr_ref.eval(&slab, &mut bub)? );
-            }
-            Ok(())
-        })();
-    });
-}
+//// Commented until we bring CachedLayeredNamespace back.
+// #[bench]
+// fn parse_nsbubble_eval_1000x(b:&mut Bencher) {
+//     memshift!();
+// 
+//     let mut slab = Slab::new();
+//     let mut ns = CachedLayeredNamespace::new(evalcb);
+// 
+//     b.iter(|| {
+//         let _ = (|| -> Result<(),fasteval::Error> {
+//             for _ in 0..1000 {
+//                 let expr_ref = parse(EXPR, &mut slab.ps)?.from(&slab.ps);
+//                 let mut bub = Bubble::new(&mut ns);  bub.push();
+//                 black_box( expr_ref.eval(&slab, &mut bub)? );
+//             }
+//             Ok(())
+//         })();
+//     });
+// }
 
 #[bench]
 #[cfg(feature="unsafe-vars")]
@@ -699,27 +700,28 @@ fn preparse_precompile_eval_closure_1000x(b:&mut Bencher) {
     });
 }
 
-#[bench]
-fn preparse_precompile_nsbubble_eval_1000x(b:&mut Bencher) {
-    memshift!();
-
-    let mut slab = Slab::new();
-    let mut ns = CachedLayeredNamespace::new(evalcb);
-    let instr = match parse_noclear(EXPR, &mut slab.ps) {
-        Ok(expr_i) => expr_i.from(&slab.ps).compile(&slab.ps, &mut slab.cs),
-        Err(_) => return,
-    };
-
-    b.iter(|| {
-        let _ = (|| -> Result<(),fasteval::Error> {
-            for _ in 0..1000 {
-                let mut bub = Bubble::new(&mut ns);  bub.push();
-                black_box( eval_compiled_ref!(&instr, &slab, &mut bub) );
-            }
-            Ok(())
-        })();
-    });
-}
+//// Commented until we bring CachedLayeredNamespace back.
+// #[bench]
+// fn preparse_precompile_nsbubble_eval_1000x(b:&mut Bencher) {
+//     memshift!();
+// 
+//     let mut slab = Slab::new();
+//     let mut ns = CachedLayeredNamespace::new(evalcb);
+//     let instr = match parse_noclear(EXPR, &mut slab.ps) {
+//         Ok(expr_i) => expr_i.from(&slab.ps).compile(&slab.ps, &mut slab.cs),
+//         Err(_) => return,
+//     };
+// 
+//     b.iter(|| {
+//         let _ = (|| -> Result<(),fasteval::Error> {
+//             for _ in 0..1000 {
+//                 let mut bub = Bubble::new(&mut ns);  bub.push();
+//                 black_box( eval_compiled_ref!(&instr, &slab, &mut bub) );
+//             }
+//             Ok(())
+//         })();
+//     });
+// }
 
 #[bench]
 #[cfg(feature="unsafe-vars")]

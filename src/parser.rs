@@ -1,31 +1,34 @@
+//! This module parses string expressions into an AST which can then be compiled or evaluated.
+//!
+//! # fasteval Algebra Grammar
+//! ```text
+//! Expression: Value (BinaryOp Value)*
+//!
+//! Value: Constant || UnaryOp || PrintFunc || StdFunc
+//!
+//! Constant: [+-]?[0-9]*(\.[0-9]+)?( ([eE][+-]?[0-9]+) || [pnuµmkKMGT] )?  || [+-]?(NaN || inf)
+//!
+//! UnaryOp: +Value || -Value || (Expression) || [Expression] || !Value
+//!
+//! BinaryOp: + || - || * || / || % || ^ || < || <= || == || != || >= || > || (or || '||') || (and || '&&')
+//!
+//! VarName: [a-zA-Z_][a-zA-Z_0-9]*
+//!
+//! StdFunc: VarName((Expression,)*)?  ||  VarName[(Expression,)*]?
+//!
+//! PrintFunc: print(ExpressionOrString,*)
+//!
+//! ExpressionOrString: Expression || String
+//!
+//! String: ".*"
+//! ```
+
+
 use crate::error::Error;
 use crate::slab::ParseSlab;
 
 use std::str::{from_utf8, from_utf8_unchecked};
 use std::ptr;
-
-
-// === Algebra Grammar ===
-//
-// Expression: Value (BinaryOp Value)*
-//
-// Value: Constant || UnaryOp || PrintFunc || StdFunc
-//
-// Constant: [+-]?[0-9]*(\.[0-9]+)?( ([eE][+-]?[0-9]+) || [pnuµmkKMGT] )?  || [+-]?(NaN || inf)
-//
-// UnaryOp: +Value || -Value || (Expression) || [Expression] || !Value
-//
-// BinaryOp: + || - || * || / || % || ^ || < || <= || == || != || >= || > || (or || '||') || (and || '&&')
-//
-// VarName: [a-zA-Z_][a-zA-Z_0-9]*
-//
-// StdFunc: VarName((Expression,)*)?  ||  VarName[(Expression,)*]?
-//
-// PrintFunc: print(ExpressionOrString,*)
-//
-// ExpressionOrString: Expression || String
-//
-// String: ".*"
 
 
 
@@ -44,15 +47,19 @@ pub struct ExpressionI(pub usize);
 pub struct ValueI(pub usize);
 
 
+/// An `Expression` is the top node of a parsed AST.
+///
+/// It can be `compile()`d or `eval()`d.
 #[derive(Debug, PartialEq)]
 pub struct Expression {
-    pub first: Value,
-    pub pairs: Vec<ExprPair>,  // cap=8
+    pub(crate) first: Value,
+    pub(crate) pairs: Vec<ExprPair>,  // cap=8
 }
 
 #[derive(Debug, PartialEq)]
-pub struct ExprPair(pub BinaryOp, pub Value);
+pub(crate) struct ExprPair(pub BinaryOp, pub Value);
 
+/// A `Value` can be a Constant, a UnaryOp, a StdFunc, or a PrintFunc.
 #[derive(Debug, PartialEq)]
 pub enum Value {
     EConstant(f64),
@@ -62,6 +69,7 @@ pub enum Value {
 }
 use Value::{EConstant, EUnaryOp, EStdFunc, EPrintFunc};
 
+/// Unary Operators
 #[derive(Debug, PartialEq)]
 pub enum UnaryOp {
     EPos(ValueI),
@@ -71,6 +79,7 @@ pub enum UnaryOp {
 }
 use UnaryOp::{EPos, ENeg, ENot, EParentheses};
 
+/// Binary Operators
 #[derive(Debug, PartialEq, PartialOrd, Copy, Clone)]
 pub enum BinaryOp {
     // Sorted in order of precedence (low-priority to high-priority):
@@ -92,6 +101,7 @@ pub enum BinaryOp {
 }
 use BinaryOp::{EAdd, ESub, EMul, EDiv, EMod, EExp, ELT, ELTE, EEQ, ENE, EGTE, EGT, EOR, EAND};
 
+/// A Function Call with Standard Syntax.
 #[derive(Debug, PartialEq)]
 pub enum StdFunc {
     EVar(String),
@@ -129,9 +139,11 @@ use StdFunc::{EVar, EFunc, EFuncInt, EFuncCeil, EFuncFloor, EFuncAbs, EFuncSign,
 #[cfg(feature="unsafe-vars")]
 use StdFunc::EUnsafeVar;
 
+/// Represents a `print()` function call in the `fasteval` expression AST.
 #[derive(Debug, PartialEq)]
 pub struct PrintFunc(pub Vec<ExpressionOrString>);  // cap=8
 
+/// Used by the `print()` function.  Can hold an `Expression` or a `String`.
 #[derive(Debug, PartialEq)]
 pub enum ExpressionOrString {
     EExpr(ExpressionI),
@@ -240,18 +252,25 @@ macro_rules! spaces {
 }
 
 
+/// Use this function to parse an expression String.  The `Slab` will be cleared first.
 #[inline]
 pub fn parse(expr_str:&str, slab:&mut ParseSlab) -> Result<ExpressionI,Error> {
     slab.clear();
     Parser.parse(expr_str, slab)
 }
+
+/// This is exactly the same as `parse()` but the `Slab` will NOT be cleared.
+///
+/// This is useful in performance-critical sections, when you know that you
+/// already have an empty `Slab`.
 #[inline]
 pub fn parse_noclear(expr_str:&str, slab:&mut ParseSlab) -> Result<ExpressionI,Error> {
     Parser.parse(expr_str, slab)
 }
 
 
-pub struct Parser;
+/// Not 'pub' yet.  Encourage users to use `parse()`.
+struct Parser;
 
 impl Parser {
     #[inline]

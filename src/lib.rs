@@ -139,7 +139,7 @@
 //!
 //! ```
 //! fn main() -> Result<(), fasteval::Error> {
-//!     let mut ns = fasteval::CachedFlatNamespace::new(|name:&str, args:Vec<f64>| -> Option<f64> {
+//!     let mut ns = fasteval::CachedCallbackNamespace::new(|name:&str, args:Vec<f64>| -> Option<f64> {
 //!         let mydata : [f64; 3] = [11.1, 22.2, 33.3];
 //!         match name {
 //!             // Custom constants/variables:
@@ -296,6 +296,19 @@
 //!     // AST below because it is simpler.
 //!     assert_eq!(format!("{:?}", slab.ps),
 //!                r#"ParseSlab{ exprs:{ 0:Expression { first: EStdFunc(EVar("deg")), pairs: [ExprPair(EDiv, EConstant(360.0)), ExprPair(EMul, EConstant(2.0)), ExprPair(EMul, EStdFunc(EFuncPi))] }, 1:Expression { first: EStdFunc(EFuncSin(ExpressionI(0))), pairs: [] } }, vals:{} }"#);
+//!                // Pretty-Print:
+//!                // ParseSlab{
+//!                //     exprs:{
+//!                //         0:Expression { first: EStdFunc(EVar("deg")),
+//!                //                        pairs: [ExprPair(EDiv, EConstant(360.0)),
+//!                //                                ExprPair(EMul, EConstant(2.0)),
+//!                //                                ExprPair(EMul, EStdFunc(EFuncPi))]
+//!                //                      },
+//!                //         1:Expression { first: EStdFunc(EFuncSin(ExpressionI(0))),
+//!                //                        pairs: [] }
+//!                //                      },
+//!                //     vals:{}
+//!                // }
 //!
 //!     let compiled = expr_ref.compile(&slab.ps, &mut slab.cs);
 //!
@@ -493,6 +506,7 @@
 //!   * Minimization of memory allocations/deallocations;
 //!     I just pre-allocate a large slab during initialization.
 //!   * Elimination of redundant work, especially when parsing.
+//!   * Designed using "Infallible Data Structures", which eliminate all corner cases.
 //!   * Compilation: Constant Folding and Expression Simplification.
 //!     Boosts performance up to 1000x.
 //!   * Profile-driven application of inlining.  Don't inline too much or too little.
@@ -561,12 +575,12 @@ pub mod evalns;
 pub mod ez;
 
 pub use self::error::Error;
-pub use self::parser::{parse, Parser, Expression, ExpressionI, Value, ValueI};
+pub use self::parser::{parse, Expression, ExpressionI, Value, ValueI};
 pub use self::compiler::{Compiler, Instruction::{self, IConst}, InstructionI};
 #[cfg(feature="unsafe-vars")]
 pub use self::compiler::Instruction::IUnsafeVar;
 pub use self::evaler::Evaler;
 pub use self::slab::Slab;
-pub use self::evalns::{EvalNamespace, Layered, EmptyNamespace, CachedFlatNamespace, CachedLayeredNamespace, Bubble};
+pub use self::evalns::{EvalNamespace, Cached, EmptyNamespace, CachedCallbackNamespace};
 pub use self::ez::ez_eval;
 

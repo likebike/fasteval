@@ -1,3 +1,31 @@
+//! This module compiles parsed `Expression`s into an optimized AST node called an `Instruction`.
+//! The compiled form is much faster, especially for constants.
+//!
+//! # Compile-time Optimizations
+//!
+//! ## Constant Folding
+//! Operations with constants can be calculated at compile time so
+//! they don't need to be calculated during `eval()`.
+//!
+//! For example, `1 + x + 1` will be compiled into `x + 2`, saving some time during `eval()`.
+//!
+//! If the entire expression only consists of constants (no variables),
+//! then the expression can be reduced to a final result at compile time,
+//! resulting in near-native speed during `eval()`.
+//!
+//! ## Algebraic Simplification
+//! * Subtraction is converted to Addition.
+//! * Division is converted to Multiplication.
+//! * Built-in functions with constant arguments are evaluated.
+//! * Constant terms are combined.
+//! * Logical operator short-circuits are applied and no-op branches are discarded.
+//!
+//! ## Optimized Memory Layout and Execution
+//! * Variable-length `Expression`/`Value` AST nodes are converted into constant-sized `Instruction` nodes.
+//! * The `IC` enumeration helps to eliminate expensive function calls.
+
+
+
 use crate::slab::{ParseSlab, CompileSlab};
 use crate::parser::{Expression, ExprPair, Value, UnaryOp::{self, EPos, ENeg, ENot, EParentheses}, BinaryOp::{self, EOR, EAND, ENE, EEQ, EGTE, ELTE, EGT, ELT, EAdd, ESub, EMul, EDiv, EMod, EExp}, StdFunc::{self, EVar, EFunc, EFuncInt, EFuncCeil, EFuncFloor, EFuncAbs, EFuncSign, EFuncLog, EFuncRound, EFuncMin, EFuncMax, EFuncE, EFuncPi, EFuncSin, EFuncCos, EFuncTan, EFuncASin, EFuncACos, EFuncATan, EFuncSinH, EFuncCosH, EFuncTanH, EFuncASinH, EFuncACosH, EFuncATanH}, PrintFunc};
 #[cfg(feature="unsafe-vars")]
@@ -14,9 +42,14 @@ macro_rules! bool_to_f64 {
 }
 
 
+/// An `InstructionI` represents an index into `Slab.cs.instrs`.
+///
+/// It behaves much like a pointer or reference, but it is 'safe' (unlike a raw
+/// pointer) and is not managed by the Rust borrow checker (unlike a reference).
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub struct InstructionI(pub usize);
 
+/// This enumeration boosts performance because it eliminates expensive function calls for constant values.
 #[derive(Debug, PartialEq)]
 pub enum IC {
     I(InstructionI),
@@ -43,6 +76,7 @@ macro_rules! ic_to_instr {
     }
 }
 
+/// An `Instruction` is an optimized AST node resulting from compilation.
 #[derive(Debug, PartialEq)]
 pub enum Instruction {
     //---- Primitive Value Types:
@@ -115,7 +149,11 @@ impl Default for Instruction {
 }
 
 
+/// You must `use` the `Compiler` trait before you can call `.compile()` on parsed `Expression`s.
 pub trait Compiler {
+    /// Turns a parsed `Expression` into a compiled `Instruction`.
+    ///
+    /// Cannot fail, unless you run out of memory.
     fn compile(&self, pslab:&ParseSlab, cslab:&mut CompileSlab) -> Instruction;
 }
 

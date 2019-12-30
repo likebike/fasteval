@@ -1,4 +1,4 @@
-use fasteval::{parse, Compiler, Evaler, Error, Slab, EmptyNamespace, CachedFlatNamespace, ExpressionI, InstructionI, eval_compiled, eval_compiled_ref};
+use fasteval::{parse, Compiler, Evaler, Error, Slab, EmptyNamespace, CachedCallbackNamespace, ExpressionI, InstructionI, eval_compiled, eval_compiled_ref};
 use fasteval::parser::{PrintFunc, ExpressionOrString::{EExpr, EStr}};
 #[cfg(feature="eval-builtin")]
 use fasteval::parser::{EvalFunc, KWArg};
@@ -59,7 +59,7 @@ fn comp_chk(expr_str:&str, expect_instr:Instruction, expect_fmt:&str, expect_eva
     assert_eq!(instr, expect_instr);
     assert_eq!(format!("{:?}",slab.cs), expect_fmt);
 
-    let mut ns = CachedFlatNamespace::new(|name,args| {
+    let mut ns = CachedCallbackNamespace::new(|name,args| {
         match name {
             "w" => Some(0.0),
             "x" => Some(1.0),

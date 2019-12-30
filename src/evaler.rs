@@ -1,3 +1,11 @@
+//! This module evaluates parsed `Expression`s and compiled `Instruction`s.
+//!
+//! Everything can be evaluated using the `.eval()` method, but compiled
+//! `Instruction`s also have the option of using the `eval_compiled!()` macro
+//! which is much faster for common cases.
+
+
+
 use crate as fasteval;
 
 use crate::error::Error;
@@ -126,11 +134,21 @@ macro_rules! eval_ic_ref {
 
 
 
+/// You must `use` this trait so you can call `.eval()`.
 pub trait Evaler : fmt::Debug {
+    /// Evaluate this `Expression`/`Instruction` and return an `f64`.
+    ///
+    /// Returns a `fasteval::Error` if there are any problems, such as undefined variables.
     fn eval(&self, slab:&Slab, ns:&mut impl EvalNamespace) -> Result<f64,Error>;
 
-    // Because of ternary short-circuits, we cannot get a complete list of vars just by doing eval() with a clever callback:
+    /// Don't call this directly.  Use `var_names()` instead.
+    ///
+    /// This exists because of ternary short-circuits; they prevent us from
+    /// getting a complete list of vars just by doing eval() with a clever
+    /// callback.
     fn _var_names(&self, slab:&Slab, dst:&mut BTreeSet<String>);
+
+    /// Returns a list of variables and custom functions that are used by this `Expression`/`Instruction`.
     fn var_names(&self, slab:&Slab) -> BTreeSet<String> {
         let mut set = BTreeSet::new();
         self._var_names(slab,&mut set);
@@ -357,7 +375,7 @@ impl BinaryOp {
 
 macro_rules! eval_var {
     ($ns:ident, $name:ident, $args:expr, $keybuf:expr) => {
-        match $ns.get_cached($name,$args,$keybuf) {
+        match $ns.lookup($name,$args,$keybuf) {
             Some(f) => Ok(f),
             None => Err(Error::Undefined($name.to_string())),
         }
@@ -487,7 +505,7 @@ impl Evaler for PrintFunc {
 
                 //let fmtstr = process_str(fmtstr);
 
-                return Err(Error::WrongArgs("printf formatting is not yet implemented".to_string()));  // TODO: Make a pure-rust printf libarary.
+                return Err(Error::WrongArgs("printf formatting is not yet implemented".to_string()));  // TODO: Make a pure-rust sprintf libarary.
 
                 //return Ok(val);
             }
