@@ -9,11 +9,24 @@ Documentation:
 
 * [API Reference (docs.rs)](https://docs.rs/fasteval/)
 
-## Getting `fasteval`
 
-Usually, `cargo` will automatically fetch your depdendencies for you from [crates.io](https://crates.io/crates/fasteval/).
+## Usage
 
-You can also do: `git clone https://github.com/likebike/fasteval.git`
+Add this to your Cargo.toml:
+
+    [dependencies]
+    fasteval = "0.1.8"
+
+
+`cargo` will automatically fetch your depdendencies for you from [crates.io](https://crates.io/crates/fasteval/).
+
+You can also fetch manually: `git clone https://github.com/likebike/fasteval.git`
+
+You should **always** build with `RUSTFLAGS="--emit=asm"` because it greatly improves LLVM's compile-time optimizations.
+
+You can build with `--no-default-features` to disable alphabetical keywords like `and`, `or`, `NaN`, `inf`.  (These words might be important to your applications.)
+
+You can build with `--features unsafe-vars` to enable [Unsafe Variables](https://docs.rs/fasteval/#unsafe-variables).
 
 
 ## Features
