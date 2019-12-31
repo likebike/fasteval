@@ -80,18 +80,18 @@ visual differences actually represent very significant performance
 differences.
 
 **Performance of evaluation of a compiled expression:**  
-![Compiled Eval Performance](http://hk.likebike.com/code/fasteval/benches/fasteval-compiled-20191225.png)
+![Compiled Eval Performance](https://raw.githubusercontent.com/likebike/fasteval/master/benches/results/20191225/fasteval-compiled.png)
 
 **Performance of one-time interpretation (parse and eval):**  
-![Interpretation Performance](http://hk.likebike.com/code/fasteval/benches/fasteval-interp-20191225.png)
+![Interpretation Performance](https://raw.githubusercontent.com/likebike/fasteval/master/benches/results/20191225/fasteval-interp.png)
 
 **Performance of compiled Unsafe Variables, compared to the tinyexpr C library (the
 only other library in our test set that supports this mode):**  
-![Unsafe Compiled Eval Performance](http://hk.likebike.com/code/fasteval/benches/fasteval-compiled-unsafe-20191225.png)
+![Unsafe Compiled Eval Performance](https://raw.githubusercontent.com/likebike/fasteval/master/benches/results/20191225/fasteval-compiled-unsafe.png)
 
 **Performance of interpreted Unsafe Variables, compared to the tinyexpr C library (the
 only other library in our test set that supports this mode):**  
-![Unsafe Interpretation Performance](http://hk.likebike.com/code/fasteval/benches/fasteval-interp-unsafe-20191225.png)
+![Unsafe Interpretation Performance](https://raw.githubusercontent.com/likebike/fasteval/master/benches/results/20191225/fasteval-interp-unsafe.png)
 
 ### Summary
 
