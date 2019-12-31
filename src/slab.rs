@@ -168,7 +168,8 @@ pub struct Slab {
 /// fn bad_unsafe_var(slab_mut:&mut fasteval::Slab) {
 ///     let bad : f64 = 0.0;
 ///
-///     unsafe { slab_mut.ps.add_unsafe_var("bad".to_string(), &bad); }  // Saves a pointer to 'bad'.
+///     // Saves a pointer to 'bad':
+///     unsafe { slab_mut.ps.add_unsafe_var("bad".to_string(), &bad); }  // `add_unsafe_var()` only exists if the `unsafe-vars` feature is enabled: `cargo test --features unsafe-vars`
 ///
 ///     // 'bad' goes out-of-scope here, and the pointer we registered is no longer valid!
 ///     // This will result in undefined behavior.
@@ -184,7 +185,7 @@ pub struct Slab {
 ///
 ///     // Unsafe Variables must be registered before 'parse()'.
 ///     // (Normal Variables only need definitions during the 'eval' phase.)
-///     unsafe { slab.ps.add_unsafe_var("deg".to_string(), &deg); }  // Saves a pointer to 'deg'.
+///     unsafe { slab.ps.add_unsafe_var("deg".to_string(), &deg); }  // `add_unsafe_var()` only exists if the `unsafe-vars` feature is enabled: `cargo test --features unsafe-vars`
 ///
 ///     // bad_unsafe_var(&mut slab);  // Don't do it this way.
 ///

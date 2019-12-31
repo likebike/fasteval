@@ -1,4 +1,46 @@
-// usage: rlwrap cargo run --release --example repl
+//! usage: rlwrap cargo run --release --example repl
+//!
+//! Example Session:
+//!
+//! github.com/fasteval$ rlwrap cargo run --release --example repl
+//!     Finished release [optimized] target(s) in 0.01s
+//!      Running `target/release/examples/repl`
+//! >>> print("Hello fasteval", 1, 2, 3)
+//! Hello fasteval 1 2 3
+//! 3
+//! >>> _ + 1
+//! 4
+//! >>> _ + 1
+//! 5
+//! >>> _ * 2
+//! 10
+//! >>> _ ^ 0.5
+//! 3.1622776601683795
+//! >>> let a = 1
+//! 1
+//! >>> let b = a + 1
+//! 2
+//! >>> let c = a + b * 3
+//! 7
+//! >>> a + b + c
+//! 10
+//! >>> push
+//! Entered scope[1]
+//! >>> let b = b + 10
+//! 12
+//! >>> a + b + c
+//! 20
+//! >>> pop
+//! Exited scope[1]
+//! >>> a + b + c
+//! 10
+//! >>> 1+2*3/4^5%6 + log(100K) + log(e(),100) + [3*(3-3)/3] + (2<3) && 1.23
+//! 1.23
+//! >>> 1+2*3/4^5%6 + print("log(100K) =",log(100K)) + log(e(),100) + [3*(3-3)/3] + (2<3) && 1.23
+//! log(100K) = 5
+//! 1.23
+
+
 
 use fasteval::Evaler;  // Import this trait for '.eval()' functionality.
 use fasteval::{parse, Slab};

@@ -1,6 +1,7 @@
 //! A fast algebraic expression evaluation library.
 //!
 //! # Features
+//! * Works with stable Rust.
 //! * Supports interpretation (i.e. parse & eval) as well as compiled execution (i.e. parse, compile, eval).
 //! * Variables and Custom Functions.
 //! * Safe for execution of untrusted expressions.
@@ -299,7 +300,7 @@
 //!
 //!     // Unsafe Variables must be registered before 'parse()'.
 //!     // (Normal Variables only need definitions during the 'eval' phase.)
-//!     unsafe { slab.ps.add_unsafe_var("deg".to_string(), &deg); }  // Saves a pointer to 'deg'.
+//!     unsafe { slab.ps.add_unsafe_var("deg".to_string(), &deg); } // `add_unsafe_var()` only exists if the `unsafe-vars` feature is enabled: `cargo test --features unsafe-vars`
 //!
 //!     let expr_str = "sin(deg/360 * 2*pi())";
 //!     let compiled = fasteval::parse(expr_str, &mut slab.ps)?.from(&slab.ps).compile(&slab.ps, &mut slab.cs);
@@ -581,12 +582,14 @@
 //!
 //!
 //! # Future Work
-//! Here are some features that I plan to add in the future:
+//! Here are some features that I might add in the future:
 //!
 //! * Dynamic `sprintf` string formatting for the `print()` built-in expression function.
 //! * FFI so this library can be used from other languages.
 //! * Ability to copy the contents of a Slab into a perfectly-sized container
 //!   ("Packed Slab") to reduce wasted memory.
+//! * Support for other number types other than `f64`, such as Integers, Big Integers,
+//!   Arbitrary Precision Numbers, Complex Numbers, etc. like [rclc](https://crates.io/crates/rclc).
 //!
 //! # List of Projects that use `fasteval`
 //!
@@ -597,7 +600,7 @@
 //! * [openpinescript](#coming-soon)
 
 
-#![feature(test)]
+//#![feature(test)]
 //#![warn(missing_docs)]
 
 pub mod error;

@@ -959,8 +959,9 @@ mod internal_tests {
     use super::*;
     use crate::slab::Slab;
 
-    extern crate test;
-    use test::{Bencher, black_box};
+    //// Commented so I can compile with stable Rust.
+    // extern crate test;
+    // use test::{Bencher, black_box};
 
     #[test]
     fn rem_no_panic() {
@@ -1032,36 +1033,37 @@ mod internal_tests {
         }
     }
 
-    #[bench]
-    #[allow(non_snake_case)]
-    fn spaces_1M(bencher:&mut Bencher) {
-        let zero = "abc".as_bytes();
-        let one = " abc".as_bytes();
-        let two = "  abc".as_bytes();
-        bencher.iter(|| {
-            let (z1,z2,z3,z4) = (&zero[..], &zero[..], &zero[..], &zero[..]);  // Localize
-            let (o1,o2) = (&one[..], &one[..]);
-            let t1 = &two[..];
-            for _ in 0..1000 {
-                let (z1,z2,z3,z4) = (&mut &z1[..], &mut &z2[..], &mut &z3[..], &mut &z4[..]);
-                let (o1,o2) = (&mut &o1[..], &mut &o2[..]);
-                let t1 = &mut &t1[..];
-                spaces!(z1);
-                spaces!(z2);
-                spaces!(z3);
-                spaces!(z4);
-                spaces!(o1);
-                spaces!(o2);
-                spaces!(t1);
-                black_box(z1);
-                black_box(z2);
-                black_box(z3);
-                black_box(z4);
-                black_box(o1);
-                black_box(o2);
-                black_box(t1);
-            }
-        });
-    }
+    //// Commented so I can compile this library with stable Rust.
+    // #[bench]
+    // #[allow(non_snake_case)]
+    // fn spaces_1M(bencher:&mut Bencher) {
+    //     let zero = "abc".as_bytes();
+    //     let one = " abc".as_bytes();
+    //     let two = "  abc".as_bytes();
+    //     bencher.iter(|| {
+    //         let (z1,z2,z3,z4) = (&zero[..], &zero[..], &zero[..], &zero[..]);  // Localize
+    //         let (o1,o2) = (&one[..], &one[..]);
+    //         let t1 = &two[..];
+    //         for _ in 0..1000 {
+    //             let (z1,z2,z3,z4) = (&mut &z1[..], &mut &z2[..], &mut &z3[..], &mut &z4[..]);
+    //             let (o1,o2) = (&mut &o1[..], &mut &o2[..]);
+    //             let t1 = &mut &t1[..];
+    //             spaces!(z1);
+    //             spaces!(z2);
+    //             spaces!(z3);
+    //             spaces!(z4);
+    //             spaces!(o1);
+    //             spaces!(o2);
+    //             spaces!(t1);
+    //             black_box(z1);
+    //             black_box(z2);
+    //             black_box(z3);
+    //             black_box(z4);
+    //             black_box(o1);
+    //             black_box(o2);
+    //             black_box(t1);
+    //         }
+    //     });
+    // }
 }
 
