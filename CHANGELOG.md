@@ -11,8 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - This was the initial public release.  Changes before this point are not described here, but they can still be viewed in the [Repository].
 
-[Unreleased]: https://github.com/likebike/fasteval/compare/v0.2.0...HEAD
-[0.3.0]: https://github.com/likebike/fasteval------I_HAVE_THIS_HERE_FOR_REFERENCE-------/compare/v0.2.0...v0.3.0
-[0.2.0]: https://github.com/likebike/fasteval/releases/tag/v0.2.0
+[Unreleased]: https://github.com/likebike/fasteval/compare/0.2.0...HEAD
+[0.3.0]: https://github.com/likebike/fasteval------I_HAVE_THIS_HERE_FOR_REFERENCE-------/compare/0.2.0...0.3.0
+[0.2.0]: https://github.com/likebike/fasteval/releases/tag/0.2.0
 [Repository]: https://github.com/likebike/fasteval
 
