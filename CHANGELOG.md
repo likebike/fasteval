@@ -8,8 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 (Click the above link to see the work that has occurred since the previous release.)
 
 ## [0.2.0] - 2020-01-01
-### Added
-- This was the initial public release.  Changes before this point are not described here, but they can still be viewed in the [Repository].
+This was the initial public release.  Changes before this point are not described here, but they can still be viewed in the [Repository].
 
 [Unreleased]: https://github.com/likebike/fasteval/compare/0.2.0...HEAD
 [0.3.0]: https://github.com/likebike/fasteval------I_HAVE_THIS_HERE_FOR_REFERENCE-------/compare/0.2.0...0.3.0
