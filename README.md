@@ -15,7 +15,7 @@ Documentation:
 Add this to your Cargo.toml:
 
     [dependencies]
-    fasteval = "0.1.9"
+    fasteval = "0.2.0"
 
 
 You should **always** build with `RUSTFLAGS="--emit=asm"` because it greatly improves LLVM's compile-time optimizations.
