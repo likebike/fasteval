@@ -132,7 +132,12 @@
 //!
 //! Here are a few ideas of possibly-useful custom Namespace types:
 //!
-//! * Vec<FnMut(&str,Vec<f64>)->Option<f64>>  --  This would be a `Layered`
+//! * BTreeMap<String, Fn(Vec<f64>)->Option<f64>>  --  This namespace type would provide
+//!   a very convenient way to register variables and custom functions.
+//!   It would be a bit slower than the Callback-based Namespace shown above,
+//!   but it has isolation and composition advantages.
+//!
+//! * Vec<Fn(&str,Vec<f64>)->Option<f64>>  --  This would be a `Layered`
 //!   namespace, with each layer having its own callback.  Really powerful!
 //!
 //! * CachedCallbacksNamespace  --  Same as above, but with a cache for each

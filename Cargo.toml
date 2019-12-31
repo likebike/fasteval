@@ -8,7 +8,7 @@ repository = "https://github.com/likebike/fasteval"
 documentation = "https://docs.rs/fasteval/"
 description = """A fast algebraic expression evaluation library."""
 keywords = ["evaluate", "math", "algebra", "calculate", "expression"]
-categories = ["mathematics", "science", "parsing"]
+categories = ["mathematics", "science", "parser-implementations"]
 edition = "2018"
 
 [dependencies]
