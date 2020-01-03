@@ -149,7 +149,7 @@ likely to be an excellent choice for your dynamic evaluation needs.
 
 
 ## License
-`fasteval` is distributed under the terms of both the MIT license.
+`fasteval` is distributed under the terms the MIT license.
 
 See [LICENSE](https://github.com/likebike/fasteval/blob/master/LICENSE) for details.
 
