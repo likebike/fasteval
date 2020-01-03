@@ -169,7 +169,14 @@
 //     preparse_precompile_nsbubble_eval_1000x     348860 ns/iter      861s ago
 //
 //     "((((87))) - 73) + (97 + (((15 / 55 * ((31)) + 35))) + (15 - (9)) - (39 / 26) / 20 / 91 + 27 / (33 * 26 + 28 - (7) / 10 + 66 * 6) + 60 / 35 - ((29) - (69) / 44 / (92)) / (89) + 2 + 87 / 47 * ((2)) * 83 / 98 * 42 / (((67)) * ((97))) / (34 / 89 + 77) - 29 + 70 * (20)) + ((((((92))) + 23 * (98) / (95) + (((99) * (41))) + (5 + 41) + 10) - (36) / (6 + 80 * 52 + (90))))"
-//     BTreeMap, --emit=asm:
+//     BTreeMap, --emit=asm, --features nightly:
+//     ez                                            9375 ns/iter    30003s ago saturating_add, range index
+//     native_1000x                                   318 ns/iter    43847s ago
+//     parse_compile_eval_1000x                  14324079 ns/iter    23297s ago
+//     parse_eval_1000x                           9230867 ns/iter    28870s ago
+//     preparse_eval_1000x                        2857944 ns/iter    27829s ago
+//     preparse_precompile_eval_1000x                 615 ns/iter    41471s ago
+//     preparse_precompile_eval_closure_1000x         615 ns/iter    42477s ago
 //     ez                                            9179 ns/iter     1987s ago eval_ic_ref!()
 //     native_1000x                                   319 ns/iter     4215s ago
 //     parse_compile_eval_1000x                  14503940 ns/iter     3584s ago

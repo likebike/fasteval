@@ -1,4 +1,4 @@
-//! A fast algebraic expression evaluation library.
+//! Fast evaluation of algebraic expressions
 //!
 //! # Features
 //! * Works with stable Rust.
@@ -602,6 +602,8 @@
 
 //#![feature(test)]
 //#![warn(missing_docs)]
+
+#![cfg_attr(feature="nightly", feature(slice_index_methods))]
 
 pub mod error;
 #[macro_use]

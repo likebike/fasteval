@@ -1,5 +1,5 @@
 # fasteval
-A fast algebraic expression evaluation library.
+Fast evaluation of algebraic expressions
 
 `fasteval` is a library for parsing, compiling, and evaluating algebraic expressions.
 It can be used directly as a calculator language (much like `python`), and it is

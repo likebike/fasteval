@@ -6,7 +6,7 @@ license = "MIT"
 readme = "README.md"
 repository = "https://github.com/likebike/fasteval"
 documentation = "https://docs.rs/fasteval/"
-description = """A fast algebraic expression evaluation library."""
+description = """Fast evaluation of algebraic expressions"""
 keywords = ["evaluate", "math", "algebra", "calculate", "expression"]
 categories = ["mathematics", "science", "parser-implementations"]
 edition = "2018"
@@ -21,4 +21,5 @@ lto = true
 default = ["alpha-keywords"]
 alpha-keywords = []  # Enable 'NaN', 'inf', 'and', 'or'
 unsafe-vars = []     # tinyexpr-style pointer-based variables.
+nightly = []         # Enable features that depend on Rust nightly.
 

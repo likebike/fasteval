@@ -222,7 +222,7 @@ fn key_from_nameargs<'a,'b:'a>(keybuf:&'a mut String, name:&'b str, args:&[f64])
         name
     } else {
         keybuf.clear();
-        keybuf.reserve(name.len() + 20*args.len());
+        keybuf.reserve(name.len().saturating_add(args.len().saturating_mul(20)));
         keybuf.push_str(name);
         for f in args {
             keybuf.push_str(" , ");
@@ -407,12 +407,12 @@ impl<'a> CachedCallbackNamespace<'a> {
 //     #[inline]
 //     fn push(&mut self) {
 //         self.ns.push();
-//         self.count += 1;
+//         self.count = self.count.saturating_add(1);
 //     }
 //     #[inline]
 //     fn pop(&mut self) {
 //         if self.count>0 {
-//             self.count -= 1;
+//             self.count = self.count.saturating_sub(1);
 //             self.ns.pop();
 //         }
 //     }

@@ -230,12 +230,12 @@ impl Evaler for Expression {
                     None => EOR,  // unreachable
                 };
                 if op==search {
-                    let res = op.binaryop_eval(vals.get(i), vals.get(i+1));
+                    let res = op.binaryop_eval(vals.get(i), vals.get(i.saturating_add(1)));
                     match vals.get_mut(i) {
                         Some(val_ref) => *val_ref=res,
                         None => (),  // unreachable
                     };
-                    remove_no_panic(vals, i+1);
+                    remove_no_panic(vals, i.saturating_add(1));
                     remove_no_panic(ops, i);
                 }
             }
@@ -248,15 +248,15 @@ impl Evaler for Expression {
                     None => break,
                     Some(op) => {
                         if *op==search {
-                            let res = op.binaryop_eval(vals.get(i), vals.get(i+1));
+                            let res = op.binaryop_eval(vals.get(i), vals.get(i.saturating_add(1)));
                             match vals.get_mut(i) {
                                 Some(val_ref) => *val_ref=res,
                                 None => (),  // unreachable
                             };
-                            remove_no_panic(vals, i+1);
+                            remove_no_panic(vals, i.saturating_add(1));
                             remove_no_panic(ops, i);
                         } else {
-                            i+=1;
+                            i=i.saturating_add(1);
                         }
                     }
                 }
@@ -270,15 +270,15 @@ impl Evaler for Expression {
                     None => break,
                     Some(op) => {
                         if search.contains(op) {
-                            let res = op.binaryop_eval(vals.get(i), vals.get(i+1));
+                            let res = op.binaryop_eval(vals.get(i), vals.get(i.saturating_add(1)));
                             match vals.get_mut(i) {
                                 Some(val_ref) => *val_ref=res,
                                 None => (),  // unreachable
                             };
-                            remove_no_panic(vals, i+1);
+                            remove_no_panic(vals, i.saturating_add(1));
                             remove_no_panic(ops, i);
                         } else {
-                            i+=1;
+                            i=i.saturating_add(1);
                         }
                     }
                 }
@@ -353,7 +353,7 @@ impl BinaryOp {
             None => return std::f64::NAN,
         };
         match self {
-            EAdd => left+right,
+            EAdd => left+right,  // Floats don't overflow.
             ESub => left-right,
             EMul => left*right,
             EDiv => left/right,

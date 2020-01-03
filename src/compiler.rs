@@ -271,7 +271,7 @@ fn compile_mul(instrs:Vec<Instruction>, cslab:&mut CompileSlab) -> Instruction {
     let mut const_prod = 1.0;
     for instr in instrs {
         if let IConst(c) = instr {
-            const_prod *= c;
+            const_prod *= c;  // Floats don't overflow.
         } else {
             if out_set {
                 out = IMul(cslab.push_instr(out), IC::I(cslab.push_instr(instr)));
@@ -295,7 +295,7 @@ fn compile_add(instrs:Vec<Instruction>, cslab:&mut CompileSlab) -> Instruction {
     let mut const_sum = 0.0;
     for instr in instrs {
         if let IConst(c) = instr {
-            const_sum += c;
+            const_sum += c;  // Floats don't overflow.
         } else {
             if out_set {
                 out = IAdd(cslab.push_instr(out), IC::I(cslab.push_instr(instr)));
@@ -394,14 +394,14 @@ impl Compiler for ExprSlice<'_> {
         // All comparisons have equal precedence:
         if lowest_op==EEQ || lowest_op==ENE || lowest_op==ELT || lowest_op==EGT || lowest_op==ELTE || lowest_op==EGTE {
             let mut ops = Vec::<&BinaryOp>::with_capacity(4);
-            let mut xss = Vec::<ExprSlice>::with_capacity(ops.len()+1);
+            let mut xss = Vec::<ExprSlice>::with_capacity(ops.len().saturating_add(1));
             self.split_multi(&[EEQ, ENE, ELT, EGT, ELTE, EGTE], &mut xss, &mut ops);
             let mut out = match xss.first() {
                 Some(xs) => xs.compile(pslab,cslab),
                 None => IConst(std::f64::NAN),  // unreachable
             };
             for (i,op) in ops.into_iter().enumerate() {
-                let instr = match xss.get(i+1) {
+                let instr = match xss.get(i.saturating_add(1)) {
                     Some(xs) => xs.compile(pslab,cslab),
                     None => IConst(std::f64::NAN),  // unreachable
                 };
@@ -547,7 +547,7 @@ impl Compiler for ExprSlice<'_> {
 //                  let instr = xs.compile(pslab,cslab);
 //                  if let IConst(c) = instr {
 //                      if is_first {
-//                          const_prod *= c;
+//                          const_prod *= c;  // Floats don't overflow.
 //                      } else {
 //                          const_prod /= c;
 //                      }
@@ -625,7 +625,7 @@ impl Compiler for ExprSlice<'_> {
 //          EExp => {  // Left-to-Right Associativity
 //              let mut xss = Vec::<ExprSlice>::with_capacity(2);
 //              self.split(EExp, &mut xss);
-//              let mut pow_instrs = Vec::<Instruction>::with_capacity(xss.len()-1);
+//              let mut pow_instrs = Vec::<Instruction>::with_capacity(xss.len().saturating_sub(1));
 //              let mut base = IConst(0.0);
 //              for (i,xs) in xss.into_iter().enumerate() {
 //                  let instr = xs.compile(pslab,cslab);
@@ -767,7 +767,7 @@ impl Compiler for StdFunc {
                 let instr = get_expr!(pslab,i).compile(pslab,cslab);
                 if let IConst(m) = modulus {
                     if let IConst(n) = instr {
-                        return IConst( (n/m).round() * m );
+                        return IConst( (n/m).round() * m );  // Floats don't overflow.
                     }
                 }
                 IFuncRound{modulus:instr_to_ic!(cslab,modulus), of:instr_to_ic!(cslab,instr)}
