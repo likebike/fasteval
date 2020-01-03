@@ -20,6 +20,8 @@ Add this to your Cargo.toml:
 
 You should **always** build with `RUSTFLAGS="--emit=asm"` because it greatly improves LLVM's compile-time optimizations.
 
+If you are using a 'nightly' Rust compiler, you can build with `--features nightly` to enable optimizations that aren't yet available in Rust 'stable'.
+
 You can build with `--no-default-features` to disable alphabetical keywords like `and`, `or`, `NaN`, `inf`.  (These words might be important to your applications.)
 
 You can build with `--features unsafe-vars` to enable [Unsafe Variables](https://docs.rs/fasteval/#unsafe-variables).
