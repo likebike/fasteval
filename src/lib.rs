@@ -100,6 +100,8 @@
 //! fresh [`Slab`](slab/index.html), but it is very simple to use:
 //!
 //! ```
+//! // In case you didn't know, Rust allows `main()` to return a `Result`.
+//! // This lets us use the `?` operator inside of `main()`.  Very convenient!
 //! fn main() -> Result<(), fasteval::Error> {
 //!     // This example doesn't use any variables, so just use an EmptyNamespace:
 //!     let mut ns = fasteval::EmptyNamespace;
@@ -603,7 +605,8 @@
 //#![feature(test)]
 //#![warn(missing_docs)]
 
-#![cfg_attr(feature="nightly", feature(slice_index_methods))]
+//// Keeping for reference:
+// #![cfg_attr(feature="nightly", feature(slice_index_methods))]
 
 pub mod error;
 #[macro_use]
@@ -624,4 +627,7 @@ pub use self::evaler::Evaler;
 pub use self::slab::Slab;
 pub use self::evalns::{EvalNamespace, Cached, EmptyNamespace, CachedCallbackNamespace};
 pub use self::ez::ez_eval;
+
+
+// TODO: Convert `match`es to `if let`s for performance boost.
 

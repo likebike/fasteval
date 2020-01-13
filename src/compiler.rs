@@ -394,14 +394,14 @@ impl Compiler for ExprSlice<'_> {
         // All comparisons have equal precedence:
         if lowest_op==EEQ || lowest_op==ENE || lowest_op==ELT || lowest_op==EGT || lowest_op==ELTE || lowest_op==EGTE {
             let mut ops = Vec::<&BinaryOp>::with_capacity(4);
-            let mut xss = Vec::<ExprSlice>::with_capacity(ops.len().saturating_add(1));
+            let mut xss = Vec::<ExprSlice>::with_capacity(ops.len()+1);
             self.split_multi(&[EEQ, ENE, ELT, EGT, ELTE, EGTE], &mut xss, &mut ops);
             let mut out = match xss.first() {
                 Some(xs) => xs.compile(pslab,cslab),
                 None => IConst(std::f64::NAN),  // unreachable
             };
             for (i,op) in ops.into_iter().enumerate() {
-                let instr = match xss.get(i.saturating_add(1)) {
+                let instr = match xss.get(i+1) {
                     Some(xs) => xs.compile(pslab,cslab),
                     None => IConst(std::f64::NAN),  // unreachable
                 };
@@ -625,7 +625,7 @@ impl Compiler for ExprSlice<'_> {
 //          EExp => {  // Left-to-Right Associativity
 //              let mut xss = Vec::<ExprSlice>::with_capacity(2);
 //              self.split(EExp, &mut xss);
-//              let mut pow_instrs = Vec::<Instruction>::with_capacity(xss.len().saturating_sub(1));
+//              let mut pow_instrs = Vec::<Instruction>::with_capacity(xss.len()-1);
 //              let mut base = IConst(0.0);
 //              for (i,xs) in xss.into_iter().enumerate() {
 //                  let instr = xs.compile(pslab,cslab);

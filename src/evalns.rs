@@ -3,8 +3,8 @@
 //! Several Evaluation Namespace types are defined, each with their own advantages:
 //! * [`EmptyNamespace`](#emptynamespace) -- Useful when you know that your
 //!   expressions don't need to look up any variables.
-//! * [`BTreeMap<String,f64>`](#btreemapstringf64) -- A simple way to define
-//!   variables with a map.
+//! * [`BTreeMap`](#btreemapstringf64) -- A simple way to define variables
+//!   with a map.
 //! * [`FnMut(&str,Vec<f64>) -> Option<f64>`](#callback-fnmutstrvec---option) --
 //!   Define variables and custom functions using a callback function.
 //! * [`CachedCallbackNamespace`](#cachedcallbacknamespace) -- Like the above
@@ -35,6 +35,20 @@
 //! fn main() -> Result<(), fasteval::Error> {
 //!     let mut map : BTreeMap<String,f64> = BTreeMap::new();
 //!     map.insert("x".to_string(), 2.0);
+//!
+//!     let val = fasteval::ez_eval("x * (x + 1)", &mut map)?;
+//!     assert_eq!(val, 6.0);
+//!
+//!     Ok(())
+//! }
+//! ```
+//!
+//! ## BTreeMap<&'static str,f64>
+//! ```
+//! use std::collections::BTreeMap;
+//! fn main() -> Result<(), fasteval::Error> {
+//!     let mut map : BTreeMap<&'static str,f64> = BTreeMap::new();
+//!     map.insert("x", 2.0);
 //!
 //!     let val = fasteval::ez_eval("x * (x + 1)", &mut map)?;
 //!     assert_eq!(val, 6.0);
@@ -222,7 +236,7 @@ fn key_from_nameargs<'a,'b:'a>(keybuf:&'a mut String, name:&'b str, args:&[f64])
         name
     } else {
         keybuf.clear();
-        keybuf.reserve(name.len().saturating_add(args.len().saturating_mul(20)));
+        keybuf.reserve(name.len() + args.len()*20);
         keybuf.push_str(name);
         for f in args {
             keybuf.push_str(" , ");
@@ -233,6 +247,14 @@ fn key_from_nameargs<'a,'b:'a>(keybuf:&'a mut String, name:&'b str, args:&[f64])
 }
 
 impl EvalNamespace for BTreeMap<String,f64> {
+    #[inline]
+    fn lookup(&mut self, name:&str, args:Vec<f64>, keybuf:&mut String) -> Option<f64> {
+        let key = key_from_nameargs(keybuf, name, &args);
+        self.get(key).copied()
+    }
+}
+
+impl EvalNamespace for BTreeMap<&'static str,f64> {
     #[inline]
     fn lookup(&mut self, name:&str, args:Vec<f64>, keybuf:&mut String) -> Option<f64> {
         let key = key_from_nameargs(keybuf, name, &args);
@@ -407,12 +429,12 @@ impl<'a> CachedCallbackNamespace<'a> {
 //     #[inline]
 //     fn push(&mut self) {
 //         self.ns.push();
-//         self.count = self.count.saturating_add(1);
+//         self.count = self.count+1;
 //     }
 //     #[inline]
 //     fn pop(&mut self) {
 //         if self.count>0 {
-//             self.count = self.count.saturating_sub(1);
+//             self.count = self.count+1;
 //             self.ns.pop();
 //         }
 //     }

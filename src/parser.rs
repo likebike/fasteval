@@ -30,9 +30,6 @@ use crate::slab::ParseSlab;
 use std::str::{from_utf8, from_utf8_unchecked};
 use std::ptr;
 
-#[cfg(feature="nightly")]
-use std::slice::SliceIndex;  // So I can use (1..).get(slice)
-
 
 
 /// An `ExpressionI` represents an index into `Slab.ps.exprs`.
@@ -206,12 +203,7 @@ macro_rules! read {
     ($bs:ident) => {
         match $bs.first() {
             Some(b) => {
-                #[cfg(not(feature="nightly"))]
-                { *$bs = &$bs[1..]; }
-
-                #[cfg(feature="nightly")]
-                { *$bs = unsafe { (1..).get_unchecked(*$bs) }; }
-
+                *$bs = &$bs[1..];
                 Ok(*b)
             }
             None => Err(Error::EOF),
@@ -220,12 +212,7 @@ macro_rules! read {
     ($bs:ident, $parsing:literal) => {
         match $bs.first() {
             Some(b) => {
-                #[cfg(not(feature="nightly"))]
-                { *$bs = &$bs[1..]; }
-
-                #[cfg(feature="nightly")]
-                { *$bs = unsafe { (1..).get_unchecked(*$bs) }; }
-
+                *$bs = &$bs[1..];
                 Ok(*b)
             }
             None => Err(Error::EofWhileParsing($parsing.to_string())),
@@ -235,27 +222,15 @@ macro_rules! read {
 
 macro_rules! skip {
     ($bs:ident) => {
-        #[cfg(not(feature="nightly"))]
-        { *$bs = &$bs[1..]; }
-
-        #[cfg(feature="nightly")]
-        { *$bs = unsafe { (1..).get_unchecked(*$bs) }; }
+        *$bs = &$bs[1..];
     };
 }
 macro_rules! skip_n {
     ($bs:ident, $n:literal) => {
-        #[cfg(not(feature="nightly"))]
-        { *$bs = &$bs[$n..]; }
-
-        #[cfg(feature="nightly")]
-        { *$bs = unsafe { ($n..).get_unchecked(*$bs) }; }
+        *$bs = &$bs[$n..];
     };
     ($bs:ident, $n:ident) => {
-        #[cfg(not(feature="nightly"))]
-        { *$bs = &$bs[$n..]; }
-
-        #[cfg(feature="nightly")]
-        { *$bs = unsafe { ($n..).get_unchecked(*$bs) }; }
+        *$bs = &$bs[$n..];
     };
 }
 
@@ -378,20 +353,20 @@ impl Parser {
                     if b'0'<=b && b<=b'9' || b==b'.' {
                         saw_val = true;
                         sign_ok=false; specials_ok=false;
-                        toklen = toklen.saturating_add(1);
+                        toklen = toklen+1;
                     } else if sign_ok && (b==b'-' || b==b'+') {
                         sign_ok = false;
-                        toklen = toklen.saturating_add(1);
+                        toklen = toklen+1;
                     } else if saw_val && (b==b'e' || b==b'E') {
                         suffix_ok = false;
                         sign_ok = true;
-                        toklen = toklen.saturating_add(1);
-                    } else if specials_ok && ( b==b'N' && peek_is!(bs,toklen.saturating_add(1),b'a') && peek_is!(bs,toklen.saturating_add(2),b'N')  ||  b==b'i' && peek_is!(bs,toklen.saturating_add(1),b'n') && peek_is!(bs,toklen.saturating_add(2),b'f') ) {
+                        toklen = toklen+1;
+                    } else if specials_ok && ( b==b'N' && peek_is!(bs,toklen+1,b'a') && peek_is!(bs,toklen+2,b'N')  ||  b==b'i' && peek_is!(bs,toklen+1,b'n') && peek_is!(bs,toklen+2,b'f') ) {
                         #[cfg(feature="alpha-keywords")]
                         {
                             saw_val = true;
                             suffix_ok = false;
-                            toklen = toklen.saturating_add(3);
+                            toklen = toklen+3;
                         }
                         break;
                     } else {
@@ -415,7 +390,7 @@ impl Parser {
                         b'T' => (12,1),
                         b'm' => (-3,1),
                         b'u' | b'\xb5' => (-6,1),  // ASCII-encoded 'µ'
-                        b'\xc2' if peek_is!(bs,toklen.saturating_add(1),b'\xb5') => (-6,2),  // UTF8-encoded 'µ'
+                        b'\xc2' if peek_is!(bs,toklen+1,b'\xb5') => (-6,2),  // UTF8-encoded 'µ'
                         b'n' => (-9,1),
                         b'p' => (-12,1),
                         _ => (0,0),
@@ -427,7 +402,7 @@ impl Parser {
                         slab.char_buf.push_str(&exp.to_string());
                         tok = &slab.char_buf;
 
-                        toklen = toklen.saturating_add(suffixlen);
+                        toklen = toklen+suffixlen;
                     }
                 }
             }
@@ -634,7 +609,7 @@ impl Parser {
         spaces!(bs);
 
         let mut toklen = 0;
-        while Self::is_varname_byte_opt(peek_n!(bs,toklen),toklen) { toklen=toklen.saturating_add(1); }
+        while Self::is_varname_byte_opt(peek_n!(bs,toklen),toklen) { toklen=toklen+1; }
 
         if toklen==0 { return Ok(Pass); }
 
@@ -681,7 +656,7 @@ impl Parser {
                     _ => return Err(Error::Expected("',' or ';'".to_string())),
                 }
             }
-            args.push(Self::read_expression(slab,bs,depth.saturating_add(1),false)?);
+            args.push(Self::read_expression(slab,bs,depth+1,false)?);
         }
 
         let fname_str = fname.as_str();
@@ -903,7 +878,7 @@ impl Parser {
                     _ => { return Err(Error::Expected("',' or ';'".to_string())); }
                 }
             }
-            args.push(Self::read_expressionorstring(slab,bs,depth.saturating_add(1))?);
+            args.push(Self::read_expressionorstring(slab,bs,depth+1)?);
         }
 
         Ok(PrintFunc(args))
@@ -914,7 +889,7 @@ impl Parser {
             Pass => {}
             Bite(s) => return Ok(EStr(s)),
         }
-        Ok(EExpr(Self::read_expression(slab,bs,depth.saturating_add(1),false)?))
+        Ok(EExpr(Self::read_expression(slab,bs,depth+1,false)?))
     }
 
     fn read_string(bs:&mut &[u8]) -> Result<Token<String>,Error> {
@@ -931,7 +906,7 @@ impl Parser {
             None => false,
             Some(b'"') => false,
             Some(_) => true,
-        } { toklen=toklen.saturating_add(1); }
+        } { toklen=toklen+1; }
 
         let out = from_utf8(&bs[..toklen]).map_err(|_| Error::Utf8ErrorWhileParsing("string".to_string()))?;
         skip_n!(bs, toklen);
@@ -970,9 +945,9 @@ pub(crate) fn remove_no_panic<T>(vself:&mut Vec<T>, index:usize) -> Option<T> {
             ret = ptr::read(ptr);
 
             // Shift everything down to fill in that spot.
-            ptr::copy(ptr.offset(1), ptr, len.saturating_sub(index).saturating_sub(1));
+            ptr::copy(ptr.offset(1), ptr, len-index-1);
         }
-        vself.set_len(len.saturating_sub(1));
+        vself.set_len(len-1);
         Some(ret)
     }
 }

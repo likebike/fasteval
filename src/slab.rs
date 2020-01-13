@@ -320,7 +320,7 @@ impl CompileSlab {
 
     /// Removes an `Instruction` from `CompileSlab.instrs` as efficiently as possible.
     pub(crate) fn take_instr(&mut self, i:InstructionI) -> Instruction {
-        if i.0==self.instrs.len().saturating_sub(1) {
+        if i.0==self.instrs.len()-1 {
             match self.instrs.pop() {
                 Some(instr) => instr,
                 None => IConst(std::f64::NAN),
