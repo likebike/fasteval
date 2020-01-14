@@ -141,6 +141,46 @@ fn unsafe_comp_chk(expr_str:&str, expect_fmt:&str, expect_eval:f64) {
     })().unwrap();
 }
 
+fn comp_chk_str(expr_str:&str, expect_instr:&str, expect_fmt:&str, expect_eval:f64) {
+    let mut slab = Slab::new();
+    let expr = parse(expr_str, &mut slab.ps).unwrap().from(&slab.ps);
+    let instr = expr.compile(&slab.ps, &mut slab.cs);
+
+    assert_eq!(format!("{:?}",instr), expect_instr);
+    assert_eq!(format!("{:?}",slab.cs), expect_fmt);
+
+    let mut ns = CachedCallbackNamespace::new(|name,args| {
+        match name {
+            "w" => Some(0.0),
+            "x" => Some(1.0),
+            "y" => Some(2.0),
+            "y7" => Some(2.7),
+            "z" => Some(3.0),
+            "foo" => Some(args[0]*10.0),
+            "bar" => Some(args[0]+args[1]),
+            _ => None,
+        }
+    });
+
+    (|| -> Result<(),Error> {
+        if expect_eval.is_nan() {
+            assert!(eval_compiled_ref!(&instr, &slab, &mut ns).is_nan());
+
+            assert!(eval_compiled_ref!(&instr, &slab, &mut ns).is_nan());
+            assert!(expr.eval(&slab, &mut ns).unwrap().is_nan());
+
+        } else {
+            assert_eq!(eval_compiled_ref!(&instr, &slab, &mut ns), expect_eval);
+
+            // Make sure Instruction eval matches normal eval:
+            assert_eq!(eval_compiled_ref!(&instr, &slab, &mut ns), expr.eval(&slab, &mut ns).unwrap());
+        }
+
+
+        Ok(())
+    })().unwrap();
+}
+
 #[test]
 fn double_neg() {
     assert_eq!(comp("1+1.5").1, IConst(2.5));
@@ -223,7 +263,7 @@ fn all_instrs() {
     comp_chk("2 ^ z", IExp { base: IC::C(2.0), power: IC::I(InstructionI(0)) }, "CompileSlab{ instrs:{ 0:IVar(\"z\") } }", 8.0);
     comp_chk("4 ^ 0.5", IConst(2.0), "CompileSlab{ instrs:{} }", 2.0);
     comp_chk("2 ^ 0.5", IConst(1.4142135623730951), "CompileSlab{ instrs:{} }", 1.4142135623730951);
-    //comp_chk("-4 ^ 0.5", IConst(std::f64::NAN), "CompileSlab{ instrs:{} }", std::f64::NAN);
+    comp_chk_str("-4 ^ 0.5", "IConst(NaN)", "CompileSlab{ instrs:{} }", std::f64::NAN);
     comp_chk("y ^ 0.5", IExp { base: IC::I(InstructionI(0)), power: IC::C(0.5) }, "CompileSlab{ instrs:{ 0:IVar(\"y\") } }", 1.4142135623730951);
     comp_chk("2 ^ 3 ^ 2", IConst(512.0), "CompileSlab{ instrs:{} }", 512.0);
     comp_chk("2 ^ z ^ 2", IExp { base: IC::C(2.0), power: IC::I(InstructionI(1)) }, "CompileSlab{ instrs:{ 0:IVar(\"z\"), 1:IExp { base: I(InstructionI(0)), power: C(2.0) } } }", 512.0);
@@ -405,6 +445,12 @@ fn all_instrs() {
     comp_chk("min(y7)", IVar("y7".to_string()), "CompileSlab{ instrs:{} }", 2.7);
     comp_chk("min(4.7, y7, 3.7)", IFuncMin(InstructionI(0), IC::C(3.7)), "CompileSlab{ instrs:{ 0:IVar(\"y7\") } }", 2.7);
     comp_chk("min(3.7, y7, 4.7)", IFuncMin(InstructionI(0), IC::C(3.7)), "CompileSlab{ instrs:{ 0:IVar(\"y7\") } }", 2.7);
+    comp_chk_str("min(NaN, y7, 4.7)", "IFuncMin(InstructionI(0), C(NaN))", "CompileSlab{ instrs:{ 0:IVar(\"y7\") } }", std::f64::NAN);
+    comp_chk_str("min(NaN, 4.7)", "IConst(NaN)", "CompileSlab{ instrs:{} }", std::f64::NAN);
+    comp_chk_str("min(inf, y7, 4.7)", "IFuncMin(InstructionI(0), C(4.7))", "CompileSlab{ instrs:{ 0:IVar(\"y7\") } }", 2.7);
+    comp_chk_str("min(inf, 4.7)", "IConst(4.7)", "CompileSlab{ instrs:{} }", 4.7);
+    comp_chk_str("min(-inf, y7, 4.7)", "IFuncMin(InstructionI(0), C(-inf))", "CompileSlab{ instrs:{ 0:IVar(\"y7\") } }", std::f64::NEG_INFINITY);
+    comp_chk_str("min(-inf, 4.7)", "IConst(-inf)", "CompileSlab{ instrs:{} }", std::f64::NEG_INFINITY);
 
     // IFuncMax
     comp_chk("max(2.7)", IConst(2.7), "CompileSlab{ instrs:{} }", 2.7);
@@ -413,6 +459,12 @@ fn all_instrs() {
     comp_chk("max(y7)", IVar("y7".to_string()), "CompileSlab{ instrs:{} }", 2.7);
     comp_chk("max(0.7, y7, 1.7)", IFuncMax(InstructionI(0), IC::C(1.7)), "CompileSlab{ instrs:{ 0:IVar(\"y7\") } }", 2.7);
     comp_chk("max(1.7, y7, 0.7)", IFuncMax(InstructionI(0), IC::C(1.7)), "CompileSlab{ instrs:{ 0:IVar(\"y7\") } }", 2.7);
+    comp_chk_str("max(NaN, y7, 0.7)", "IFuncMax(InstructionI(0), C(NaN))", "CompileSlab{ instrs:{ 0:IVar(\"y7\") } }", std::f64::NAN);
+    comp_chk_str("max(NaN, 0.7)", "IConst(NaN)", "CompileSlab{ instrs:{} }", std::f64::NAN);
+    comp_chk_str("max(inf, y7, 4.7)", "IFuncMax(InstructionI(0), C(inf))", "CompileSlab{ instrs:{ 0:IVar(\"y7\") } }", std::f64::INFINITY);
+    comp_chk_str("max(inf, 4.7)", "IConst(inf)", "CompileSlab{ instrs:{} }", std::f64::INFINITY);
+    comp_chk_str("max(-inf, y7, 4.7)", "IFuncMax(InstructionI(0), C(4.7))", "CompileSlab{ instrs:{ 0:IVar(\"y7\") } }", 4.7);
+    comp_chk_str("max(-inf, 4.7)", "IConst(4.7)", "CompileSlab{ instrs:{} }", 4.7);
 
     // IFuncSin
     comp_chk("sin(0)", IConst(0.0), "CompileSlab{ instrs:{} }", 0.0);

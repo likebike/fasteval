@@ -464,17 +464,23 @@ impl Evaler for StdFunc {
             EFuncFloor(expr_i) => Ok(get_expr!(slab.ps,expr_i).eval(slab,ns)?.floor()),
             EFuncMin{first:first_i, rest} => {
                 let mut min = get_expr!(slab.ps,first_i).eval(slab,ns)?;
+                let mut saw_nan = min.is_nan();
                 for x_i in rest.iter() {
                     min = min.min(get_expr!(slab.ps,x_i).eval(slab,ns)?);
+                    saw_nan = saw_nan || min.is_nan();
                 }
-                Ok(min)
+                if saw_nan { Ok(std::f64::NAN)
+                } else { Ok(min) }
             }
             EFuncMax{first:first_i, rest} => {
                 let mut max = get_expr!(slab.ps,first_i).eval(slab,ns)?;
+                let mut saw_nan = max.is_nan();
                 for x_i in rest.iter() {
                     max = max.max(get_expr!(slab.ps,x_i).eval(slab,ns)?);
+                    saw_nan = saw_nan || max.is_nan();
                 }
-                Ok(max)
+                if saw_nan { Ok(std::f64::NAN)
+                } else { Ok(max) }
             }
 
             EFuncE => Ok(consts::E),
@@ -624,6 +630,7 @@ impl Evaler for Instruction {
             IFuncMin(li,ric) => {
                 let left = eval_compiled_ref!(get_instr!(slab.cs,li), slab, ns);
                 let right = eval_ic_ref!(ric, slab, ns);
+                if left.is_nan() || right.is_nan() { return Ok(std::f64::NAN) }  // I need to implement NAN checks myself because the f64.min() function says that if one number is NaN, the other will be returned.
                 if left<right {
                     Ok(left)
                 } else {
@@ -633,6 +640,7 @@ impl Evaler for Instruction {
             IFuncMax(li,ric) => {
                 let left = eval_compiled_ref!(get_instr!(slab.cs,li), slab, ns);
                 let right = eval_ic_ref!(ric, slab, ns);
+                if left.is_nan() || right.is_nan() { return Ok(std::f64::NAN) }
                 if left>right {
                     Ok(left)
                 } else {
