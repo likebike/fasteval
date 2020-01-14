@@ -327,7 +327,7 @@ impl CompileSlab {
             }
         } else {
             match self.instrs.get_mut(i.0) {
-                Some(instr_ref) => mem::replace(instr_ref, IConst(std::f64::NAN)),  // Conspicuous Value
+                Some(instr_ref) => mem::replace(instr_ref, IConst(std::f64::NAN)),  // Replace with a conspicuous value in case we use it by accident.
                 None => IConst(std::f64::NAN),
             }
         }
