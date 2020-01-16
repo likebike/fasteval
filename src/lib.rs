@@ -1,15 +1,15 @@
 //! Fast evaluation of algebraic expressions
 //!
 //! # Features
+//! * Safe execution of untrusted expressions.
 //! * Works with stable Rust.
 //! * Supports interpretation (i.e. parse & eval) as well as compiled execution (i.e. parse, compile, eval).
-//! * Variables and Custom Functions.
-//! * Safe for execution of untrusted expressions.
-//! * Good base for building higher-level languages.
-//! * Many built-in functions and constants.
+//! * Supports Variables and Custom Functions.
+//! * `fasteval` is a good base for building higher-level languages.
+//! * Supports many built-in functions and constants.
 //! * Supports all the standard algebraic unary and binary operators (+ - * / ^ %),
-//!   as well as comparisons (< <= == != >= >) and logical operators (&& ||)
-//!   with short-circuit support.
+//!   as well as comparisons (< <= == != >= >) and logical operators (&& ||) with
+//!   short-circuit support.
 //! * Easy integration into many different types of applications, including scoped evaluation.
 //! * Very fast performance.
 //!
@@ -368,6 +368,27 @@
 //! }
 //! ```
 //!
+//! # Safety
+//!
+//! `fasteval` is designed to evaluate untrusted expressions safely.  By
+//! default, an expression can only perform math operations -- there is no way
+//! for it to access other types of operations (like network or filesystem or
+//! external commands).  Additionally, we guard against malicious expressions:
+//!
+//! * Expressions that are too large (greater than 4KB).
+//! * Expressions that are too-deeply nested (greater than 32 levels).
+//! * Expressions with too many values (by default, 64).
+//! * Expressions with too many sub-expressions (by default, 64).
+//!
+//! All limits can be customized at parse time.  If any limits are exceeded,
+//! [`parse()`](parser/fn.parse.html) will return an
+//! [Error](error/enum.Error.html).
+//!
+//! Note that it *is* possible for you (the developer) to define custom
+//! variables and functions which might perform dangerous operations.  It is
+//! your responsibility to make sure that all custom functionality is safe.
+//!
+//!
 //! # Performance Benchmarks
 //!
 //! These benchmarks were performed on 2019-12-25.  Merry Christmas.
@@ -517,27 +538,13 @@
 //! for F in /sys/devices/system/cpu/cpufreq/policy*/scaling_governor; do echo performance >$F; done
 //! ```
 //!
-//! ### Always Use `RUSTFLAGS="--emit=asm"`
+//! ### Compile with `RUSTFLAGS="--emit=asm"`
 //! For some reason, which I have been unable to find any documentation about, the emission of assembly code during compilation causes LLVM to dramatically improve the optimization of the resulting binary (often a 3x difference for critical sections!).  In particular, it makes better choices regarding variable localization and function inlining.  I suggest that you *always* use this option for everything you do.
 //!
 //! ### Layout Randomization
-//! I use a poor-man's Layout Randomization method similar to [Coz](https://www.youtube.com/watch?v=r-TLSBdHe1A).  The size and location of your code has significant impact on its performance.  The compiler often makes poor decisions about code placement, which results in up to 40% performance differences!  When benchmarking, it is important to remove this source of noise so that you can see the real effects of your changes.
+//! I use a Layout Randomization method similar to [Coz](https://www.youtube.com/watch?v=r-TLSBdHe1A).  The size and location of your code has significant impact on its performance.  The compiler often makes poor decisions about code placement, which results in up to 40% performance differences!  When benchmarking, it is important to remove this source of noise so that you can see the real effects of your changes.
 //!
-//! Rather than using [Coz](https://github.com/alexcrichton/coz-rs), I use a poor-man's approach which has no dependencies and works across languages:  During each iteration of my benchmark loop, I inject a random number of no-op instructions into my benchmark code (using `sed`).  This shifts everything around in the address space so that I end up hitting all fast and slow scenarios.
-//!
-//! I then run the benchmark loop many times, keeping track of the fastest-seen times until I no longer observe any improvements in any part of the banchmark suite for 500 seconds.  At that point, I say that I have reached a stable point and can draw conclusions from the statistics.
-//!
-//! Here is my benchmark loop, which performs Layout Randomization:
-//!
-//! ```text
-//! while true; do echo "time: $(date +%s)"; cat benches/bench.rs.tmpl | sed "s|//SHIFT_CODE|$( N=$(( 1 + $RANDOM % 1024 )); while [[ $N > 0 ]]; do N=$(( $N - 1 )); echo -n 'let x=black_box(x+1);'; done )|g" >benches/bench.rs; RUSTFLAGS="--emit=asm" cargo bench; done >bench.out
-//! ```
-//!
-//! I monitor the results with this:
-//!
-//! ```text
-//! cat bench.out | awk -v "now=$(date +%s)" '$1=="time:"{when=$2}  $3=="..." && $4=="bench:" {gsub(/,/, "", $5); v=$5+0; if (t[$2]=="" || v<t[$2]){t[$2]=v; w[$2]=when;}} END{for (k in t) { printf "%-40s %9d ns/iter    %5ds ago\n",k,t[k],now-w[k] }}' | sort
-//! ```
+//! Rather than using [Coz](https://github.com/alexcrichton/coz-rs), I use [a poor-man's layout randomization method which has no dependencies and works across languages](http://likebike.com/posts/How_To_Write_Fast_Rust_Code.html#layout-rand).
 //!
 //! # How is `fasteval` so fast?
 //!
@@ -630,5 +637,4 @@ pub use self::ez::ez_eval;
 
 
 // TODO: Convert `match`es to `if let`s for performance boost.
-// TODO: Docs: Emphasize the safety of parsing untrusted inputs.
 

@@ -96,7 +96,8 @@ fn overflow_stack() {
     chk_perr(from_utf8(&[b'('; 4]).unwrap(), Error::EofWhileParsing("value".to_string()));
     chk_perr(from_utf8(&[b'('; 8]).unwrap(), Error::EofWhileParsing("value".to_string()));
     chk_perr(from_utf8(&[b'('; 16]).unwrap(), Error::EofWhileParsing("value".to_string()));
-    chk_perr(from_utf8(&[b'('; 32]).unwrap(), Error::TooDeep);
+    chk_perr(from_utf8(&[b'('; 32]).unwrap(), Error::EofWhileParsing("value".to_string()));
+    chk_perr(from_utf8(&[b'('; 33]).unwrap(), Error::TooDeep);
     chk_perr(from_utf8(&[b'('; 64]).unwrap(), Error::TooDeep);
     chk_perr(from_utf8(&[b'('; 128]).unwrap(), Error::TooDeep);
     chk_perr(from_utf8(&[b'('; 256]).unwrap(), Error::TooDeep);

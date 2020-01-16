@@ -15,7 +15,7 @@ Documentation:
 Add this to your Cargo.toml:
 
     [dependencies]
-    fasteval = "0.2.0"
+    fasteval = "0.2.1"
 
 
 You should **always** build with `RUSTFLAGS="--emit=asm"` because it greatly improves LLVM's compile-time optimizations.
@@ -75,7 +75,7 @@ fn main() -> Result<(), fasteval::Error> {
 
 ## REPL Demo
 ```text
-github.com/fasteval$ rlwrap cargo run --release --example repl
+github.com/likebike/fasteval$ rlwrap cargo run --release --example repl
     Finished release [optimized] target(s) in 0.01s
      Running `target/release/examples/repl`
 >>> print("Hello fasteval", 1, 2, 3)
