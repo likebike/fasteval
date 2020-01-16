@@ -252,8 +252,8 @@ macro_rules! spaces {
 }
 
 
-const DEFAULT_EXPR_LEN_LIMIT  : usize = 4096;
-const DEFAULT_EXPR_DEPTH_LIMIT: usize = 32;
+pub const DEFAULT_EXPR_LEN_LIMIT  : usize = 4096;
+pub const DEFAULT_EXPR_DEPTH_LIMIT: usize = 32;
 
 pub struct Parser {
     pub expr_len_limit  :usize,
