@@ -117,14 +117,14 @@ log(100K) = 5
 ## Safety
 
 `fasteval` is designed to evaluate untrusted expressions safely.  By
-default, an expression can only perform math operations -- there is no way
+default, an expression can only perform math operations; there is no way
 for it to access other types of operations (like network or filesystem or
 external commands).  Additionally, we guard against malicious expressions:
 
 * Expressions that are too large (greater than 4KB).
 * Expressions that are too-deeply nested (greater than 32 levels).
-* Expressions with too many values (by default, 64).
-* Expressions with too many sub-expressions (by default, 64).
+* Expressions with too many values (greater than 64).
+* Expressions with too many sub-expressions (greater than 64).
 
 All limits can be customized at parse time.  If any limits are exceeded,
 [`parse()`](https://docs.rs/fasteval/latest/fasteval/parser/struct.Parser.html#method.parse) will return an
