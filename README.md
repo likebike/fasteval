@@ -130,9 +130,9 @@ All limits can be customized at parse time.  If any limits are exceeded,
 [`parse()`](https://docs.rs/fasteval/latest/fasteval/parser/struct.Parser.html#method.parse) will return an
 [Error](https://docs.rs/fasteval/latest/fasteval/error/enum.Error.html).
 
-Note that it *is* possible for you (the developer) to define custom
-variables and functions which might perform dangerous operations.  It is
-your responsibility to make sure that all custom functionality is safe.
+Note that it *is* possible for you (the developer) to define custom functions
+which might perform dangerous operations.  It is your responsibility to make
+sure that all custom functionality is safe.
 
 
 ## Performance Benchmarks
