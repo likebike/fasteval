@@ -43,7 +43,7 @@
 
 
 use fasteval::Evaler;  // Import this trait for '.eval()' functionality.
-use fasteval::{parse, Slab};
+use fasteval::{Parser, Slab};
 
 use std::collections::BTreeMap;
 use std::io::{self, BufRead, Write};
@@ -53,6 +53,7 @@ fn main() {
 }
 
 fn repl() {
+    let parser = Parser::new();
     let mut slab = Slab::new();
     let mut ns_stack = vec![BTreeMap::new()];
 
@@ -100,7 +101,7 @@ fn repl() {
             continue;
         }
 
-        let expr_ref = match parse(&line, &mut slab.ps) {
+        let expr_ref = match parser.parse(&line, &mut slab.ps) {
             Ok(expr_i) => slab.ps.get_expr(expr_i),
             Err(err) => {
                 eprintln!("parse error: {}", err);

@@ -34,16 +34,17 @@
 //! ```
 //! use fasteval::Evaler;  // import this trait so we can call eval().
 //! fn main() -> Result<(), fasteval::Error> {
+//!     let parser = fasteval::Parser::new();
 //!     let mut slab = fasteval::Slab::new();
 //!
-//!     let val = fasteval::parse("1+2*3-4", &mut slab.ps)?.from(&slab.ps).eval(&slab, &mut fasteval::EmptyNamespace)?;
+//!     let val = parser.parse("1+2*3-4", &mut slab.ps)?.from(&slab.ps).eval(&slab, &mut fasteval::EmptyNamespace)?;
 //!     assert_eq!(val, 3.0);
 //!
 //!     // Let's re-use the same slab again to save memory operations.
 //!
 //!     // `parse()` will clear the Slab's data.  It is important that you
 //!     // do not use an old expression after the Slab has been cleared.
-//!     let val = fasteval::parse("5+6*7-8", &mut slab.ps)?.from(&slab.ps).eval(&slab, &mut fasteval::EmptyNamespace)?;
+//!     let val = parser.parse("5+6*7-8", &mut slab.ps)?.from(&slab.ps).eval(&slab, &mut fasteval::EmptyNamespace)?;
 //!     assert_eq!(val, 39.0);
 //!
 //!     Ok(())
@@ -190,7 +191,7 @@ pub struct Slab {
 ///     // bad_unsafe_var(&mut slab);  // Don't do it this way.
 ///
 ///     let expr_str = "sin(deg/360 * 2*pi())";
-///     let expr_ref = fasteval::parse(expr_str, &mut slab.ps)?.from(&slab.ps);
+///     let expr_ref = fasteval::Parser::new().parse(expr_str, &mut slab.ps)?.from(&slab.ps);
 ///
 ///     // The main reason people use Unsafe Variables is to maximize performance.
 ///     // Compilation also helps performance, so it is usually used together with Unsafe Variables:

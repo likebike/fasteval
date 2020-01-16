@@ -222,10 +222,11 @@
 //! use std::collections::BTreeMap;
 //! use fasteval::Evaler;  // use this trait so we can call eval().
 //! fn main() -> Result<(), fasteval::Error> {
+//!     let parser = fasteval::Parser::new();
 //!     let mut slab = fasteval::Slab::new();
 //!
 //!     // See the `parse` documentation to understand why we use `from` like this:
-//!     let expr_ref = fasteval::parse("x + 1", &mut slab.ps)?.from(&slab.ps);
+//!     let expr_ref = parser.parse("x + 1", &mut slab.ps)?.from(&slab.ps);
 //!
 //!     // Let's evaluate the expression a couple times with different 'x' values:
 //!
@@ -244,7 +245,7 @@
 //!     // the old expr_ref after parsing the new expression.
 //!     // One simple way to avoid this problem is to shadow the old variable:
 //!
-//!     let expr_ref = fasteval::parse("x * 10", &mut slab.ps)?.from(&slab.ps);
+//!     let expr_ref = parser.parse("x * 10", &mut slab.ps)?.from(&slab.ps);
 //!
 //!     let val = expr_ref.eval(&slab, &mut map)?;
 //!     assert_eq!(val, 25.0);
@@ -265,11 +266,12 @@
 //! use fasteval::Evaler;    // use this trait so we can call eval().
 //! use fasteval::Compiler;  // use this trait so we can call compile().
 //! fn main() -> Result<(), fasteval::Error> {
+//!     let parser = fasteval::Parser::new();
 //!     let mut slab = fasteval::Slab::new();
 //!     let mut map = BTreeMap::new();
 //!
 //!     let expr_str = "sin(deg/360 * 2*pi())";
-//!     let compiled = fasteval::parse(expr_str, &mut slab.ps)?.from(&slab.ps).compile(&slab.ps, &mut slab.cs);
+//!     let compiled = parser.parse(expr_str, &mut slab.ps)?.from(&slab.ps).compile(&slab.ps, &mut slab.cs);
 //!     for deg in 0..360 {
 //!         map.insert("deg".to_string(), deg as f64);
 //!         // When working with compiled constant expressions, you can use the
@@ -293,6 +295,7 @@
 //! use fasteval::Evaler;    // use this trait so we can call eval().
 //! use fasteval::Compiler;  // use this trait so we can call compile().
 //! fn main() -> Result<(), fasteval::Error> {
+//!     let parser = fasteval::Parser::new();
 //!     let mut slab = fasteval::Slab::new();
 //!
 //!     // The Unsafe Variable will use a pointer to read this memory location:
@@ -305,7 +308,7 @@
 //!     unsafe { slab.ps.add_unsafe_var("deg".to_string(), &deg); } // `add_unsafe_var()` only exists if the `unsafe-vars` feature is enabled: `cargo test --features unsafe-vars`
 //!
 //!     let expr_str = "sin(deg/360 * 2*pi())";
-//!     let compiled = fasteval::parse(expr_str, &mut slab.ps)?.from(&slab.ps).compile(&slab.ps, &mut slab.cs);
+//!     let compiled = parser.parse(expr_str, &mut slab.ps)?.from(&slab.ps).compile(&slab.ps, &mut slab.cs);
 //!
 //!     let mut ns = fasteval::EmptyNamespace;  // We only define unsafe variables, not normal variables,
 //!                                             // so EmptyNamespace is fine.
@@ -326,10 +329,11 @@
 //! ```
 //! use fasteval::Compiler;  // use this trait so we can call compile().
 //! fn main() -> Result<(), fasteval::Error> {
+//!     let parser = fasteval::Parser::new();
 //!     let mut slab = fasteval::Slab::new();
 //!
 //!     let expr_str = "sin(deg/360 * 2*pi())";
-//!     let expr_ref = fasteval::parse(expr_str, &mut slab.ps)?.from(&slab.ps);
+//!     let expr_ref = parser.parse(expr_str, &mut slab.ps)?.from(&slab.ps);
 //!
 //!     // Let's take a look at the parsed AST inside the Slab:
 //!     // If you find this structure confusing, take a look at the compilation
@@ -381,8 +385,8 @@
 //! * Expressions with too many sub-expressions (by default, 64).
 //!
 //! All limits can be customized at parse time.  If any limits are exceeded,
-//! [`parse()`](parser/fn.parse.html) will return an
-//! [Error](error/enum.Error.html).
+//! [`parse()`](https://docs.rs/fasteval/latest/fasteval/parser/struct.Parser.html#method.parse) will return an
+//! [Error](https://docs.rs/fasteval/latest/fasteval/error/enum.Error.html).
 //!
 //! Note that it *is* possible for you (the developer) to define custom
 //! variables and functions which might perform dangerous operations.  It is
@@ -626,7 +630,7 @@ pub mod evalns;
 pub mod ez;
 
 pub use self::error::Error;
-pub use self::parser::{parse, Expression, ExpressionI, Value, ValueI};
+pub use self::parser::{Parser, Expression, ExpressionI, Value, ValueI};
 pub use self::compiler::{Compiler, Instruction::{self, IConst}, InstructionI};
 #[cfg(feature="unsafe-vars")]
 pub use self::compiler::Instruction::IUnsafeVar;

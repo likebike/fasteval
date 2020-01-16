@@ -252,22 +252,8 @@ macro_rules! spaces {
 }
 
 
-/// Use this function to parse an expression String.  The `Slab` will be cleared first.
-#[inline]
-pub fn parse(expr_str:&str, slab:&mut ParseSlab) -> Result<ExpressionI,Error> {
-    slab.clear();
-    Parser::new().parse(expr_str, slab)
-}
-
-/// This is exactly the same as `parse()` but the `Slab` will NOT be cleared.
-///
-/// This is useful in performance-critical sections, when you know that you
-/// already have an empty `Slab`.
-#[inline]
-pub fn parse_noclear(expr_str:&str, slab:&mut ParseSlab) -> Result<ExpressionI,Error> {
-    Parser::new().parse(expr_str, slab)
-}
-
+const DEFAULT_EXPR_LEN_LIMIT  : usize = 4096;
+const DEFAULT_EXPR_DEPTH_LIMIT: usize = 32;
 
 pub struct Parser {
     pub expr_len_limit  :usize,
@@ -276,8 +262,8 @@ pub struct Parser {
 
 impl Parser {
     #[inline]
-    pub fn new() -> Self { Self{expr_len_limit:4096,
-                                expr_depth_limit:32} }
+    pub const fn new() -> Self { Self{expr_len_limit:DEFAULT_EXPR_LEN_LIMIT,
+                                      expr_depth_limit:DEFAULT_EXPR_DEPTH_LIMIT} }
 
     fn is_varname_byte(b:u8, i:usize) -> bool {
         (b'A'<=b && b<=b'Z') || (b'a'<=b && b<=b'z') || b==b'_' || (i>0 && ( b'0'<=b && b<=b'9' ))
@@ -289,9 +275,21 @@ impl Parser {
         }
     }
 
-    // I cannot return Result<&Expression> because it would prolong the mut:
+    /// Use this function to parse an expression String.  The `Slab` will be cleared first.
     #[inline]
     pub fn parse(&self, expr_str:&str, slab:&mut ParseSlab) -> Result<ExpressionI,Error> {
+        slab.clear();
+        self.parse_noclear(expr_str, slab)
+    }
+
+    /// This is exactly the same as `parse()` but the `Slab` will NOT be cleared.
+    /// This is useful in performance-critical sections, when you know that you
+    /// already have an empty `Slab`.
+    ///
+    /// This function cannot return Result<&Expression> because it would
+    /// prolong the mut ref.  / That's why we return an ExpressionI instead.
+    #[inline]
+    pub fn parse_noclear(&self, expr_str:&str, slab:&mut ParseSlab) -> Result<ExpressionI,Error> {
         if expr_str.len()>self.expr_len_limit { return Err(Error::TooLong); }  // Restrict length for safety
         let mut bs = expr_str.as_bytes();
         self.read_expression(slab, &mut bs, 0, true)

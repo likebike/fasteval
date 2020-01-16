@@ -15,7 +15,7 @@ Documentation:
 Add this to your Cargo.toml:
 
     [dependencies]
-    fasteval = "0.2.1"
+    fasteval = "0.2.2"
 
 
 You should **always** build with `RUSTFLAGS="--emit=asm"` because it greatly improves LLVM's compile-time optimizations.
@@ -113,6 +113,27 @@ Exited scope[1]
 log(100K) = 5
 1.23
 ```
+
+## Safety
+
+`fasteval` is designed to evaluate untrusted expressions safely.  By
+default, an expression can only perform math operations -- there is no way
+for it to access other types of operations (like network or filesystem or
+external commands).  Additionally, we guard against malicious expressions:
+
+* Expressions that are too large (greater than 4KB).
+* Expressions that are too-deeply nested (greater than 32 levels).
+* Expressions with too many values (by default, 64).
+* Expressions with too many sub-expressions (by default, 64).
+
+All limits can be customized at parse time.  If any limits are exceeded,
+[`parse()`](https://docs.rs/fasteval/latest/fasteval/parser/struct.Parser.html#method.parse) will return an
+[Error](https://docs.rs/fasteval/latest/fasteval/error/enum.Error.html).
+
+Note that it *is* possible for you (the developer) to define custom
+variables and functions which might perform dangerous operations.  It is
+your responsibility to make sure that all custom functionality is safe.
+
 
 ## Performance Benchmarks
 

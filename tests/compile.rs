@@ -1,4 +1,4 @@
-use fasteval::{parse, Compiler, Evaler, Error, Slab, EmptyNamespace, CachedCallbackNamespace, ExpressionI, InstructionI, eval_compiled, eval_compiled_ref};
+use fasteval::{Parser, Compiler, Evaler, Error, Slab, EmptyNamespace, CachedCallbackNamespace, ExpressionI, InstructionI, eval_compiled, eval_compiled_ref};
 use fasteval::parser::{PrintFunc, ExpressionOrString::{EExpr, EStr}};
 #[cfg(feature="eval-builtin")]
 use fasteval::parser::{EvalFunc, KWArg};
@@ -10,19 +10,19 @@ use fasteval::compiler::Instruction::IEvalFunc;
 #[test]
 fn slab_overflow() {
     let mut slab = Slab::with_capacity(2);
-    assert_eq!(parse("1 + 2 + -3 + ( +4 )", &mut slab.ps), Ok(ExpressionI(1)));
+    assert_eq!(Parser::new().parse("1 + 2 + -3 + ( +4 )", &mut slab.ps), Ok(ExpressionI(1)));
     assert_eq!(format!("{:?}", slab),
 "Slab{ exprs:{ 0:Expression { first: EConstant(4.0), pairs: [] }, 1:Expression { first: EConstant(1.0), pairs: [ExprPair(EAdd, EConstant(2.0)), ExprPair(EAdd, EConstant(-3.0)), ExprPair(EAdd, EUnaryOp(EParentheses(ExpressionI(0))))] } }, vals:{}, instrs:{} }");
 
-    assert_eq!(parse("1 + 2 + -3 + ( ++4 )", &mut slab.ps), Ok(ExpressionI(1)));
+    assert_eq!(Parser::new().parse("1 + 2 + -3 + ( ++4 )", &mut slab.ps), Ok(ExpressionI(1)));
     assert_eq!(format!("{:?}", slab),
 "Slab{ exprs:{ 0:Expression { first: EUnaryOp(EPos(ValueI(0))), pairs: [] }, 1:Expression { first: EConstant(1.0), pairs: [ExprPair(EAdd, EConstant(2.0)), ExprPair(EAdd, EConstant(-3.0)), ExprPair(EAdd, EUnaryOp(EParentheses(ExpressionI(0))))] } }, vals:{ 0:EConstant(4.0) }, instrs:{} }");
 
-    assert_eq!(parse("1 + 2 + -3 + ( +++4 )", &mut slab.ps), Ok(ExpressionI(1)));
+    assert_eq!(Parser::new().parse("1 + 2 + -3 + ( +++4 )", &mut slab.ps), Ok(ExpressionI(1)));
     assert_eq!(format!("{:?}", slab),
 "Slab{ exprs:{ 0:Expression { first: EUnaryOp(EPos(ValueI(1))), pairs: [] }, 1:Expression { first: EConstant(1.0), pairs: [ExprPair(EAdd, EConstant(2.0)), ExprPair(EAdd, EConstant(-3.0)), ExprPair(EAdd, EUnaryOp(EParentheses(ExpressionI(0))))] } }, vals:{ 0:EConstant(4.0), 1:EUnaryOp(EPos(ValueI(0))) }, instrs:{} }");
 
-    assert_eq!(parse("1 + 2 + -3 + ( ++++4 )", &mut slab.ps), Err(Error::SlabOverflow));
+    assert_eq!(Parser::new().parse("1 + 2 + -3 + ( ++++4 )", &mut slab.ps), Err(Error::SlabOverflow));
 }
 
 #[test]
@@ -30,7 +30,7 @@ fn basics() {
     let mut slab = Slab::new();
     let mut ns = EmptyNamespace;
 
-    let expr_i = parse("3*3-3/3+1", &mut slab.ps).unwrap();
+    let expr_i = Parser::new().parse("3*3-3/3+1", &mut slab.ps).unwrap();
     let expr_ref = slab.ps.get_expr(expr_i);
     let instr = expr_ref.compile(&slab.ps, &mut slab.cs);
     assert_eq!(instr, IConst(9.0));
@@ -47,13 +47,13 @@ fn basics() {
 
 fn comp(expr_str:&str) -> (Slab, Instruction) {
     let mut slab = Slab::new();
-    let instr = parse(expr_str, &mut slab.ps).unwrap().from(&slab.ps).compile(&slab.ps, &mut slab.cs);
+    let instr = Parser::new().parse(expr_str, &mut slab.ps).unwrap().from(&slab.ps).compile(&slab.ps, &mut slab.cs);
     (slab, instr)
 }
 
 fn comp_chk(expr_str:&str, expect_instr:Instruction, expect_fmt:&str, expect_eval:f64) {
     let mut slab = Slab::new();
-    let expr = parse(expr_str, &mut slab.ps).unwrap().from(&slab.ps);
+    let expr = Parser::new().parse(expr_str, &mut slab.ps).unwrap().from(&slab.ps);
     let instr = expr.compile(&slab.ps, &mut slab.cs);
 
     assert_eq!(instr, expect_instr);
@@ -125,7 +125,7 @@ fn unsafe_comp_chk(expr_str:&str, expect_fmt:&str, expect_eval:f64) {
         slab.ps.add_unsafe_var("z".to_string(), &z);
     }
 
-    let expr = parse(expr_str, &mut slab.ps).unwrap().from(&slab.ps);
+    let expr = Parser::new().parse(expr_str, &mut slab.ps).unwrap().from(&slab.ps);
     let instr = expr.compile(&slab.ps, &mut slab.cs);
 
     assert_eq!(replace_addrs(format!("{:?}",slab.cs)), expect_fmt);
@@ -143,7 +143,7 @@ fn unsafe_comp_chk(expr_str:&str, expect_fmt:&str, expect_eval:f64) {
 
 fn comp_chk_str(expr_str:&str, expect_instr:&str, expect_fmt:&str, expect_eval:f64) {
     let mut slab = Slab::new();
-    let expr = parse(expr_str, &mut slab.ps).unwrap().from(&slab.ps);
+    let expr = Parser::new().parse(expr_str, &mut slab.ps).unwrap().from(&slab.ps);
     let instr = expr.compile(&slab.ps, &mut slab.cs);
 
     assert_eq!(format!("{:?}",instr), expect_instr);
@@ -541,7 +541,7 @@ fn eval_macro() {
         let mut ns = EmptyNamespace;
         let mut slab = Slab::new();
 
-        let expr = parse("5", &mut slab.ps).unwrap().from(&slab.ps);
+        let expr = Parser::new().parse("5", &mut slab.ps).unwrap().from(&slab.ps);
         let instr = expr.compile(&slab.ps, &mut slab.cs);
         assert_eq!(eval_compiled_ref!(&instr, &slab, &mut ns), 5.0);
         (|| -> Result<(),Error> {
@@ -554,7 +554,7 @@ fn eval_macro() {
         {
             let x = 1.0;
             unsafe { slab.ps.add_unsafe_var("x".to_string(), &x) }
-            let expr = parse("x", &mut slab.ps).unwrap().from(&slab.ps);
+            let expr = Parser::new().parse("x", &mut slab.ps).unwrap().from(&slab.ps);
             let instr = expr.compile(&slab.ps, &mut slab.cs);
             assert_eq!(eval_compiled_ref!(&instr, &slab, &mut ns), 1.0);
             (|| -> Result<(),Error> {

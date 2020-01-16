@@ -2,13 +2,13 @@
 // I know the test names suck, but I'm not going to change them because I want line-for-line compatibility with the Go tests.
 
 
-use fasteval::{Evaler, ExpressionI, parse, Error, Slab, EmptyNamespace, CachedCallbackNamespace};
+use fasteval::{Evaler, ExpressionI, Parser, Error, Slab, EmptyNamespace, CachedCallbackNamespace};
 
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 
 fn parse_raw<'a>(s:&str, slab:&'a mut Slab) -> Result<ExpressionI,Error> {
-    parse(s, &mut slab.ps)
+    Parser::new().parse(s, &mut slab.ps)
 }
 fn ok_parse<'a>(s:&str, slab:&'a mut Slab) -> ExpressionI { parse_raw(s,slab).unwrap() }
 
