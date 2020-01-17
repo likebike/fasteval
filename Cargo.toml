@@ -1,7 +1,7 @@
 [package]
 name = "fasteval"
-version = "0.2.2"
-authors = ["Christopher Sebastian <csebastian3@gmail.com>"]
+version = "0.2.3"
+authors = ["Christopher Sebastian <christopher@likebike.com>"]
 license = "MIT"
 readme = "README.md"
 repository = "https://github.com/likebike/fasteval"

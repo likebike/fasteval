@@ -15,10 +15,10 @@ Documentation:
 Add this to your Cargo.toml:
 
     [dependencies]
-    fasteval = "0.2.2"
+    fasteval = "0.2.3"
 
 
-You should **always** build with `RUSTFLAGS="--emit=asm"` because it greatly improves LLVM's compile-time optimizations.
+You should **always** build with `RUSTFLAGS="--emit=asm"` because [it greatly improves LLVM's compile-time optimizations](http://likebike.com/posts/How_To_Write_Fast_Rust_Code.html#emit-asm).
 
 If you are using a 'nightly' Rust compiler, you can build with `--features nightly` to enable optimizations that aren't yet available in Rust 'stable'.
 
@@ -28,6 +28,7 @@ You can build with `--features unsafe-vars` to enable [Unsafe Variables](https:/
 
 
 ## Features
+* No dependencies.
 * Safe execution of untrusted expressions.
 * Works with stable Rust.
 * Supports interpretation (i.e. parse & eval) as well as compiled execution (i.e. parse, compile, eval).
@@ -47,7 +48,7 @@ Here is one simple example.  See the [API Reference](https://docs.rs/fasteval/#e
 
 The `ez_eval()` function performs the entire allocation-parse-eval process
 for you.  It is slightly inefficient because it always allocates a
-fresh `Slab`, but it is very simple to use:
+fresh [`Slab`](https://docs.rs/fasteval/latest/fasteval/slab/index.html), but it is very simple to use:
 
 ```rust
 fn main() -> Result<(), fasteval::Error> {
@@ -62,7 +63,7 @@ fn main() -> Result<(), fasteval::Error> {
     //    |            |      |    |   |          square-brackets act like parenthesis
     //    |            |      |    |   built-in constants: e(), pi()
     //    |            |      |    'log' can take an optional first 'base' argument, defaults to 10
-    //    |            |      numeric literal with suffix: n, µ, m, K, M, G, T
+    //    |            |      numeric literal with suffix: p, n, µ, m, K, M, G, T
     //    |            many built-in functions: print, int, ceil, floor, abs, sign, log, round, min, max, sin, asin, ...
     //    standard binary operators
 
@@ -137,7 +138,7 @@ sure that all custom functionality is safe.
 
 ## Performance Benchmarks
 
-Here is a short summary of the performance benchmarks.  For a more complete report and anlysis, see the [API Reference](https://docs.rs/fasteval/#performance-benchmarks).
+Here is a short summary of the performance benchmarks.  For a more complete report and anlysis, see the [official documentation](https://docs.rs/fasteval/#performance-benchmarks).
 
 ### Charts
 Note that the following charts use logarithmic scales.  Therefore, tiny

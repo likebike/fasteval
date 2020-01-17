@@ -1,6 +1,7 @@
 //! Fast evaluation of algebraic expressions
 //!
 //! # Features
+//! * No dependencies.
 //! * Safe execution of untrusted expressions.
 //! * Works with stable Rust.
 //! * Supports interpretation (i.e. parse & eval) as well as compiled execution (i.e. parse, compile, eval).
@@ -17,7 +18,9 @@
 //!
 //! ## Built-in Functions and Constants
 //!
-//! These are the built-in functions that `fasteval` expressions support.  (You can also add your own custom functions and variables -- see the [Examples](#advanced-variables-and-custom-functions) section.)
+//! These are the built-in functions that `fasteval` expressions support.  (You
+//! can also add your own custom functions and variables -- see the
+//! [Examples](#advanced-variables-and-custom-functions) section.)
 //!
 //! ```text
 //!   * print(...strings and values...) -- Prints to stderr.  Very useful to 'probe' an expression.
@@ -54,7 +57,9 @@
 //!
 //! ## Operators
 //!
-//! The `and` and `or` operators are enabled by default, but if your application wants to use those words for something else, they can be disabled by turning off the `alpha-keywords` feature (`cargo build --no-default-features`).
+//! The `and` and `or` operators are enabled by default, but if your
+//! application wants to use those words for something else, they can be
+//! disabled by turning off the `alpha-keywords` feature (`cargo build --no-default-features`).
 //!
 //! ```text
 //! Listed in order of precedence:
@@ -83,6 +88,7 @@
 //!     Exponents: 1e3, 1E3, 1e-3, 1E-3, 1.2345e100
 //!
 //!     Suffix:
+//!             1.23p        = 0.00000000000123
 //!             1.23n        = 0.00000000123
 //!             1.23µ, 1.23u = 0.00000123
 //!             1.23m        = 0.00123
@@ -114,7 +120,7 @@
 //!     //    |            |      |    |   |          square-brackets act like parenthesis
 //!     //    |            |      |    |   built-in constants: e(), pi()
 //!     //    |            |      |    'log' can take an optional first 'base' argument, defaults to 10
-//!     //    |            |      numeric literal with suffix: n, µ, m, K, M, G, T
+//!     //    |            |      numeric literal with suffix: p, n, µ, m, K, M, G, T
 //!     //    |            many built-in functions: print, int, ceil, floor, abs, sign, log, round, min, max, sin, asin, ...
 //!     //    standard binary operators
 //!
@@ -214,9 +220,9 @@
 //!
 //! ## Re-use the Slab to go faster
 //! If we perform the parse and eval ourselves (without relying on the 'ez'
-//! interface), then we can re-use the [`Slab`](slab/index.html) allocation for subsequent parsing
-//! and evaluations.  This avoids a significant amount of slow memory
-//! operations:
+//! interface), then we can re-use the [`Slab`](slab/index.html) allocation for
+//! subsequent parsing and evaluations.  This avoids a significant amount of
+//! slow memory operations:
 //!
 //! ```
 //! use std::collections::BTreeMap;
@@ -403,7 +409,7 @@
 //! * [caldyn](https://github.com/Luthaf/caldyn)
 //! * [rsc](https://github.com/codemessiah/rsc)
 //! * [meval](https://github.com/rekka/meval-rs)
-//! * [calc](https://github.com/redox-os/calc/tree/master/src)
+//! * [calc](https://github.com/redox-os/calc)
 //! * [tinyexpr (Rust)](https://github.com/kondrak/tinyexpr-rs)
 //! * [tinyexpr (C)](https://github.com/codeplea/tinyexpr)
 //! * [bc](https://www.gnu.org/software/bc/)
@@ -532,39 +538,21 @@
 //!
 //! All numeric results can be found in `fasteval/benches/bench.rs`.
 //!
-//! ### Close All Running Applications
-//! ...especially web browsers!  Don't allow other running processes to slow down the benchmarks.
-//!
-//! ### Disable Power Saving Mode
-//!
-//! ```text
-//! for F in /sys/devices/system/cpu/cpufreq/policy*/scaling_governor; do echo $F; cat $F; done
-//! for F in /sys/devices/system/cpu/cpufreq/policy*/scaling_governor; do echo performance >$F; done
-//! ```
-//!
-//! ### Compile with `RUSTFLAGS="--emit=asm"`
-//! For some reason, which I have been unable to find any documentation about, the emission of assembly code during compilation causes LLVM to dramatically improve the optimization of the resulting binary (often a 3x difference for critical sections!).  In particular, it makes better choices regarding variable localization and function inlining.  I suggest that you *always* use this option for everything you do.
-//!
-//! ### Layout Randomization
-//! I use a Layout Randomization method similar to [Coz](https://www.youtube.com/watch?v=r-TLSBdHe1A).  The size and location of your code has significant impact on its performance.  The compiler often makes poor decisions about code placement, which results in up to 40% performance differences!  When benchmarking, it is important to remove this source of noise so that you can see the real effects of your changes.
-//!
-//! Rather than using [Coz](https://github.com/alexcrichton/coz-rs), I use [a poor-man's layout randomization method which has no dependencies and works across languages](http://likebike.com/posts/How_To_Write_Fast_Rust_Code.html#layout-rand).
+//! See the [detailed post about my benchmarking methology]{http://likebike.com/posts/How_To_Write_Fast_Rust_Code.html#how-to-measure}
+//! on my blog.
 //!
 //! # How is `fasteval` so fast?
 //!
 //! A variety of techniques are used to optimize performance:
-//!   * Minimization of memory allocations/deallocations;
-//!     I just pre-allocate a large slab during initialization.
-//!   * Elimination of redundant work, especially when parsing.
-//!   * Designed using "Infallible Data Structures", which eliminate all corner cases.
+//!   * [Minimization of memory allocations/deallocations](http://likebike.com/posts/How_To_Write_Fast_Rust_Code.html#reduce-redundancy-mem);
+//!     I just pre-allocate a large `Slab` during initialization.
+//!   * Elimination of redundant work, [especially when parsing](http://likebike.com/posts/How_To_Write_Fast_Rust_Code.html#reduce-redundancy-logic).
+//!   * Designed using ["Infallible Data Structures"](http://likebike.com/posts/How_To_Write_Fast_Rust_Code.html#reduce-redundancy-data), which eliminate all corner cases.
 //!   * Compilation: Constant Folding and Expression Simplification.
 //!     Boosts performance up to 1000x.
 //!   * Profile-driven application of inlining.  Don't inline too much or too little.
-//!   * Use of macros to eliminate call overhead for the most-frequently-used
-//!     functions.  (Macros are often more efficient than inlined functions.)
-//!   * Don't `panic!()`.  If *anything* in your code can panic, then much code
-//!     must be run on every function call to handle stack unwinding.
-//!   * Localize variables.  Use "--emit asm" as a guide.
+//!     Maximizes data locality.
+//!   * Localize variables.  Use [`RUSTFLAGS="--emit=asm"`](http://likebike.com/posts/How_To_Write_Fast_Rust_Code.html#emit-asm) as a guide.
 //!
 //! # Can `fasteval` be faster?
 //!
@@ -583,7 +571,8 @@
 //! introducing more constraints or complexity:
 //!   * If I introduce a 'const' var type, then I can transform variable
 //!     expressions into constant expressions.  I don't think this would be
-//!     useful-enough in real-life to justify the extra complexity.
+//!     useful-enough in real-life to justify the extra complexity (but please
+//!     tell me if your use-case would benefit from this).
 //!   * Evaluation could be paralellized (with a more complex design).
 //!
 //! It is possible to boost overall speed by improving the parsing algorithm
@@ -599,14 +588,14 @@
 //!
 //! * Dynamic `sprintf` string formatting for the `print()` built-in expression function.
 //! * FFI so this library can be used from other languages.
-//! * Ability to copy the contents of a Slab into a perfectly-sized container
-//!   ("Packed Slab") to reduce wasted memory.
+//! * Ability to copy the contents of a `Slab` into a perfectly-sized container
+//!   (`PackedSlab`) to reduce wasted memory.
 //! * Support for other number types other than `f64`, such as Integers, Big Integers,
 //!   Arbitrary Precision Numbers, Complex Numbers, etc. like [rclc](https://crates.io/crates/rclc).
 //!
 //! # List of Projects that use `fasteval`
 //!
-//! [Send me a message](mailto:csebastian3@gmail.com) if you would like to list your project here.
+//! [Send me a message](mailto:christopher@likebike.com) if you would like to list your project here.
 //!
 //! * [koin.cx](http://koin.cx/)
 //! * [robit](#coming-soon)
