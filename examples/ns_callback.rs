@@ -2,7 +2,7 @@
 
 fn main() -> Result<(), fasteval::Error> {
     let mut num_lookups = 0;
-    let mut cb = |name:&str, args:Vec<f64>| -> Option<f64> {
+    let mut cb = |name:&str, _args:Vec<f64>| -> Option<f64> {
         num_lookups += 1;
         match name {
             "x" => Some(2.0),
