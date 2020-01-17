@@ -600,7 +600,7 @@
 //! * [koin.cx](http://koin.cx/)
 //! * [robit](#coming-soon)
 //! * [openpinescript](#coming-soon)
-//! * [The Texas Instruments MW-83 Plus Scientific Microwave](https://raw.githubusercontent.com/likebike/fasteval/master/examples/scientific-microwave-ti-mw-83-plus.jpg)
+//! * [The Texas Instruments MW-83 Plus Scientific Microwave Oven](https://raw.githubusercontent.com/likebike/fasteval/master/examples/scientific-microwave-ti-mw-83-plus.jpg)
 
 
 //#![feature(test)]
