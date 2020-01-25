@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 (Click the above link to see the work that has occurred since the latest release.)
 
+## [0.2.4] - 2020-01-26
 ### Added
 - Convenience type aliases, to make creation of complex namespace types easier: StringToF64Namespace, StrToF64Namespace, StringToCallbackNamespace, StrToCallbackNamespace, LayeredStringToF64Namespace
 
@@ -30,7 +31,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 This was the initial public release.  Changes before this point are not
 described here, but they can still be viewed in the [Repository].
 
-[Unreleased]: https://github.com/likebike/fasteval/compare/0.2.3...HEAD
+[Unreleased]: https://github.com/likebike/fasteval/compare/0.2.4...HEAD
+[0.2.4]: https://github.com/likebike/fasteval/compare/0.2.3...0.2.4
 [0.2.3]: https://github.com/likebike/fasteval/compare/0.2.2...0.2.3
 [0.2.2]: https://github.com/likebike/fasteval/compare/0.2.1...0.2.2
 [0.2.1]: https://github.com/likebike/fasteval/compare/0.2.0...0.2.1
