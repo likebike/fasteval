@@ -168,7 +168,7 @@
 //!             "y" => Some(4.0),
 //!
 //!             // Custom function:
-//!             "sum" => Some(args.into_iter().fold(0.0, |s,f| s+f)),
+//!             "sum" => Some(args.into_iter().sum()),
 //!
 //!             // Custom array-like objects:
 //!             // The `args.get...` code is the same as:
@@ -626,7 +626,7 @@ pub use self::compiler::{Compiler, Instruction::{self, IConst}, InstructionI};
 pub use self::compiler::Instruction::IUnsafeVar;
 pub use self::evaler::Evaler;
 pub use self::slab::Slab;
-pub use self::evalns::{EvalNamespace, Cached, EmptyNamespace, CachedCallbackNamespace};
+pub use self::evalns::{EvalNamespace, Cached, EmptyNamespace, StringToF64Namespace, StrToF64Namespace, StringToCallbackNamespace, StrToCallbackNamespace, LayeredStringToF64Namespace, CachedCallbackNamespace};
 pub use self::ez::ez_eval;
 
 

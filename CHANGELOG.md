@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 (Click the above link to see the work that has occurred since the latest release.)
 
+### Added
+- Convenience type aliases, to make creation of complex namespace types easier: StringToF64Namespace, StrToF64Namespace, StringToCallbackNamespace, StrToCallbackNamespace, LayeredStringToF64Namespace
+
 ## [0.2.3] - 2020-01-17
 ### Added
 - Examples in the 'examples' directory.

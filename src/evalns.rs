@@ -3,17 +3,20 @@
 //! Several Evaluation Namespace types are defined, each with their own advantages:
 //! * [`EmptyNamespace`](#emptynamespace) -- Useful when you know that your
 //!   expressions don't need to look up any variables.
-//! * [`BTreeMap`](#btreemapstringf64) -- A simple way to define variables
-//!   with a map.
+//! * BTreeMap -- A simple way to define variables and functions with a map.
+//!   Type aliases: [StringToF64Namespace](#stringtof64namespace),
+//!   [StrToF64Namespace](#strtof64namespace),
+//!   [StringToCallbackNamespace](#stringtocallbacknamespace),
+//!   [StrToCallbackNamespace](#strtocallbacknamespace)
 //! * [`FnMut(&str,Vec<f64>) -> Option<f64>`](#callback-fnmutstrvec---option) --
 //!   Define variables and custom functions using a callback function.
 //! * [`CachedCallbackNamespace`](#cachedcallbacknamespace) -- Like the above
 //!   callback-based Namespace, but results are cached so the callback is not
 //!   queried more than once for a given variable.
-//! * [`Vec<BTreeMap<String,f64>>`](#vecbtreemapstring64) -- Define variables
-//!   with layered maps.  Each layer is a separate 'scope'.  Higher layers take
-//!   precedence over lower layers.  Very useful for creating scoped
-//!   higher-level-languages.
+//! * Vec<BTreeMap<String,f64>> -- Define variables with layered maps.
+//!   Each layer is a separate 'scope'.  Higher layers take precedence
+//!   over lower layers.  Very useful for creating scoped higher-level-languages.
+//!   Type alias: [LayeredStringToF64Namespace](#layeredstringtof64namespace)
 //!
 //! # Examples
 //!
@@ -29,28 +32,26 @@
 //! }
 //! ```
 //!
-//! ## BTreeMap<String,f64>
+//! ## StringToF64Namespace
 //! ```
-//! use std::collections::BTreeMap;
 //! fn main() -> Result<(), fasteval::Error> {
-//!     let mut map : BTreeMap<String,f64> = BTreeMap::new();
-//!     map.insert("x".to_string(), 2.0);
+//!     let mut ns = fasteval::StringToF64Namespace::new();
+//!     ns.insert("x".to_string(), 2.0);
 //!
-//!     let val = fasteval::ez_eval("x * (x + 1)", &mut map)?;
+//!     let val = fasteval::ez_eval("x * (x + 1)", &mut ns)?;
 //!     assert_eq!(val, 6.0);
 //!
 //!     Ok(())
 //! }
 //! ```
 //!
-//! ## BTreeMap<&'static str,f64>
+//! ## StrToF64Namespace
 //! ```
-//! use std::collections::BTreeMap;
 //! fn main() -> Result<(), fasteval::Error> {
-//!     let mut map : BTreeMap<&'static str,f64> = BTreeMap::new();
-//!     map.insert("x", 2.0);
+//!     let mut ns = fasteval::StrToF64Namespace::new();
+//!     ns.insert("x", 2.0);
 //!
-//!     let val = fasteval::ez_eval("x * (x + 1)", &mut map)?;
+//!     let val = fasteval::ez_eval("x * (x + 1)", &mut ns)?;
 //!     assert_eq!(val, 6.0);
 //!
 //!     Ok(())
@@ -72,6 +73,38 @@
 //!     let val = fasteval::ez_eval("x * (x + 1)", &mut cb)?;
 //!     assert_eq!(val, 6.0);
 //!     assert_eq!(num_lookups, 2);  // Notice that 'x' was looked-up twice.
+//!
+//!     Ok(())
+//! }
+//! ```
+//!
+//! ## StringToCallbackNamespace
+//! ```
+//! fn main() -> Result<(), fasteval::Error> {
+//!     let mut ns = fasteval::StringToCallbackNamespace::new();
+//!     ns.insert("x".to_string(), Box::new(|_args| 2.0));
+//!     ns.insert("double".to_string(), Box::new(|args| {
+//!         args.get(0).map(|arg0| arg0*2.0).unwrap_or(std::f64::NAN)
+//!     }));
+//!
+//!     let val = fasteval::ez_eval("double(x + 1) + 1", &mut ns)?;
+//!     assert_eq!(val, 7.0);
+//!
+//!     Ok(())
+//! }
+//! ```
+//!
+//! ## StrToCallbackNamespace
+//! ```
+//! fn main() -> Result<(), fasteval::Error> {
+//!     let mut ns = fasteval::StrToCallbackNamespace::new();
+//!     ns.insert("x", Box::new(|_args| 2.0));
+//!     ns.insert("double", Box::new(|args| {
+//!         args.get(0).map(|arg0| arg0*2.0).unwrap_or(std::f64::NAN)
+//!     }));
+//!
+//!     let val = fasteval::ez_eval("double(x + 1) + 1", &mut ns)?;
+//!     assert_eq!(val, 7.0);
 //!
 //!     Ok(())
 //! }
@@ -105,21 +138,21 @@
 //!     Ok(())
 //! }
 //! ```
-//! ## Vec<BTreeMap<String,64>>
+//!
+//! ## LayeredStringToF64Namespace
 //! ```
-//! use std::collections::BTreeMap;
 //! fn main() -> Result<(), fasteval::Error> {
-//!     let mut layer1 = BTreeMap::new();
+//!     let mut layer1 = fasteval::StringToF64Namespace::new();
 //!     layer1.insert("x".to_string(), 2.0);
 //!     layer1.insert("y".to_string(), 3.0);
 //!
-//!     let mut layers : Vec<BTreeMap<String,f64>> = vec![layer1];
+//!     let mut layers : fasteval::LayeredStringToF64Namespace = vec![layer1];
 //!
 //!     let val = fasteval::ez_eval("x * y", &mut layers)?;
 //!     assert_eq!(val, 6.0);
 //!
 //!     // Let's add another layer which shadows the previous one:
-//!     let mut layer2 = BTreeMap::new();
+//!     let mut layer2 = fasteval::StringToF64Namespace::new();
 //!     layer2.insert("x".to_string(), 3.0);
 //!     layers.push(layer2);
 //!
@@ -145,11 +178,6 @@
 //! will continue to add more useful Namespace types.
 //!
 //! Here are a few ideas of possibly-useful custom Namespace types:
-//!
-//! * BTreeMap<String, Fn(Vec<f64>)->Option<f64>>  --  This namespace type would provide
-//!   a very convenient way to register variables and custom functions.
-//!   It would be a bit slower than the Callback-based Namespace shown above,
-//!   but it has isolation and composition advantages.
 //!
 //! * Vec<Fn(&str,Vec<f64>)->Option<f64>>  --  This would be a `Layered`
 //!   namespace, with each layer having its own callback.  Really powerful!
@@ -246,7 +274,9 @@ fn key_from_nameargs<'a,'b:'a>(keybuf:&'a mut String, name:&'b str, args:&[f64])
     }
 }
 
-impl EvalNamespace for BTreeMap<String,f64> {
+/// Type alias for `BTreeMap<String,f64>`
+pub type StringToF64Namespace = BTreeMap<String,f64>;
+impl EvalNamespace for StringToF64Namespace {
     #[inline]
     fn lookup(&mut self, name:&str, args:Vec<f64>, keybuf:&mut String) -> Option<f64> {
         let key = key_from_nameargs(keybuf, name, &args);
@@ -254,7 +284,9 @@ impl EvalNamespace for BTreeMap<String,f64> {
     }
 }
 
-impl EvalNamespace for BTreeMap<&'static str,f64> {
+/// Type alias for `BTreeMap<&'static str,f64>`
+pub type StrToF64Namespace = BTreeMap<&'static str,f64>;
+impl EvalNamespace for StrToF64Namespace {
     #[inline]
     fn lookup(&mut self, name:&str, args:Vec<f64>, keybuf:&mut String) -> Option<f64> {
         let key = key_from_nameargs(keybuf, name, &args);
@@ -262,7 +294,43 @@ impl EvalNamespace for BTreeMap<&'static str,f64> {
     }
 }
 
-impl EvalNamespace for Vec<BTreeMap<String,f64>> {
+/// Type alias for `BTreeMap<String, Box<dyn FnMut(Vec<f64>)->f64>>`
+///
+/// This namespace type provides a very convenient way to register variables
+/// and custom functions.  It is a bit slower than a pure callback, but it has
+/// isolation and composition advantages.
+pub type StringToCallbackNamespace<'a> = BTreeMap<String, Box<dyn FnMut(Vec<f64>)->f64 + 'a>>;
+impl EvalNamespace for StringToCallbackNamespace<'_> {
+    #[inline]
+    fn lookup(&mut self, name:&str, args:Vec<f64>, _keybuf:&mut String) -> Option<f64> {
+        if let Some(f) = self.get_mut(name) {
+            Some(f(args))
+        } else {
+            None
+        }
+    }
+}
+
+/// Type alias for `BTreeMap<&'static str, Box<dyn FnMut(Vec<f64>)->f64>>`
+///
+/// This namespace type provides a very convenient way to register variables
+/// and custom functions.  It is a bit slower than a pure callback, but it has
+/// isolation and composition advantages.
+pub type StrToCallbackNamespace<'a> = BTreeMap<&'static str, Box<dyn FnMut(Vec<f64>)->f64 + 'a>>;
+impl EvalNamespace for StrToCallbackNamespace<'_> {
+    #[inline]
+    fn lookup(&mut self, name:&str, args:Vec<f64>, _keybuf:&mut String) -> Option<f64> {
+        if let Some(f) = self.get_mut(name) {
+            Some(f(args))
+        } else {
+            None
+        }
+    }
+}
+
+/// Type alias for `Vec<BTreeMap<String,f64>>`
+pub type LayeredStringToF64Namespace = Vec<BTreeMap<String,f64>>;
+impl EvalNamespace for LayeredStringToF64Namespace {
     #[inline]
     fn lookup(&mut self, name:&str, args:Vec<f64>, keybuf:&mut String) -> Option<f64> {
         let key = key_from_nameargs(keybuf, name, &args);
@@ -274,6 +342,7 @@ impl EvalNamespace for Vec<BTreeMap<String,f64>> {
     }
 }
 
+// I'm not making a type alias for this because of the un-name-ability of closures:
 impl<F> EvalNamespace for F where F:FnMut(&str,Vec<f64>)->Option<f64> {
     #[inline]
     fn lookup(&mut self, name:&str, args:Vec<f64>, _keybuf:&mut String) -> Option<f64> {
