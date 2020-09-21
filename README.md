@@ -18,7 +18,7 @@ Add this to your Cargo.toml:
     fasteval = "0.2.4"
 
 
-You should **always** build with `RUSTFLAGS="--emit=asm"` because [it greatly improves LLVM's compile-time optimizations](http://likebike.com/posts/How_To_Write_Fast_Rust_Code.html#emit-asm).
+You can use [`codegen-units=1`](https://doc.rust-lang.org/stable/cargo/reference/manifest.html#the-profile-sections) for better run-time performance. In some cases [it will greatly improves LLVM's compile-time optimizations](http://likebike.com/posts/How_To_Write_Fast_Rust_Code.html#emit-asm).
 
 If you are using a 'nightly' Rust compiler, you can build with `--features nightly` to enable optimizations that aren't yet available in 'stable' Rust.
 
