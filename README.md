@@ -13,18 +13,19 @@ Documentation:
 ## Usage
 
 Add this to your Cargo.toml:
-
-    [dependencies]
-    fasteval = "0.2.4"
+```toml
+[dependencies]
+fasteval = "0.2.4"
+```
 
 
 You can use [`codegen-units=1`](https://doc.rust-lang.org/stable/cargo/reference/manifest.html#the-profile-sections) for better run-time performance. In some cases [it will greatly improves LLVM's compile-time optimizations](http://likebike.com/posts/How_To_Write_Fast_Rust_Code.html#emit-asm).
 
-If you are using a 'nightly' Rust compiler, you can build with `--features nightly` to enable optimizations that aren't yet available in 'stable' Rust.
+If you are using a 'nightly' Rust compiler, you can build with `features = ["nightly"]` to enable optimizations that aren't yet available in 'stable' Rust.
 
-You can build with `--no-default-features` to disable alphabetical keywords like `and`, `or`, `NaN`, `inf`.  (These words might be important to your applications.)
+You can build with `default-features = false` to disable alphabetical keywords like `and`, `or`, `NaN`, `inf`.  (These words might be important to your applications.)
 
-You can build with `--features unsafe-vars` to enable [Unsafe Variables](https://docs.rs/fasteval/#unsafe-variables).
+You can build with `features = ["unsafe-vars"]` to enable [Unsafe Variables](https://docs.rs/fasteval/#unsafe-variables).
 
 
 ## Features
