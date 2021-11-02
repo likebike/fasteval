@@ -6,6 +6,8 @@ use fasteval::{Evaler, ExpressionI, Parser, Error, Slab, EmptyNamespace, CachedC
 
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
+use std::process::Command;
+use std::env;
 
 fn parse_raw<'a>(s:&str, slab:&'a mut Slab) -> Result<ExpressionI,Error> {
     Parser::new().parse(s, &mut slab.ps)
@@ -61,9 +63,20 @@ fn aaa_test_b0() {
     ok_parse("3.14 + 4.99999999999999999999999999999999999999999999999999999", &mut slab);
     assert_eq!(format!("{:?}",&slab),
 "Slab{ exprs:{ 0:Expression { first: EConstant(3.14), pairs: [ExprPair(EAdd, EConstant(5.0))] } }, vals:{}, instrs:{} }");
-    // Go can parse this, but not Rust:
-    assert_eq!(parse_raw("3.14 + 4.999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999", &mut slab),
+
+    // Go can parse this, but Rust couldn't before 1.55.0
+    let ver = Command::new(env::var_os("RUSTC").unwrap_or_else(|| "rustc".into())).arg("--version").output().ok()
+        .and_then(|o| String::from_utf8(o.stdout).ok()).as_ref().and_then(|v| v.split_whitespace().nth(1))
+        .map(|v| v.split('.').flat_map(|n| n.parse()).collect::<Vec<u16>>()).unwrap_or(vec![]);
+    if ver.len() >= 2 && (ver[2] > 1 || (ver[2] == 1 && ver[1] >= 55)) {
+        ok_parse("3.14 + 4.999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999", &mut slab);
+        assert_eq!(format!("{:?}",&slab),
+"Slab{ exprs:{ 0:Expression { first: EConstant(3.14), pairs: [ExprPair(EAdd, EConstant(5.0))] } }, vals:{}, instrs:{} }");
+    } else {
+        assert_eq!(parse_raw("3.14 + 4.999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999", &mut slab),
 Err(Error::ParseF64("4.999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999".to_string())));
+    }
+
     ok_parse("3.14 + 0.9999", &mut slab);
     assert_eq!(format!("{:?}",&slab),
 "Slab{ exprs:{ 0:Expression { first: EConstant(3.14), pairs: [ExprPair(EAdd, EConstant(0.9999))] } }, vals:{}, instrs:{} }");
