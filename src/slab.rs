@@ -162,6 +162,8 @@ pub struct Slab {
 /// Here is an example of correct and incorrect use of unsafe variable pointers:
 ///
 /// ```
+/// # #[cfg(feature="unsafe-vars")]
+/// # {
 /// use fasteval::Evaler;    // use this trait so we can call eval().
 /// use fasteval::Compiler;  // use this trait so we can call compile().
 ///
@@ -208,6 +210,7 @@ pub struct Slab {
 ///
 ///     Ok(())
 /// }
+/// # }
 /// 
 /// ```
 pub struct ParseSlab {
