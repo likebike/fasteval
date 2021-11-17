@@ -298,6 +298,8 @@
 //! feature is not enabled by default because it slightly slows down other
 //! non-variable operations.
 //! ```
+//! # #[cfg(feature="unsafe-vars")]
+//! # {
 //! use fasteval::Evaler;    // use this trait so we can call eval().
 //! use fasteval::Compiler;  // use this trait so we can call compile().
 //! fn main() -> Result<(), fasteval::Error> {
@@ -327,6 +329,7 @@
 //!
 //!     Ok(())
 //! }
+//! # }
 //! ```
 //!
 //! ## Let's Develop an Intuition of `fasteval` Internals
@@ -538,7 +541,7 @@
 //!
 //! All numeric results can be found in `fasteval/benches/bench.rs`.
 //!
-//! See the [detailed post about my benchmarking methology]{http://likebike.com/posts/How_To_Write_Fast_Rust_Code.html#how-to-measure}
+//! See the [detailed post about my benchmarking methology](http://likebike.com/posts/How_To_Write_Fast_Rust_Code.html#how-to-measure)
 //! on my blog.
 //!
 //! # How is `fasteval` so fast?
