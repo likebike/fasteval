@@ -389,7 +389,12 @@ impl Evaler for StdFunc {
             EUnsafeVar{name, ..} => { dst.insert(name.clone()); }
 
             EVar(s) => { dst.insert(s.clone()); }
-            EFunc{name, ..} => { dst.insert(name.clone()); }
+            EFunc{name, args} => {
+                dst.insert(name.clone());
+                for arg in args {
+                    get_expr!(slab.ps,arg)._var_names(slab,dst);
+                }
+            }
 
             EFuncInt(xi) | EFuncCeil(xi) | EFuncFloor(xi) | EFuncAbs(xi) | EFuncSign(xi) | EFuncSin(xi) | EFuncCos(xi) | EFuncTan(xi) | EFuncASin(xi) | EFuncACos(xi) | EFuncATan(xi) | EFuncSinH(xi) | EFuncCosH(xi) | EFuncTanH(xi) | EFuncASinH(xi) | EFuncACosH(xi) | EFuncATanH(xi) => get_expr!(slab.ps,xi)._var_names(slab,dst),
 
@@ -542,7 +547,13 @@ impl Evaler for Instruction {
             IUnsafeVar{name, ..} => { dst.insert(name.clone()); }
 
             IVar(s) => { dst.insert(s.clone()); }
-            IFunc{name, ..} => { dst.insert(name.clone()); }
+            IFunc{name, args} => {
+                dst.insert(name.clone());
+                for ic in args {
+                    let iconst : Instruction;
+                    ic_to_instr!(slab.cs,iconst,ic)._var_names(slab,dst);
+                }
+            }
 
             IConst(_) => (),
 
