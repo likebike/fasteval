@@ -3,7 +3,7 @@ use fasteval::parser::{PrintFunc, ExpressionOrString::{EExpr, EStr}};
 #[cfg(feature="eval-builtin")]
 use fasteval::parser::{EvalFunc, KWArg};
 use fasteval::compiler::IC;
-use fasteval::compiler::Instruction::{self, IConst, INeg, INot, IInv, IAdd, IMul, IMod, IExp, ILT, ILTE, IEQ, INE, IGTE, IGT, IAND, IOR, IVar, IFunc, IFuncInt, IFuncCeil, IFuncFloor, IFuncAbs, IFuncSign, IFuncLog, IFuncRound, IFuncMin, IFuncMax, IFuncSin, IFuncCos, IFuncTan, IFuncASin, IFuncACos, IFuncATan, IFuncSinH, IFuncCosH, IFuncTanH, IFuncASinH, IFuncACosH, IFuncATanH, IPrintFunc};
+use fasteval::compiler::Instruction::{self, IConst, INeg, INot, IInv, IAdd, IMul, IMod, IExp, ILT, ILTE, IEQ, INE, IGTE, IGT, IAND, IOR, IVar, IFunc, IFuncInt, IFuncCeil, IFuncFloor, IFuncAbs, IFuncSign, IFuncLog, IFuncRound, IFuncMin, IFuncMax, IFuncSin, IFuncCos, IFuncTan, IFuncASin, IFuncACos, IFuncATan, IFuncSinH, IFuncCosH, IFuncTanH, IFuncASinH, IFuncACosH, IFuncATanH, IFuncSqrt, IPrintFunc};
 #[cfg(feature="eval-builtin")]
 use fasteval::compiler::Instruction::IEvalFunc;
 
@@ -519,6 +519,10 @@ fn all_instrs() {
     // IFuncATanH
     comp_chk("atanh(0)", IConst(0.0), "CompileSlab{ instrs:{} }", 0.0);
     comp_chk("atanh(w)", IFuncATanH(InstructionI(0)), "CompileSlab{ instrs:{ 0:IVar(\"w\") } }", 0.0);
+
+    // IFuncSqrt
+    comp_chk("sqrt(0)", IConst(0.0), "CompileSlab{ instrs:{} }", 0.0);
+    comp_chk("sqrt(w)", IFuncSqrt(InstructionI(0)), "CompileSlab{ instrs:{ 0:IVar(\"w\") } }", 0.0);
 
     // IPrintFunc
     comp_chk(r#"print("test",1.23)"#, IPrintFunc(PrintFunc(vec![EStr("test".to_string()), EExpr(ExpressionI(0))])), "CompileSlab{ instrs:{} }", 1.23);

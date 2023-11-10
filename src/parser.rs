@@ -134,8 +134,9 @@ pub enum StdFunc {
     EFuncASinH(ExpressionI),
     EFuncACosH(ExpressionI),
     EFuncATanH(ExpressionI),
+    EFuncSqrt(ExpressionI),
 }
-use StdFunc::{EVar, EFunc, EFuncInt, EFuncCeil, EFuncFloor, EFuncAbs, EFuncSign, EFuncLog, EFuncRound, EFuncMin, EFuncMax, EFuncE, EFuncPi, EFuncSin, EFuncCos, EFuncTan, EFuncASin, EFuncACos, EFuncATan, EFuncSinH, EFuncCosH, EFuncTanH, EFuncASinH, EFuncACosH, EFuncATanH};
+use StdFunc::{EVar, EFunc, EFuncInt, EFuncCeil, EFuncFloor, EFuncAbs, EFuncSign, EFuncLog, EFuncRound, EFuncMin, EFuncMax, EFuncE, EFuncPi, EFuncSin, EFuncCos, EFuncTan, EFuncASin, EFuncACos, EFuncATan, EFuncSinH, EFuncCosH, EFuncTanH, EFuncASinH, EFuncACosH, EFuncATanH, EFuncSqrt};
 #[cfg(feature="unsafe-vars")]
 use StdFunc::EUnsafeVar;
 
@@ -839,6 +840,13 @@ impl Parser {
                                                      None => return Err(Error::Unreachable),
                                                  }))
                 } else { Err(Error::WrongArgs("atanh: expected one arg".to_string())) }
+            }
+            "sqrt" => {
+                if args.len()==1 { Ok(EFuncSqrt(match args.pop() {
+                                                     Some(xi) => xi,
+                                                     None => return Err(Error::Unreachable),
+                                                 }))
+                } else { Err(Error::WrongArgs("sqrt: expected one arg".to_string())) }
             }
 
             _ => {

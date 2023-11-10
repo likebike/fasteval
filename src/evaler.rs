@@ -4,7 +4,7 @@
 //! `Instruction`s also have the option of using the `eval_compiled!()` macro
 //! which is much faster for common cases.
 
-
+#![allow(invalid_reference_casting)] // Because casting & to &mut is UB
 
 use crate as fasteval;
 
@@ -15,20 +15,19 @@ use crate::parser::{Expression,
                     Value::{self, EConstant, EUnaryOp, EStdFunc, EPrintFunc},
                     UnaryOp::{self, EPos, ENeg, ENot, EParentheses},
                     BinaryOp::{self, EAdd, ESub, EMul, EDiv, EMod, EExp, ELT, ELTE, EEQ, ENE, EGTE, EGT, EOR, EAND},
-                    StdFunc::{self, EVar, EFunc, EFuncInt, EFuncCeil, EFuncFloor, EFuncAbs, EFuncSign, EFuncLog, EFuncRound, EFuncMin, EFuncMax, EFuncE, EFuncPi, EFuncSin, EFuncCos, EFuncTan, EFuncASin, EFuncACos, EFuncATan, EFuncSinH, EFuncCosH, EFuncTanH, EFuncASinH, EFuncACosH, EFuncATanH},
+                    StdFunc::{self, EVar, EFunc, EFuncInt, EFuncCeil, EFuncFloor, EFuncAbs, EFuncSign, EFuncLog, EFuncRound, EFuncMin, EFuncMax, EFuncE, EFuncPi, EFuncSin, EFuncCos, EFuncTan, EFuncASin, EFuncACos, EFuncATan, EFuncSinH, EFuncCosH, EFuncTanH, EFuncASinH, EFuncACosH, EFuncATanH, EFuncSqrt},
                     PrintFunc,
                     ExpressionOrString::{EExpr, EStr},
                     remove_no_panic};
 #[cfg(feature="unsafe-vars")]
 use crate::parser::StdFunc::EUnsafeVar;
-use crate::compiler::{log, IC, Instruction::{self, IConst, INeg, INot, IInv, IAdd, IMul, IMod, IExp, ILT, ILTE, IEQ, INE, IGTE, IGT, IOR, IAND, IVar, IFunc, IFuncInt, IFuncCeil, IFuncFloor, IFuncAbs, IFuncSign, IFuncLog, IFuncRound, IFuncMin, IFuncMax, IFuncSin, IFuncCos, IFuncTan, IFuncASin, IFuncACos, IFuncATan, IFuncSinH, IFuncCosH, IFuncTanH, IFuncASinH, IFuncACosH, IFuncATanH, IPrintFunc}};
+use crate::compiler::{log, IC, Instruction::{self, IConst, INeg, INot, IInv, IAdd, IMul, IMod, IExp, ILT, ILTE, IEQ, INE, IGTE, IGT, IOR, IAND, IVar, IFunc, IFuncInt, IFuncCeil, IFuncFloor, IFuncAbs, IFuncSign, IFuncLog, IFuncRound, IFuncMin, IFuncMax, IFuncSin, IFuncCos, IFuncTan, IFuncASin, IFuncACos, IFuncATan, IFuncSinH, IFuncCosH, IFuncTanH, IFuncASinH, IFuncACosH, IFuncATanH, IFuncSqrt, IPrintFunc}};
 #[cfg(feature="unsafe-vars")]
 use crate::compiler::Instruction::IUnsafeVar;
 
 use std::collections::BTreeSet;
 use std::f64::consts;
 use std::fmt;
-
 
 
 /// The same as `evaler.eval(&slab, &mut ns)`, but more efficient for common cases.
@@ -391,7 +390,7 @@ impl Evaler for StdFunc {
             EVar(s) => { dst.insert(s.clone()); }
             EFunc{name, ..} => { dst.insert(name.clone()); }
 
-            EFuncInt(xi) | EFuncCeil(xi) | EFuncFloor(xi) | EFuncAbs(xi) | EFuncSign(xi) | EFuncSin(xi) | EFuncCos(xi) | EFuncTan(xi) | EFuncASin(xi) | EFuncACos(xi) | EFuncATan(xi) | EFuncSinH(xi) | EFuncCosH(xi) | EFuncTanH(xi) | EFuncASinH(xi) | EFuncACosH(xi) | EFuncATanH(xi) => get_expr!(slab.ps,xi)._var_names(slab,dst),
+            EFuncInt(xi) | EFuncCeil(xi) | EFuncFloor(xi) | EFuncAbs(xi) | EFuncSign(xi) | EFuncSin(xi) | EFuncCos(xi) | EFuncTan(xi) | EFuncASin(xi) | EFuncACos(xi) | EFuncATan(xi) | EFuncSinH(xi) | EFuncCosH(xi) | EFuncTanH(xi) | EFuncASinH(xi) | EFuncACosH(xi) | EFuncATanH(xi) | EFuncSqrt(xi) => get_expr!(slab.ps,xi)._var_names(slab,dst),
 
             EFuncE | EFuncPi => (),
 
@@ -448,6 +447,7 @@ impl Evaler for StdFunc {
             EFuncASinH(expr_i) => Ok(get_expr!(slab.ps,expr_i).eval(slab,ns)?.asinh()),
             EFuncACosH(expr_i) => Ok(get_expr!(slab.ps,expr_i).eval(slab,ns)?.acosh()),
             EFuncATanH(expr_i) => Ok(get_expr!(slab.ps,expr_i).eval(slab,ns)?.atanh()),
+            EFuncSqrt(expr_i) => Ok(get_expr!(slab.ps,expr_i).eval(slab,ns)?.sqrt()),
 
             EFuncRound{modulus:modulus_opt, expr:expr_i} => {
                 let modulus = match modulus_opt {
@@ -546,7 +546,7 @@ impl Evaler for Instruction {
 
             IConst(_) => (),
 
-            INeg(ii) | INot(ii) | IInv(ii) | IFuncInt(ii) | IFuncCeil(ii) | IFuncFloor(ii) | IFuncAbs(ii) | IFuncSign(ii) | IFuncSin(ii) | IFuncCos(ii) | IFuncTan(ii) | IFuncASin(ii) | IFuncACos(ii) | IFuncATan(ii) | IFuncSinH(ii) | IFuncCosH(ii) | IFuncTanH(ii) | IFuncASinH(ii) | IFuncACosH(ii) | IFuncATanH(ii) => get_instr!(slab.cs,ii)._var_names(slab,dst),
+            INeg(ii) | INot(ii) | IInv(ii) | IFuncInt(ii) | IFuncCeil(ii) | IFuncFloor(ii) | IFuncAbs(ii) | IFuncSign(ii) | IFuncSin(ii) | IFuncCos(ii) | IFuncTan(ii) | IFuncASin(ii) | IFuncACos(ii) | IFuncATan(ii) | IFuncSinH(ii) | IFuncCosH(ii) | IFuncTanH(ii) | IFuncASinH(ii) | IFuncACosH(ii) | IFuncATanH(ii) | IFuncSqrt(ii) => get_instr!(slab.cs,ii)._var_names(slab,dst),
 
             ILT(lic,ric) | ILTE(lic,ric) | IEQ(lic,ric) | INE(lic,ric) | IGTE(lic,ric) | IGT(lic,ric) | IMod{dividend:lic, divisor:ric} | IExp{base:lic, power:ric} | IFuncLog{base:lic, of:ric} | IFuncRound{modulus:lic, of:ric} => {
                 let mut iconst : Instruction;
@@ -611,6 +611,7 @@ impl Evaler for Instruction {
             IFuncASinH(i) => Ok( eval_compiled_ref!(get_instr!(slab.cs,i), slab, ns).asinh() ),
             IFuncACosH(i) => Ok( eval_compiled_ref!(get_instr!(slab.cs,i), slab, ns).acosh() ),
             IFuncATanH(i) => Ok( eval_compiled_ref!(get_instr!(slab.cs,i), slab, ns).atanh() ),
+            IFuncSqrt(i) => Ok( eval_compiled_ref!(get_instr!(slab.cs,i), slab, ns).sqrt() ),
 
             IFuncRound{modulus:modic, of:ofic} => {
                 let modulus = eval_ic_ref!(modic, slab, ns);
